@@ -1,0 +1,57 @@
+{
+  "schemaVersion": "1",
+  "name": "Activation onboarding",
+  "purpose": "marketing",
+  "topic": "marketing",
+  "providerConnectionId": "provider_resend",
+  "senderId": "sender_product",
+  "entryStepId": "welcome",
+  "reentry": { "mode": "never" },
+  "sendWindow": {
+    "timezoneSource": "contact",
+    "fallbackTimezone": "Europe/Amsterdam",
+    "days": ["MON", "TUE", "WED", "THU", "FRI"],
+    "start": "09:00",
+    "end": "17:00"
+  },
+  "exitOn": [
+    { "eventType": "product.activated", "correlation": "contactId", "since": "enrollment_start", "reason": "converted" },
+    { "eventType": "reply.received", "correlation": "enrollmentId", "since": "enrollment_start", "reason": "replied" }
+  ],
+  "steps": [
+    {
+      "id": "welcome",
+      "type": "send_email",
+      "templateVersionId": "tplv_welcome_1",
+      "props": {
+        "firstName": { "path": "contact.firstName", "default": "there" },
+        "activationUrl": { "path": "variables.activationUrl", "required": true }
+      },
+      "onFailure": "attention",
+      "next": "await_activation"
+    },
+    {
+      "id": "await_activation",
+      "type": "wait_for_event",
+      "eventType": "product.activated",
+      "correlation": "contactId",
+      "since": "enrollment_start",
+      "timeout": "P3D",
+      "onEvent": "converted",
+      "onTimeout": "nudge"
+    },
+    {
+      "id": "nudge",
+      "type": "send_email",
+      "templateVersionId": "tplv_activation_nudge_1",
+      "props": {
+        "firstName": { "path": "contact.firstName", "default": "there" },
+        "activationUrl": { "path": "variables.activationUrl", "required": true }
+      },
+      "onFailure": "attention",
+      "next": "finished"
+    },
+    { "id": "converted", "type": "end", "reason": "converted" },
+    { "id": "finished", "type": "end", "reason": "sequence_completed" }
+  ]
+}
