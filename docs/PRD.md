@@ -16,6 +16,9 @@ The core product is sequence authoring **and execution**. A template gallery or 
 - Resend is the first delivery provider; provider-specific behavior stays behind an adapter.
 - Docker Compose deployment. No product dashboard, editor, or other operator UI.
 - This phase delivers the PRD and architecture in a local Git repository.
+- Configured OAuth login and client-ID/client-secret machine access are v1 requirements.
+- Initial setup creates an administrator. Administrators can create accounts; self-registration is disabled unless `ALLOW_REGISTRATION=true`, and then works through CLI and MCP.
+- Ship agent interaction skills, maintained documentation, and executable repository sanity checks.
 
 ### Proposed defaults
 
@@ -25,7 +28,7 @@ These are design assumptions, not facts supplied by the product owner:
 - Existing agents generate copy and TSX. Reflow supplies schemas, reusable assets, validation, rendering, and execution; it does not require its own LLM subscription or model orchestration.
 - V1 sends permission-based lifecycle and marketing email. Contact discovery, scraping, and mailbox warmup are outside scope.
 - Production v1 supports a single host with backups and documented recovery. Multi-host high availability is a later topology.
-- Headless access uses workspace credentials; browser-based OAuth onboarding for arbitrary third-party MCP clients is deferred.
+- Human OAuth uses a configured external identity provider; service clients authenticate without a browser using scoped client credentials. No Reflow account-management UI is required.
 - Default marketing topic is `marketing`; transactional purpose requires an explicit classification and policy.
 
 ## 2. Users and success measures
@@ -57,14 +60,14 @@ Proposed acceptance targets, measured on a published reference deployment rather
 | Execution | Send, wait, event wait, branch, end; per-contact enrollments; schedules; pause/resume/cancel | Arbitrary loops, parallel graphs, cross-channel orchestration |
 | Audience | Contact upsert/import, tags, static snapshots, filtered selection, dedupe, consent, suppressions | Continuous segment membership and native CRM connectors |
 | Delivery | Resend, sender/domain status, caps, test send, event ingestion, reply correlation | Other production providers, cross-provider routing, attachments |
-| Agents | MCP stdio bridge, authenticated Streamable HTTP for supported configured clients, CLI JSON, scoped credentials | Universal browser OAuth onboarding |
+| Agents | MCP stdio bridge, authenticated Streamable HTTP, configured OAuth, CLI JSON, scoped client credentials, packaged Reflow skills | Additional client compatibility as protocols evolve |
 | Operations | Audit, status, recovery, exports, alerts/metrics, tested Compose deployment | Multi-host HA and managed provisioning |
 
 ## 4. Workflow catalog
 
 | ID | Workflow | Required behavior | Phase |
 |---|---|---|---|
-| W01 | Bootstrap workspace | Create owner and workspace through a one-time host command; issue scoped credentials; no public signup | V1 |
+| W01 | Bootstrap workspace | Initial setup creates administrator and workspace atomically; later restarts never recreate/reset the account | V1 |
 | W02 | Connect Resend | Register secret reference, check credentials, configure sender/domain, register webhook, inspect health | V1 |
 | W03 | Author email template | Agent uploads TSX, props JSON Schema, fixtures, metadata; build/render/validate; publish immutable version | V1 |
 | W04 | Reuse sequence recipe | Clone a recipe with timings, copy defaults, template references, and parameter schema into a draft | V1 |
@@ -85,6 +88,10 @@ Proposed acceptance targets, measured on a published reference deployment rather
 | W19 | Dynamic audience | Enter/exit when segment membership changes | Later; explicit event triggers in V1 |
 | W20 | Provider migration | New sends/enrollments use another configured adapter after capability validation | Later |
 | W21 | Data lifecycle | Export contact data, cancel active work before erasure, apply retention and suppression tombstones | V1 |
+| W22 | Admin provisioning | Administrator creates/disables accounts and grants roles through CLI or MCP | V1 |
+| W23 | Optional registration | CLI/MCP registration succeeds only when server-side `ALLOW_REGISTRATION=true`; account starts without administrative rights | V1 |
+| W24 | Configured OAuth | Start login from CLI/MCP, authenticate with the configured provider, complete the bound login challenge | V1 |
+| W25 | Service-triggered flows | Client ID/secret obtains a scoped access token; emit an event or enroll with stable caller idempotency | V1 |
 
 ## 5. Authoring and templates
 
@@ -180,7 +187,13 @@ Engagement tracking is optional and disabled by workspace policy when inappropri
 
 **FR-I05.** Better Auth is mounted in Hono. Workspace membership, roles, service principals, and per-operation scopes are enforced server-side for every interface, including asset reads. Workspace IDs in arguments never grant access. [Hono integration](https://better-auth.com/docs/integrations/hono).
 
-**FR-I06.** V1 supports headless organization-owned API keys for CLI/stdio, and pre-provisioned machine OAuth credentials for configured HTTP MCP clients. Standard MCP clients that require interactive authorization must use the stdio bridge until a compatible interactive flow exists. Do not present API-key HTTP access as universal OAuth compatibility. [Better Auth key support](https://better-auth.com/docs/plugins/api-key).
+**FR-I06.** V1 supports configured OAuth/OIDC human login and OAuth client-credentials authentication for service clients. CLI and MCP expose the same login challenge lifecycle, account management, and registration policy. Organization-owned API keys remain an optional compatibility mechanism. Authentication exchange endpoints are necessarily reachable before login but never expose authenticated product operations. See [authentication specification](AUTHENTICATION.md) for provisioning, policy, identity linking, OAuth flows, and machine-secret handling.
+
+**FR-I07.** Initial setup creates a deployment administrator atomically and only once. Administrators can create other accounts and explicitly assign administrative privileges. Prevent removal/disablement of the last enabled deployment administrator. Workspace administration alone does not confer deployment-wide account creation or registration-policy control.
+
+**FR-I08.** `ALLOW_REGISTRATION` defaults to false. Enforce it on password registration, OAuth first-time identity creation, raw Better Auth routes, CLI, and MCP. When true, CLI/MCP self-registration creates a non-admin account and isolated workspace according to deployment policy; it never joins an existing workspace without an explicit grant. See the auth document for verification and send activation rules.
+
+**FR-I09.** Publish an installable `reflow` agent skill covering authentication, authoring, templates, simulation, launch, monitoring, and recovery. The skill must discover current capabilities, preserve operation IDs/idempotency keys, and use Reflow operations instead of bypassing its send ledger through a provider. Skill instructions must distinguish proposed commands from implemented behavior.
 
 Default roles: viewer, author, sender, operator, administrator. Author can edit/publish assets but cannot enroll live recipients or send tests. Sender can launch within policy. Operator can pause, inspect, replay safe ingestion, and reconcile with a dedicated scope. Administrator manages credentials and policy. Keys cannot grant scopes their creator lacks.
 
@@ -218,10 +231,15 @@ Default roles: viewer, author, sender, operator, administrator. Author can edit/
 | A17: Headless auth | Bootstrap, key rotation/revocation, stdio and supported HTTP MCP client connections work without a product UI |
 | A18: Replay-safe upgrades | Historical workflow fixtures replay under the candidate deployment; incompatible changes are blocked |
 | A19: Reply stop | Correlated inbound reply halts later sends; unrelated or duplicated inbound events do not alter another run |
+| A20: Setup/admin lifecycle | Concurrent/repeated setup creates exactly one initial admin; administrator can provision accounts via both interfaces; last-admin removal fails |
+| A21: Registration policy | Disabled signup is rejected across all transports and OAuth auto-provisioning; enabled CLI/MCP signup creates no elevated privileges |
+| A22: Configured OAuth | State/PKCE/nonce, redirect, expiry, issuer and account-linking failures are rejected; valid configured-provider login works from CLI and MCP |
+| A23: Client secrets | Machine token can trigger only its scoped workspace flows; invalid/rotated/revoked secrets and wrong-audience tokens fail; retries dedupe |
+| A24: Repository and skills | A clean checkout runs documented checks; Reflow skill installs and resolves its references; CI runs the same checks; runtime parity tests are required before release |
 
 ## 13. Implementation milestones
 
-1. **Foundation and contracts:** TypeScript workspace, shared schemas, Hono/Better Auth, workspace authorization, database migrations, CLI, MCP, operation IDs and audit. Exit: A02/A10/A17 for basic operations.
+1. **Foundation and contracts:** TypeScript workspace, shared schemas, Hono/Better Auth, configured OAuth, admin bootstrap, gated registration, scoped client credentials, workspace authorization, database migrations, CLI, MCP, operation IDs, audit, repository checks, and agent skills. Exit: A02/A10/A17/A20–A24 for implemented operations.
 2. **Authoring:** Isolated React Email render/build path, immutable assets, recipe cloning, validation, simulation. Exit: fixture renders plus A11/A12 authoring checks.
 3. **Durable vertical slice:** Enrollment workflow, timers, outbox, send ledger, Resend adapter, provider retry safeguards. Exit: end-to-end welcome email and A03–A05/A08.
 4. **Events and lifecycle:** Verified inbox, suppression, global exits, reply correlation, branches, audience import, controls. Exit: A06/A07/A09/A13/A14/A19.
@@ -232,8 +250,8 @@ No calendar estimate is asserted before the authentication and renderer isolatio
 ## 14. Decisions to revisit without blocking the draft
 
 - Confirm expected audience size and peak send rate to replace proposed benchmark targets.
-- Confirm whether Social Robot already has an identity provider that Reflow should trust; default is standalone Better Auth ownership.
-- Confirm intended MCP clients and whether they support configured machine tokens; stdio bridge is the default compatibility path.
+- Supply the OAuth provider issuer/client configuration at deployment; configured OAuth support is required, while Better Auth owns Reflow identities and authorization.
+- Confirm intended MCP clients for the interoperability test matrix; CLI/stdio and configured OAuth HTTP paths are required.
 - Confirm receiving domain availability for native reply-stop; external authenticated reply events work independently.
 - Decide whether stronger isolation is required for untrusted third-party template authors before offering hosted multi-tenant access.
 - Confirm marketing topics, consent sources, retention, and who can authorize replacement sends after ambiguous outcomes.

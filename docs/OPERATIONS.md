@@ -10,11 +10,14 @@ Common input fields: `workspaceId`, `idempotencyKey` for mutations, `expectedRev
 
 | Resource | Actions in v1 | Scope / important semantics |
 |---|---|---|
-| `auth` | `whoami` | Current principal, workspace memberships, effective scopes; no secrets |
+| `auth` | `whoami`, `providers`, `login_start`, `login_complete`, `login_status`, `login_password`, `logout`, `register`, `verify_email`, `password_reset_start`, `password_reset_complete`, `authorization_approve`, `authorization_deny` | Login/registration challenge operations are available before authentication with rate limits; authorization decisions require the authenticated subject |
+| `account` | `create`, `get`, `list`, `update`, `disable`, `enable`, `set_role`, `revoke_sessions`, `link_identity` | Deployment admin for provisioning/roles; self-profile reads/updates allowed by explicit field policy; protect last admin |
+| `registration_policy` | `get`, `update` | Public get exposes effective enabled flag only; deployment admin changes default-false policy |
 | `workspace` | `create`, `get`, `list`, `update`, `suspend`, `resume` | Admin except permitted reads; creating another workspace requires deployment permission |
 | `member` | `add`, `list`, `update`, `remove` | Admin; no implicit invitation email |
 | `credential` | `create`, `list`, `revoke`, `rotate` | Admin; credential emitted once; cannot grant greater permissions |
-| `oauth_client` | `create`, `list`, `update`, `revoke` | Admin; pre-provisioned machine clients and explicit scopes |
+| `oauth_client` | `create`, `list`, `update`, `rotate_secret`, `revoke` | Admin; workspace-bound machine clients and explicit scopes; show secret once |
+| `oauth_provider` | `create`, `get`, `list`, `update`, `validate`, `disable`, `rotate_secret` | Deployment admin; configured external OAuth/OIDC login and protected secret references |
 | `policy` | `get`, `update` | Policy admin for changes; caps, purposes, topics, retention |
 | `provider` | `create`, `get`, `list`, `update`, `validate`, `disable`, `capabilities`, `rotate_secret` | Integration admin; return references/health, never stored secret values |
 | `sender` | `create`, `get`, `list`, `update`, `verify`, `disable` | Integration admin; verification returns status and DNS instructions, does not change DNS |
@@ -41,6 +44,8 @@ Common input fields: `workspaceId`, `idempotencyKey` for mutations, `expectedRev
 | `system` | `health`, `doctor`, `capabilities` | Health/read or operator for detailed diagnostics; excludes secrets |
 
 Archive replaces hard-delete for published/reference-bearing assets. Mutable unreferenced drafts can be discarded by a documented archive retention policy. All product-side recovery is accessible in both interfaces, but raw database restore and Temporal schema maintenance remain privileged host operations.
+
+CLI convenience commands `reflow auth login --provider <id>` and `reflow auth login --client-id <id> --client-secret-file <path>` orchestrate the underlying login challenge or OAuth token exchange. The MCP stdio bridge can acquire machine tokens from protected configuration before connecting. Token exchange and standard HTTP MCP authorization run at transport-level OAuth endpoints, not as a protected tool that requires the token it is issuing. See [authentication](AUTHENTICATION.md). Bootstrap is `reflow setup` through host CLI; after setup every account/flow operation has both interfaces. `reflow skill export` / `reflow_skill_export` must expose the matching installed-server skill package at release.
 
 ## Results and errors
 

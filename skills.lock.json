@@ -1,0 +1,53 @@
+{
+  "version": 1,
+  "skills": [
+    {
+      "name": "resend",
+      "repository": "resend/resend-skills",
+      "revision": "2a9310fb040fd06a17ce1e8e7aea478d79daea62",
+      "path": "skills/resend"
+    },
+    {
+      "name": "temporal-developer",
+      "repository": "temporalio/skill-temporal-developer",
+      "revision": "ef2c99ac6ff12dec98994a0c63016126bf4cd215",
+      "path": "."
+    },
+    {
+      "name": "best-practices",
+      "repository": "better-auth/skills",
+      "revision": "20c9e88a5c007461a703f1c213572b073196113e",
+      "path": "better-auth/best-practices"
+    },
+    {
+      "name": "create-auth",
+      "repository": "better-auth/skills",
+      "revision": "20c9e88a5c007461a703f1c213572b073196113e",
+      "path": "better-auth/create-auth"
+    },
+    {
+      "name": "emailAndPassword",
+      "repository": "better-auth/skills",
+      "revision": "20c9e88a5c007461a703f1c213572b073196113e",
+      "path": "better-auth/emailAndPassword"
+    },
+    {
+      "name": "organization",
+      "repository": "better-auth/skills",
+      "revision": "20c9e88a5c007461a703f1c213572b073196113e",
+      "path": "better-auth/organization"
+    },
+    {
+      "name": "twoFactor",
+      "repository": "better-auth/skills",
+      "revision": "20c9e88a5c007461a703f1c213572b073196113e",
+      "path": "better-auth/twoFactor"
+    },
+    {
+      "name": "security",
+      "repository": "better-auth/skills",
+      "revision": "20c9e88a5c007461a703f1c213572b073196113e",
+      "path": "security"
+    }
+  ]
+}

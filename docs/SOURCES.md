@@ -25,7 +25,7 @@ Official documentation consulted on 2026-09-13. These links establish vendor/pro
 
 ## Important distinctions
 
-- Local MCP stdio with a credential is a fully headless path. Universal interactive OAuth compatibility is a separate feature.
+- Configured OAuth human login and secret-based machine authentication are separate required flows. STDIO is an additional compatibility path.
 - A Resend delivery event means acceptance by the recipient's mail server, not proof a human read the email.
 - Temporal makes workflow progression durable. External email submission still has a transaction gap and bounded provider deduplication.
 - A verified webhook is not necessarily correlated or processed yet; admission and application are separate durable stages.
@@ -33,3 +33,11 @@ Official documentation consulted on 2026-09-13. These links establish vendor/pro
 - Docker Compose defines a deployment topology, not host redundancy or automatic disaster recovery.
 
 The webhook overview and dedicated retries page can differ in the schedule details they display. Reflow intentionally does not hard-code an operational dependency on a particular retry count; internal inbox persistence, monitoring, and recovery remain necessary.
+
+## Account lifecycle and skills additions
+
+- [Better Auth generic OAuth](https://better-auth.com/docs/plugins/generic-oauth): configurable external OAuth/OIDC providers and callback handling.
+- [Better Auth administration](https://better-auth.com/docs/plugins/admin): account administration building blocks; Reflow defines administrator scope and signup policy.
+- [Better Auth email/password](https://better-auth.com/docs/authentication/email-password): password account and verification building blocks.
+- [Official Resend skill](https://resend.com/docs/resend-skill) and [Temporal developer skill announcement](https://temporal.io/blog/introducing-temporal-developer-skill): requested development skills; pinned installation sources are in [skills.lock.json](../skills.lock.json).
+- [Official Better Auth skills](https://better-auth.com/docs/ai-resources/skills): the requested six-skill pack, installed at the revision recorded in the same lock file.
