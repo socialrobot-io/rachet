@@ -64,6 +64,8 @@ The login prompt stores the server session and selected workspace in `~/.config/
 
 Plain `reflow` opens the remembered workspace. Use arrow keys or `j`/`k` to select, `/` to filter, `m` to switch between the terminal flow diagram and Mermaid source, `r` to refresh, and `q` to quit. The TUI calls the same authenticated `workspace.list` and `workflow.list` operations as MCP and `reflow call`; it does not connect directly to PostgreSQL or Temporal.
 
+Running a protected command before login exits cleanly with `Run \`reflow auth login\``. An expired or rejected saved session gives the same recovery path without printing a JavaScript stack trace.
+
 For scripts and terminal scrollback, render one workflow without starting the TUI:
 
 ```sh

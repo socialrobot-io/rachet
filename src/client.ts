@@ -5,6 +5,13 @@ export type ReflowClientOptions = {
   fetch?: typeof globalThis.fetch;
 };
 
+export class ReflowClientError extends Error {
+  constructor(readonly status: number, message: string) {
+    super(message);
+    this.name = 'ReflowClientError';
+  }
+}
+
 export class ReflowClient {
   private readonly baseUrl: string;
   private readonly token: string | undefined;
@@ -30,7 +37,7 @@ export class ReflowClient {
       const message = typeof payload === 'object' && payload !== null && 'message' in payload
         ? String(payload.message)
         : JSON.stringify(payload);
-      throw new Error(message);
+      throw new ReflowClientError(response.status, message);
     }
     if (typeof payload === 'object' && payload !== null && 'data' in payload) return payload.data as T;
     return payload as T;
