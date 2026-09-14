@@ -1,3 +1,5 @@
+![Reflow — agent-authored, durable by design](docs/assets/reflow-banner.png)
+
 # Reflow
 
 Reflow is an agent-first workflow engine for durable email automation. People describe an automation in natural language to an MCP agent; the agent reads Reflow's workflow schema and installed action catalog, creates any React Email templates, validates and simulates a graph, and saves it through MCP. The same operations are available through the CLI and HTTP API. There is no operator UI.
