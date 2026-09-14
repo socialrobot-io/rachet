@@ -2,93 +2,144 @@
 
 # Reflow
 
-Reflow is an agent-first workflow engine for durable email automation. People describe an automation in natural language to an MCP agent; the agent reads Reflow's workflow schema and installed action catalog, creates any React Email templates, validates and simulates a graph, and saves it through MCP. The same operations are available through the CLI and HTTP API. There is no operator UI.
+Reflow runs email workflows that survive restarts, long waits, and retries.
 
-The runtime is TypeScript with Hono, Better Auth, Temporal, PostgreSQL, React Email, and a pluggable provider layer. Resend is the first email provider and its signed webhooks update delivery state and suppress hard bounces and complaints.
+You describe the flow. An MCP agent (or you, via CLI) creates templates, saves a graph, publishes it, and enrolls contacts. Temporal keeps each enrollment alive. Resend sends the mail.
 
-## Natural-language workflow authoring
+There is no operator dashboard. CLI and MCP use the same operations.
 
-Connect an MCP client to `https://YOUR_DOMAIN/mcp` and use the `design-workflow` prompt with a request such as:
+## What you need
 
-> When a trial starts, send a welcome email. Wait three days for an activation event. If it arrives, mark the contact activated; otherwise send a reminder.
+- Node.js 22+
+- pnpm 11+
+- Docker Compose (Postgres + Temporal)
+- A [Resend](https://resend.com) API key if you want real email (optional for validate/simulate)
 
-The MCP agent translates that request into the validated graph at `reflow://workflow/schema`. It may only use actions listed at `reflow://workflow/actions`; currently these are `email.send` and `contact.update`. Adding a provider or integration registers more named actions without exposing arbitrary code or Temporal workflow names. `workflow_validate` and `workflow_simulate` let the agent resolve errors and show a side-effect-free trace before saving or publishing.
-
-See the [example workflow](examples/onboarding.workflow.json), [product requirements](docs/PRD.md), [architecture](docs/ARCHITECTURE.md), [operation catalog](docs/OPERATIONS.md), [authentication](docs/AUTHENTICATION.md), and [deployment guide](docs/DEPLOYMENT.md).
-
-## Local development
-
-Requires Node.js 22, pnpm 11, and Docker Compose for local PostgreSQL + Temporal. No public domain or TLS is required: the API listens on `http://localhost:3000`, which matches `.cursor/mcp.json`.
+## 1. Start the stack locally
 
 ```sh
 cp .env.dev.example .env
 pnpm install --frozen-lockfile
 make dev-infra
 pnpm migrate
-mkdir -p secrets && umask 077 && openssl rand -base64 18 > secrets/admin_password
+mkdir -p secrets
+umask 077
+openssl rand -base64 18 > secrets/admin_password
 pnpm setup -- --email admin@example.com --name Admin --password-file ./secrets/admin_password
-pnpm dev
-pnpm dev:worker
-pnpm dev:dispatcher
 ```
 
-Build and link the local CLI once if you want to invoke it as `reflow` while developing:
+Start three host processes (keep each terminal open):
+
+```sh
+pnpm dev              # API :3000
+pnpm dev:worker       # Temporal worker
+pnpm dev:dispatcher   # Outbox / webhook side work
+```
+
+Local ports:
+
+| Service     | Address                 |
+| ----------- | ----------------------- |
+| API         | http://localhost:3000   |
+| Postgres    | localhost:5433          |
+| Temporal    | localhost:7233          |
+| Temporal UI | http://localhost:8080   |
+
+Stop infra with `make dev-infra-down`.
+
+For production Compose with TLS, see [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
+
+## 2. Sign in
 
 ```sh
 pnpm build
-pnpm link --global
-```
+pnpm link --global   # once, so `reflow` is on your PATH
 
-`compose.dev.yaml` publishes Postgres on `localhost:5433`, Temporal on `localhost:7233`, and the Temporal Web UI on `http://localhost:8080` (default namespace `reflow`) with fixed local passwords (`reflow` / `temporal`). Port `5433` avoids clashing with a host Postgres on `5432`. Stop infra with `make dev-infra-down`. Do not use this file for production; production Compose is `compose.yaml` with Caddy and secret files.
-
-MCP clients should use `http://localhost:3000/mcp` with a session bearer token or API key.
-
-Call any operation through one stable CLI command:
-
-```sh
 export REFLOW_URL=http://localhost:3000
-export REFLOW_TOKEN=YOUR_SESSION_OR_ACCESS_TOKEN
+reflow auth login --email admin@example.com --password-file ./secrets/admin_password
+reflow workspace use
+```
+
+Your session is stored under `~/.config/reflow/`. Later accounts need an admin (`account.create`). Open signup stays off unless `ALLOW_REGISTRATION=true`.
+
+## 3. Send email (Resend)
+
+Put your key in a secret file (do not commit it):
+
+```sh
+printf '%s' 're_...' > secrets/resend_api_key
+chmod 600 secrets/resend_api_key
+```
+
+Add to `.env` or `.env.local`:
+
+```sh
+RESEND_API_KEY_FILE=./secrets/resend_api_key
+REFLOW_FROM=Reflow <onboarding@resend.dev>
+```
+
+Restart `pnpm dev` and `pnpm dev:worker` so they reload the key.
+
+With Resend’s test sender (`onboarding@resend.dev`), you can only send to the email on your Resend account. Use a verified domain for other recipients.
+
+## 4. First project: welcome + nudge
+
+A short worked example lives in [`examples/welcome-nudge/`](examples/welcome-nudge/). It:
+
+1. Creates and publishes two email templates
+2. Publishes a workflow (welcome → wait → reminder or done)
+3. Upserts a contact and enrolls them
+4. Optionally emits `product.activated` so the reminder is skipped
+
+Run it after the stack is up and you are logged in:
+
+```sh
+cd examples/welcome-nudge
+./run.sh socialrobotio@gmail.com
+```
+
+Read that folder’s README for each step and the JSON shapes.
+
+## 5. Day-to-day commands
+
+```sh
+reflow call system.capabilities
 reflow call workflow.actions
-reflow call workflow.validate --file ./workflow-input.json
-reflow call workflow.simulate --file ./simulation-input.json
+reflow call template.list --input '{"workspaceId":"YOUR_WORKSPACE_ID"}'
+reflow call workflow.list --input '{"workspaceId":"YOUR_WORKSPACE_ID"}'
+reflow call message.list --input '{"workspaceId":"YOUR_WORKSPACE_ID"}'
 ```
 
-Log in once, select an available workspace, and open the interactive Ink terminal UI:
+MCP clients talk to `http://localhost:3000/mcp` with a session token or API key. Cursor can use [`.cursor/mcp.json`](.cursor/mcp.json).
 
-```sh
-reflow auth login
-reflow
-```
+## Mental model
 
-The login prompt stores the server session and selected workspace in `~/.config/reflow/config.json` with owner-only permissions. `XDG_CONFIG_HOME` and `REFLOW_CONFIG_PATH` can relocate it. Run `reflow workspace list` or `reflow workspace use` to switch later. Environment variables remain temporary overrides.
+| Piece              | Role                                              |
+| ------------------ | ------------------------------------------------- |
+| Template           | Subject + body with `{{contact.*}}` / `{{variables.*}}` |
+| Template version   | Immutable pin used by `email.send`                |
+| Workflow           | Graph of actions, waits, branches, ends           |
+| Workflow version   | Immutable pin used by enrollment                  |
+| Contact            | Recipient + fields (`firstName`, `locale`, …)     |
+| Enrollment         | One durable Temporal run for one contact          |
+| Event              | Named signal into a waiting enrollment            |
 
-Plain `reflow` opens the remembered workspace. Use arrow keys or `j`/`k` to select, `/` to filter, `o` to open the generated SVG, `r` to refresh, and `q` to quit. The workflow pane renders the Mermaid-generated diagram as an inline image in terminals with Kitty, iTerm2, or Sixel graphics support. Reflow does not fall back to character art; when inline graphics are unavailable, press `o` to view the exact SVG in the system viewer. The TUI calls the same authenticated `workspace.list` and `workflow.list` operations as MCP and `reflow call`; it does not connect directly to PostgreSQL or Temporal.
+Installed actions today: `email.send`, `contact.update`. See [docs/OPERATIONS.md](docs/OPERATIONS.md).
 
-Running a protected command before login exits cleanly with `Run \`reflow auth login\``. An expired or rejected saved session gives the same recovery path without printing a JavaScript stack trace.
-
-For scripts and terminal scrollback, render one workflow without starting the TUI:
-
-```sh
-reflow workflow show --name "Trial onboarding" --format svg > workflow.svg
-reflow workflow show --name "Trial onboarding" --format mermaid > workflow.mmd
-```
-
-The SVG is the canonical rendered diagram. For inline terminal display, Reflow converts that SVG to a PNG in memory because terminal graphics protocols transport raster pixels. The SVG and Mermaid source remain available for external viewers and Mermaid-compatible tools.
-
-Human authentication supports email/password and a configured OIDC provider. Better Auth serves OAuth authorization-server metadata for MCP. `reflow auth login` currently performs an interactive email/password login without echoing the password; `--email` and `--password-file` remain available for automation. Session bearer tokens, OAuth access tokens, and user-bound API keys can authorize operations. Initial setup creates exactly one deployment administrator and workspace. Administrators create later accounts; self-registration is available only with `ALLOW_REGISTRATION=true`.
-
-## Docker Compose deployment
-
-Create `.env` from `.env.example` and create each file under `secrets/`. `secrets/database_url` should contain a URL such as `postgresql://reflow:PASSWORD@postgres:5432/reflow`, using the same password as `secrets/postgres_password`. Set `REFLOW_DOMAIN` and `ACME_EMAIL`, then run `docker compose build` and `docker compose up -d`.
-
-Production Compose runs separate Reflow and Temporal PostgreSQL databases, explicit Temporal schema and namespace initialization, migrations, API, worker, outbox dispatcher, and Caddy TLS. Database volumes persist across restarts. The detailed initial-admin and backup procedure is in the [deployment guide](docs/DEPLOYMENT.md).
-
-## Verification
+## Checks
 
 ```sh
 make check
 ```
 
-This runs repository hygiene, TypeScript type checking, lint, unit tests, a production build with a prebundled Temporal workflow, and Compose validation when the plugin is available.
+## Docs
 
-The installable [Reflow agent skill](skills/reflow/SKILL.md) teaches agents the authoring and operating flow. Official implementation skills and pinned revisions are documented in [skills setup](docs/SKILLS.md).
+| Doc | Topic |
+| --- | ----- |
+| [examples/welcome-nudge](examples/welcome-nudge/) | Small end-to-end tutorial |
+| [docs/OPERATIONS.md](docs/OPERATIONS.md) | Full operation catalog |
+| [docs/AUTHENTICATION.md](docs/AUTHENTICATION.md) | Auth and accounts |
+| [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) | Production Compose |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | System design |
+| [docs/PRD.md](docs/PRD.md) | Product requirements |
+| [skills/reflow/SKILL.md](skills/reflow/SKILL.md) | Agent operating skill |

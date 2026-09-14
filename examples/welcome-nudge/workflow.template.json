@@ -1,0 +1,40 @@
+{
+  "schemaVersion": "1",
+  "description": "Welcome email, then wait 20s for product.activated; otherwise send a reminder.",
+  "trigger": { "type": "manual" },
+  "purpose": "transactional",
+  "topic": "onboarding",
+  "entryNodeId": "send_welcome",
+  "nodes": [
+    {
+      "id": "send_welcome",
+      "type": "action",
+      "action": "email.send",
+      "input": {
+        "templateVersionId": { "literal": "__WELCOME_VERSION_ID__" }
+      },
+      "next": "await_activation",
+      "onError": "attention"
+    },
+    {
+      "id": "await_activation",
+      "type": "wait_for_event",
+      "eventType": "product.activated",
+      "timeoutSeconds": 20,
+      "onEvent": "end_activated",
+      "onTimeout": "send_reminder"
+    },
+    {
+      "id": "send_reminder",
+      "type": "action",
+      "action": "email.send",
+      "input": {
+        "templateVersionId": { "literal": "__REMINDER_VERSION_ID__" }
+      },
+      "next": "end_nudged",
+      "onError": "attention"
+    },
+    { "id": "end_activated", "type": "end", "reason": "activated" },
+    { "id": "end_nudged", "type": "end", "reason": "nudged" }
+  ]
+}

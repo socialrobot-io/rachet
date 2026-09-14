@@ -70,7 +70,7 @@ export function renderWorkflowSvg(definition: WorkflowDefinition): string {
     padding: 32,
     nodeSpacing: 36,
     layerSpacing: 56,
-  }).replace(/\s*@import url\([^;]+;\n/u, '\n');
+  }).replace(/^[ \t]*@import[^\n]*\n/gm, '');
 }
 
 export function renderWorkflowPng(definition: WorkflowDefinition, widthPixels: number): Buffer {
