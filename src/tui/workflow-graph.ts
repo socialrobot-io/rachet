@@ -1,5 +1,6 @@
 import type { FlowNode, WorkflowDefinition } from '../domain/contracts.js';
-import { renderMermaidASCII } from 'beautiful-mermaid';
+import { Resvg } from '@resvg/resvg-js';
+import { renderMermaidSVG } from 'beautiful-mermaid';
 
 type Edge = { label: string; target: string };
 
@@ -25,46 +26,12 @@ function duration(seconds: number): string {
 
 function nodeLabel(node: FlowNode): string {
   switch (node.type) {
-    case 'action': return `● ${node.id}  action · ${node.action}`;
-    case 'delay': return `◷ ${node.id}  delay · ${duration(node.durationSeconds)}`;
-    case 'wait_for_event': return `◉ ${node.id}  wait · ${node.eventType} / ${duration(node.timeoutSeconds)}`;
-    case 'branch': return `◇ ${node.id}  branch · ${node.condition.op}`;
-    case 'end': return `■ ${node.id}  end · ${node.reason}`;
+    case 'action': return `${node.id}  action · ${node.action}`;
+    case 'delay': return `${node.id}  delay · ${duration(node.durationSeconds)}`;
+    case 'wait_for_event': return `${node.id}  wait · ${node.eventType} / ${duration(node.timeoutSeconds)}`;
+    case 'branch': return `${node.id}  branch · ${node.condition.op}`;
+    case 'end': return `${node.id}  end · ${node.reason}`;
   }
-}
-
-function fit(value: string, width: number): string {
-  if (value.length <= width) return value;
-  return width <= 1 ? '…' : `${value.slice(0, width - 1)}…`;
-}
-
-export function renderTerminalWorkflow(definition: WorkflowDefinition, width = 100): string {
-  const byId = new Map(definition.nodes.map((node) => [node.id, node]));
-  const expanded = new Set<string>();
-  const lines = [
-    `trigger: ${definition.trigger.type}  purpose: ${definition.purpose}  topic: ${definition.topic}`,
-    '',
-  ];
-
-  function walk(id: string, prefix: string, connector: string): void {
-    const node = byId.get(id);
-    if (!node) {
-      lines.push(fit(`${prefix}${connector}? ${id}  missing`, width));
-      return;
-    }
-    const repeated = expanded.has(id);
-    lines.push(fit(`${prefix}${connector}${nodeLabel(node)}${repeated ? '  ↩' : ''}`, width));
-    if (repeated) return;
-    expanded.add(id);
-    const outgoing = edges(node);
-    outgoing.forEach((edge, index) => {
-      const last = index === outgoing.length - 1;
-      walk(edge.target, `${prefix}${connector ? (connector.startsWith('└') ? '   ' : '│  ') : ''}`, `${last ? '└─' : '├─'} ${edge.label} → `);
-    });
-  }
-
-  walk(definition.entryNodeId, '', '');
-  return lines.join('\n');
 }
 
 function mermaidText(value: string): string {
@@ -76,7 +43,7 @@ export function renderMermaidWorkflow(definition: WorkflowDefinition): string {
   const lines = ['flowchart TD'];
   for (const node of definition.nodes) {
     const name = names.get(node.id) ?? node.id;
-    const label = mermaidText(nodeLabel(node).replace(/^[●◷◉◇■] /u, ''));
+    const label = mermaidText(nodeLabel(node));
     if (node.type === 'branch') lines.push(`  ${name}{"${label}"}`);
     else if (node.type === 'end') lines.push(`  ${name}(["${label}"])`);
     else lines.push(`  ${name}["${label}"]`);
@@ -91,13 +58,40 @@ export function renderMermaidWorkflow(definition: WorkflowDefinition): string {
   return lines.join('\n');
 }
 
-export function renderMermaidTerminal(definition: WorkflowDefinition, width = 100): string {
-  const rendered = renderMermaidASCII(renderMermaidWorkflow(definition), {
-    useAscii: false,
-    colorMode: 'none',
-    paddingX: width >= 120 ? 3 : 1,
-    paddingY: 1,
-    boxBorderPadding: 0,
+export function renderWorkflowSvg(definition: WorkflowDefinition): string {
+  return renderMermaidSVG(renderMermaidWorkflow(definition), {
+    bg: '#090f1d',
+    fg: '#e6edf7',
+    line: '#64748b',
+    accent: '#22d3ee',
+    muted: '#a8b3c7',
+    surface: '#111b2e',
+    border: '#3c4b63',
+    padding: 32,
+    nodeSpacing: 36,
+    layerSpacing: 56,
+  }).replace(/\s*@import url\([^;]+;\n/u, '\n');
+}
+
+export function renderWorkflowPng(definition: WorkflowDefinition, widthPixels: number): Buffer {
+  const svg = renderWorkflowSvg(definition);
+  const rasterSvg = svg
+    .replaceAll('var(--_text-sec)', '#a8b3c7')
+    .replaceAll('var(--_text-muted)', '#7d899d')
+    .replaceAll('var(--_text-faint)', '#536075')
+    .replaceAll('var(--_text)', '#e6edf7')
+    .replaceAll('var(--_line)', '#64748b')
+    .replaceAll('var(--_arrow)', '#22d3ee')
+    .replaceAll('var(--_node-fill)', '#111b2e')
+    .replaceAll('var(--_node-stroke)', '#3c4b63')
+    .replaceAll('var(--_group-fill)', '#090f1d')
+    .replaceAll('var(--_group-hdr)', '#111b2e')
+    .replaceAll('var(--_inner-stroke)', '#26354c')
+    .replaceAll('var(--_key-badge)', '#1d2a40')
+    .replaceAll('var(--bg)', '#090f1d');
+  const renderer = new Resvg(rasterSvg, {
+    fitTo: { mode: 'width', value: Math.max(320, Math.round(widthPixels)) },
+    background: '#090f1d',
   });
-  return rendered.split('\n').map((line) => line.trimEnd()).join('\n').trimEnd();
+  return renderer.render().asPng();
 }

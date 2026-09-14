@@ -62,19 +62,18 @@ reflow
 
 The login prompt stores the server session and selected workspace in `~/.config/reflow/config.json` with owner-only permissions. `XDG_CONFIG_HOME` and `REFLOW_CONFIG_PATH` can relocate it. Run `reflow workspace list` or `reflow workspace use` to switch later. Environment variables remain temporary overrides.
 
-Plain `reflow` opens the remembered workspace. Use arrow keys or `j`/`k` to select, `/` to filter, `m` to switch between the compact flow and rendered Mermaid diagram, arrow keys or `h`/`l` to pan a wide Mermaid view, `r` to refresh, and `q` to quit. The TUI calls the same authenticated `workspace.list` and `workflow.list` operations as MCP and `reflow call`; it does not connect directly to PostgreSQL or Temporal.
+Plain `reflow` opens the remembered workspace. Use arrow keys or `j`/`k` to select, `/` to filter, `o` to open the generated SVG, `r` to refresh, and `q` to quit. The workflow pane renders the Mermaid-generated diagram as an inline image in terminals with Kitty, iTerm2, or Sixel graphics support. Reflow does not fall back to character art; when inline graphics are unavailable, press `o` to view the exact SVG in the system viewer. The TUI calls the same authenticated `workspace.list` and `workflow.list` operations as MCP and `reflow call`; it does not connect directly to PostgreSQL or Temporal.
 
 Running a protected command before login exits cleanly with `Run \`reflow auth login\``. An expired or rejected saved session gives the same recovery path without printing a JavaScript stack trace.
 
 For scripts and terminal scrollback, render one workflow without starting the TUI:
 
 ```sh
-reflow workflow show --name "Trial onboarding"
-reflow workflow show --name "Trial onboarding" --format mermaid-terminal
+reflow workflow show --name "Trial onboarding" --format svg > workflow.svg
 reflow workflow show --name "Trial onboarding" --format mermaid > workflow.mmd
 ```
 
-Both terminal views use Unicode box drawing and work in ordinary terminals and over SSH. The Mermaid view parses the generated Mermaid flowchart and lays it out as connected terminal boxes inside Ink. Mermaid source remains available for external Mermaid-compatible tools.
+The SVG is the canonical rendered diagram. For inline terminal display, Reflow converts that SVG to a PNG in memory because terminal graphics protocols transport raster pixels. The SVG and Mermaid source remain available for external viewers and Mermaid-compatible tools.
 
 Human authentication supports email/password and a configured OIDC provider. Better Auth serves OAuth authorization-server metadata for MCP. `reflow auth login` currently performs an interactive email/password login without echoing the password; `--email` and `--password-file` remain available for automation. Session bearer tokens, OAuth access tokens, and user-bound API keys can authorize operations. Initial setup creates exactly one deployment administrator and workspace. Administrators create later accounts; self-registration is available only with `ALLOW_REGISTRATION=true`.
 

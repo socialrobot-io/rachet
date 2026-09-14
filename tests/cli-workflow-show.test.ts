@@ -33,20 +33,18 @@ describe('workflow show CLI', () => {
     await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
   });
 
-  async function run(format: 'terminal' | 'mermaid-terminal' | 'mermaid') {
+  async function run(format: 'mermaid' | 'svg') {
     return execFileAsync(process.execPath, ['--import', 'tsx', 'src/cli.ts', 'workflow', 'show', '--workspace', workspaceId, '--id', workflowId, '--format', format], {
       cwd: new URL('..', import.meta.url),
       env: { ...process.env, REFLOW_URL: url, REFLOW_TOKEN: 'test-token' },
     });
   }
 
-  it('queries through the operation API and renders terminal and Mermaid formats', async () => {
-    const terminal = await run('terminal');
-    expect(terminal.stdout).toContain('● welcome  action · email.send');
+  it('queries through the operation API and renders Mermaid and SVG formats', async () => {
     const mermaid = await run('mermaid');
     expect(mermaid.stdout).toMatch(/^flowchart TD/);
-    const renderedMermaid = await run('mermaid-terminal');
-    expect(renderedMermaid.stdout).toContain('┌');
-    expect(renderedMermaid.stdout).toContain('welcome  action · email.send');
+    const svg = await run('svg');
+    expect(svg.stdout).toMatch(/^<svg/);
+    expect(svg.stdout).toContain('welcome  action · email.send');
   }, 15_000);
 });

@@ -2,7 +2,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Box, Text, useApp, useInput, useStdout } from 'ink';
 import type { ReflowClient } from '../client.js';
 import { workflowDefinitionSchema, type WorkflowDefinition } from '../domain/contracts.js';
-import { renderMermaidTerminal, renderTerminalWorkflow } from './workflow-graph.js';
+import { WorkflowImage } from './workflow-image.js';
+import { openWorkflowSvg } from './svg-preview.js';
 
 type Workflow = {
   id: string;
@@ -12,15 +13,15 @@ type Workflow = {
   definition: WorkflowDefinition;
 };
 
-function useTerminalWidth(): number {
+function useTerminalSize(): { width: number; height: number } {
   const { stdout } = useStdout();
-  const [width, setWidth] = useState(stdout.columns ?? 100);
+  const [size, setSize] = useState({ width: stdout.columns ?? 100, height: stdout.rows ?? 30 });
   useEffect(() => {
-    const resize = () => setWidth(stdout.columns ?? 100);
+    const resize = () => setSize({ width: stdout.columns ?? 100, height: stdout.rows ?? 30 });
     stdout.on('resize', resize);
     return () => { stdout.off('resize', resize); };
   }, [stdout]);
-  return width;
+  return size;
 }
 
 function parseWorkflows(value: unknown): Workflow[] {
@@ -41,13 +42,11 @@ function parseWorkflows(value: unknown): Workflow[] {
 
 export function ReflowTui({ client, workspaceId }: { client: ReflowClient; workspaceId: string }) {
   const { exit } = useApp();
-  const width = useTerminalWidth();
+  const { width, height } = useTerminalSize();
   const [workflows, setWorkflows] = useState<Workflow[]>([]);
   const [selected, setSelected] = useState(0);
   const [query, setQuery] = useState('');
   const [searching, setSearching] = useState(false);
-  const [mode, setMode] = useState<'terminal' | 'mermaid'>('terminal');
-  const [horizontalOffset, setHorizontalOffset] = useState(0);
   const [status, setStatus] = useState('Loading workflows…');
 
   const load = useCallback(async () => {
@@ -78,9 +77,12 @@ export function ReflowTui({ client, workspaceId }: { client: ReflowClient; works
     if (input === 'q') exit();
     else if (input === '/') setSearching(true);
     else if (input === 'r') void load();
-    else if (input === 'm') { setMode((value) => value === 'terminal' ? 'mermaid' : 'terminal'); setHorizontalOffset(0); }
-    else if (mode === 'mermaid' && (key.leftArrow || input === 'h')) setHorizontalOffset((value) => Math.max(0, value - 8));
-    else if (mode === 'mermaid' && (key.rightArrow || input === 'l')) setHorizontalOffset((value) => value + 8);
+    else if (input === 'o' && active) {
+      setStatus('Opening SVG…');
+      void openWorkflowSvg(active.id, active.definition)
+        .then((path) => setStatus(`Opened ${path}`))
+        .catch((error: unknown) => setStatus(error instanceof Error ? `Error: ${error.message}` : 'Unable to open SVG'));
+    }
     else if (key.upArrow || input === 'k') setSelected((value) => Math.max(0, value - 1));
     else if (key.downArrow || input === 'j') setSelected((value) => Math.min(Math.max(visible.length - 1, 0), value + 1));
   });
@@ -88,15 +90,7 @@ export function ReflowTui({ client, workspaceId }: { client: ReflowClient; works
   const listWidth = Math.min(36, Math.max(24, Math.floor(width * 0.32)));
   const compact = width < 80;
   const graphWidth = Math.max(30, compact ? width - 6 : width - listWidth - 7);
-  const fullDiagram = active
-    ? mode === 'terminal' ? renderTerminalWorkflow(active.definition, graphWidth) : renderMermaidTerminal(active.definition, graphWidth)
-    : query ? 'No workflows match this query.' : 'No workflows in this workspace.';
-  const diagramWidth = Math.max(0, ...fullDiagram.split('\n').map((line) => line.length));
-  const maxOffset = Math.max(0, diagramWidth - graphWidth);
-  const viewportOffset = Math.min(horizontalOffset, maxOffset);
-  const diagram = mode === 'mermaid'
-    ? fullDiagram.split('\n').map((line) => line.slice(viewportOffset, viewportOffset + graphWidth)).join('\n')
-    : fullDiagram;
+  const graphHeight = Math.max(10, height - (compact ? 15 : 9));
 
   return <Box flexDirection="column" paddingX={1}>
     <Box borderStyle="round" borderColor="cyan" paddingX={1} justifyContent="space-between">
@@ -117,15 +111,17 @@ export function ReflowTui({ client, workspaceId }: { client: ReflowClient; works
       <Box flexGrow={1} flexDirection="column" borderStyle="round" borderColor="gray" paddingX={1}>
         <Box justifyContent="space-between">
           <Text bold>{active?.name ?? 'Workflow'}</Text>
-          <Text color={mode === 'mermaid' ? 'magenta' : 'green'}>{mode}</Text>
+          <Text color="magenta">SVG</Text>
         </Box>
         <Text dimColor>{active?.definition.description ?? ''}</Text>
         <Text> </Text>
-        <Text>{diagram}</Text>
+        {active
+          ? <WorkflowImage definition={active.definition} width={graphWidth} height={graphHeight} />
+          : <Text>{query ? 'No workflows match this query.' : 'No workflows in this workspace.'}</Text>}
       </Box>
     </Box>
     <Box paddingX={1} justifyContent="space-between">
-      <Text dimColor>↑↓/jk select  / search  m flow/mermaid  {mode === 'mermaid' ? '←→/hl pan  ' : ''}r refresh  q quit</Text>
+      <Text dimColor>↑↓/jk select  / search  o open SVG  r refresh  q quit</Text>
       {status.startsWith('Error:') ? <Text color="red">{status}</Text> : <Text>{status}</Text>}
     </Box>
   </Box>;
