@@ -6,6 +6,9 @@ import { createAuth } from './auth.js';
 import { loadConfig } from './config.js';
 import { createDatabase } from './db/index.js';
 import { memberships, profiles, systemSettings, workspaces } from './db/schema.js';
+import { ReflowClient } from './client.js';
+import { workflowDefinitionSchema } from './domain/contracts.js';
+import { renderMermaidWorkflow, renderTerminalWorkflow } from './tui/workflow-graph.js';
 
 function endpoint() { return (process.env.REFLOW_URL ?? 'http://localhost:3000').replace(/\/$/, ''); }
 function headers(): Record<string, string> {
@@ -45,6 +48,31 @@ auth.command('login').requiredOption('--email <email>').requiredOption('--passwo
   const result = await request('/api/auth/sign-in/email', { email: options.email, password });
   console.log(JSON.stringify({ ...result.data as object, token: result.token }, null, 2));
 });
+type ListedWorkflow = { id: string; name: string; definition: unknown };
+const workflow = program.command('workflow').description('Inspect workflows with human-readable output.');
+workflow.command('show')
+  .requiredOption('--workspace <id>', 'Workspace UUID')
+  .option('--id <id>', 'Workflow UUID')
+  .option('--name <name>', 'Exact workflow name')
+  .option('--format <format>', 'terminal, mermaid, or json', 'terminal')
+  .action(async (options: { workspace: string; id?: string; name?: string; format: string }) => {
+    const rows = await new ReflowClient().call<ListedWorkflow[]>('workflow.list', { workspaceId: options.workspace });
+    const selected = rows.find((row) => options.id ? row.id === options.id : options.name ? row.name === options.name : rows.length === 1);
+    if (!selected) throw new Error(options.id || options.name ? 'Workflow not found' : 'Specify --id or --name when the workspace has multiple workflows');
+    const definition = workflowDefinitionSchema.parse(selected.definition);
+    if (options.format === 'terminal') console.log(renderTerminalWorkflow(definition, process.stdout.columns ?? 100));
+    else if (options.format === 'mermaid') console.log(renderMermaidWorkflow(definition));
+    else if (options.format === 'json') console.log(JSON.stringify(selected, null, 2));
+    else throw new Error('--format must be terminal, mermaid, or json');
+  });
+program.command('tui')
+  .description('Browse and render workflows in an interactive terminal UI.')
+  .option('--workspace <id>', 'Workspace UUID', process.env.REFLOW_WORKSPACE_ID)
+  .action(async (options: { workspace?: string }) => {
+    if (!options.workspace) throw new Error('Pass --workspace or set REFLOW_WORKSPACE_ID');
+    const { launchTui } = await import('./tui/index.js');
+    await launchTui(options.workspace);
+  });
 program.command('setup').description('Create the one-time deployment administrator and initial workspace.').requiredOption('--email <email>').requiredOption('--name <name>').requiredOption('--password-file <path>').option('--workspace <name>', 'Initial workspace name', 'Default').option('--slug <slug>', 'Initial workspace slug', 'default').action(async (options) => {
   const config = loadConfig(); const database = createDatabase(config); const localAuth = createAuth(config, database.pool);
   const client = await database.pool.connect();

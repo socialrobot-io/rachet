@@ -46,6 +46,23 @@ reflow call workflow.validate --file ./workflow-input.json
 reflow call workflow.simulate --file ./simulation-input.json
 ```
 
+Browse workflows in an interactive Ink terminal UI:
+
+```sh
+reflow tui --workspace YOUR_WORKSPACE_UUID
+```
+
+Use arrow keys or `j`/`k` to select, `/` to filter, `m` to switch between the terminal flow diagram and Mermaid source, `r` to refresh, and `q` to quit. The TUI calls the same authenticated `workflow.list` operation as MCP and `reflow call`; it does not connect directly to PostgreSQL or Temporal.
+
+For scripts and terminal scrollback, render one workflow without starting the TUI:
+
+```sh
+reflow workflow show --workspace YOUR_WORKSPACE_UUID --name "Trial onboarding"
+reflow workflow show --workspace YOUR_WORKSPACE_UUID --name "Trial onboarding" --format mermaid > workflow.mmd
+```
+
+The default renderer uses Unicode box drawing and works in ordinary terminals and over SSH. Mermaid is available as source output for Mermaid-compatible tools; Mermaid.js itself renders SVG/canvas rather than terminal cells.
+
 Human authentication supports email/password and a configured OIDC provider. Better Auth serves OAuth authorization-server metadata for MCP. Session bearer tokens, OAuth access tokens, and user-bound API keys can authorize operations. Initial setup creates exactly one deployment administrator and workspace. Administrators create later accounts; self-registration is available only with `ALLOW_REGISTRATION=true`.
 
 ## Docker Compose deployment
