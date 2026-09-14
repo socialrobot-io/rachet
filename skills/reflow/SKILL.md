@@ -13,6 +13,6 @@ Publishing creates an immutable workflow version and does not enroll anyone. Enr
 
 Use Reflow's delivery action rather than direct Resend calls so the durable send ledger, suppressions, and Temporal lifecycle remain effective. Verified Resend webhooks update message state. An unknown send outcome after provider deduplication expires needs operator attention because an automatic replacement could duplicate email.
 
-Human login uses configured OAuth or email/password. Machine callers use scoped OAuth client credentials or a user-bound API key. Initial administrator creation is a trusted host CLI operation. Later account creation requires deployment-administrator permission; self-registration works only when `ALLOW_REGISTRATION=true`.
+Human login uses configured OAuth or email/password. For interactive CLI use, run `reflow auth login`, select a workspace, then use plain `reflow`; the saved active workspace scopes later CLI operations. Use `reflow workspace use` to switch. Machine callers use scoped OAuth client credentials or a user-bound API key. Initial administrator creation is a trusted host CLI operation. Later account creation requires deployment-administrator permission; self-registration works only when `ALLOW_REGISTRATION=true`.
 
 Read [workflows](references/workflows.md) for concrete authoring and recovery paths.

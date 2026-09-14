@@ -44,6 +44,12 @@ Bind accounts by provider/issuer and immutable subject. Do not auto-link a new p
 
 CLI local password login remains available for the initial administrator if configured; never use the OAuth resource-owner-password grant as a substitute for provider login.
 
+## Remembered CLI context
+
+`reflow auth login` prompts for email and a non-echoed password, calls Better Auth's normal email sign-in endpoint, retrieves `workspace.list`, and asks the user to choose when more than one workspace is available. The CLI stores the resulting Reflow session token and workspace identity in its per-user configuration file with mode `0600`; it never stores the password. `reflow workspace list` and `reflow workspace use` inspect or change the selection, and `reflow auth logout` removes the saved credential.
+
+Plain `reflow` opens the TUI in the selected workspace. Workspace-aware CLI calls inject the selected `workspaceId` only when the input omitted it. An explicit input value wins. `REFLOW_URL`, `REFLOW_TOKEN`, `REFLOW_API_KEY`, and `REFLOW_WORKSPACE_ID` are process-local overrides and do not mutate saved state.
+
 ## Machine clients and flow triggers
 
 Administrators create a service client with workspace ID, allowed scopes, optional allowed sequence IDs, and expiry. Emit its client secret once; store a verifier where supported. OAuth client credentials use the Better Auth OAuth provider's supported machine grant. [Provider documentation](https://better-auth.com/docs/plugins/oauth-provider).

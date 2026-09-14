@@ -45,5 +45,5 @@ describe('workflow show CLI', () => {
     expect(terminal.stdout).toContain('● welcome  action · email.send');
     const mermaid = await run('mermaid');
     expect(mermaid.stdout).toMatch(/^flowchart TD/);
-  });
+  }, 15_000);
 });

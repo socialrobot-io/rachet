@@ -32,6 +32,13 @@ pnpm dev:worker
 pnpm dev:dispatcher
 ```
 
+Build and link the local CLI once if you want to invoke it as `reflow` while developing:
+
+```sh
+pnpm build
+pnpm link --global
+```
+
 `compose.dev.yaml` publishes Postgres on `localhost:5433`, Temporal on `localhost:7233`, and the Temporal Web UI on `http://localhost:8080` (default namespace `reflow`) with fixed local passwords (`reflow` / `temporal`). Port `5433` avoids clashing with a host Postgres on `5432`. Stop infra with `make dev-infra-down`. Do not use this file for production; production Compose is `compose.yaml` with Caddy and secret files.
 
 MCP clients should use `http://localhost:3000/mcp` with a session bearer token or API key.
@@ -46,24 +53,27 @@ reflow call workflow.validate --file ./workflow-input.json
 reflow call workflow.simulate --file ./simulation-input.json
 ```
 
-Browse workflows in an interactive Ink terminal UI:
+Log in once, select an available workspace, and open the interactive Ink terminal UI:
 
 ```sh
-reflow tui --workspace YOUR_WORKSPACE_UUID
+reflow auth login
+reflow
 ```
 
-Use arrow keys or `j`/`k` to select, `/` to filter, `m` to switch between the terminal flow diagram and Mermaid source, `r` to refresh, and `q` to quit. The TUI calls the same authenticated `workflow.list` operation as MCP and `reflow call`; it does not connect directly to PostgreSQL or Temporal.
+The login prompt stores the server session and selected workspace in `~/.config/reflow/config.json` with owner-only permissions. `XDG_CONFIG_HOME` and `REFLOW_CONFIG_PATH` can relocate it. Run `reflow workspace list` or `reflow workspace use` to switch later. Environment variables remain temporary overrides.
+
+Plain `reflow` opens the remembered workspace. Use arrow keys or `j`/`k` to select, `/` to filter, `m` to switch between the terminal flow diagram and Mermaid source, `r` to refresh, and `q` to quit. The TUI calls the same authenticated `workspace.list` and `workflow.list` operations as MCP and `reflow call`; it does not connect directly to PostgreSQL or Temporal.
 
 For scripts and terminal scrollback, render one workflow without starting the TUI:
 
 ```sh
-reflow workflow show --workspace YOUR_WORKSPACE_UUID --name "Trial onboarding"
-reflow workflow show --workspace YOUR_WORKSPACE_UUID --name "Trial onboarding" --format mermaid > workflow.mmd
+reflow workflow show --name "Trial onboarding"
+reflow workflow show --name "Trial onboarding" --format mermaid > workflow.mmd
 ```
 
 The default renderer uses Unicode box drawing and works in ordinary terminals and over SSH. Mermaid is available as source output for Mermaid-compatible tools; Mermaid.js itself renders SVG/canvas rather than terminal cells.
 
-Human authentication supports email/password and a configured OIDC provider. Better Auth serves OAuth authorization-server metadata for MCP. Session bearer tokens, OAuth access tokens, and user-bound API keys can authorize operations. Initial setup creates exactly one deployment administrator and workspace. Administrators create later accounts; self-registration is available only with `ALLOW_REGISTRATION=true`.
+Human authentication supports email/password and a configured OIDC provider. Better Auth serves OAuth authorization-server metadata for MCP. `reflow auth login` currently performs an interactive email/password login without echoing the password; `--email` and `--password-file` remain available for automation. Session bearer tokens, OAuth access tokens, and user-bound API keys can authorize operations. Initial setup creates exactly one deployment administrator and workspace. Administrators create later accounts; self-registration is available only with `ALLOW_REGISTRATION=true`.
 
 ## Docker Compose deployment
 

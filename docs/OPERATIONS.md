@@ -6,7 +6,7 @@ Every product operation is defined once in `src/operations.ts` and exposed as an
 
 | Operation | Effect |
 | --- | --- |
-| `system.capabilities`, `auth.whoami` | Discover runtime, actions, and current access |
+| `system.capabilities`, `auth.whoami`, `workspace.list` | Discover runtime, actions, current access, and available workspaces |
 | `account.create` | Deployment administrator creates an account and optional workspace membership |
 | `credential.create`, `credential.revoke` | Create a user-bound machine API key, returning its secret once, or revoke it |
 | `template.create`, `template.list`, `template.publish`, `template.render` | Manage and preview immutable React Email-backed templates |

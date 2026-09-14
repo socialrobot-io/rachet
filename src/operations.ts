@@ -35,6 +35,10 @@ export function createOperations(service: ReflowService): Record<string, Operati
       description: 'Return the authenticated principal and workspace access.', input: z.object({}), readOnly: true,
       invoke: async (context) => context.principal,
     },
+    'workspace.list': {
+      description: 'List workspaces available to the authenticated principal, including names, slugs, and roles.', input: z.object({}), readOnly: true,
+      invoke: (context) => service.workspaceList(context),
+    },
     'account.create': {
       description: 'Create an account as a deployment administrator.', input: accountCreateSchema, readOnly: false,
       invoke: (context, input) => service.accountCreate(context, accountCreateSchema.parse(input)),

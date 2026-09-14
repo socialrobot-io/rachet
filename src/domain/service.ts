@@ -5,7 +5,7 @@ import type { ReflowAuth } from '../auth.js';
 import type { Database } from '../db/index.js';
 import {
   auditEvents, contacts, enrollments, memberships, outbox, profiles, sendIntents,
-  sequences, sequenceVersions, templates, templateVersions, webhookEvents,
+  sequences, sequenceVersions, templates, templateVersions, webhookEvents, workspaces,
 } from '../db/schema.js';
 import type { OperationContext, Principal, WorkflowDefinition } from './contracts.js';
 import { validateActionNodes } from './action-catalog.js';
@@ -122,6 +122,17 @@ export class ReflowService {
     if (!created) throw new Error('Workflow creation failed');
     await this.audit(context, 'workflow.create', input.workspaceId, 'workflow', created.id);
     return created;
+  }
+
+  async workspaceList(context: OperationContext) {
+    if (context.principal.deploymentAdmin) {
+      const rows = await this.db.select({ id: workspaces.id, name: workspaces.name, slug: workspaces.slug }).from(workspaces).orderBy(asc(workspaces.name));
+      return rows.map((row) => ({ ...row, role: context.principal.workspaceRoles[row.id] ?? 'deployment_admin' }));
+    }
+    return this.db.select({ id: workspaces.id, name: workspaces.name, slug: workspaces.slug, role: memberships.role })
+      .from(workspaces)
+      .innerJoin(memberships, and(eq(memberships.workspaceId, workspaces.id), eq(memberships.userId, context.principal.userId)))
+      .orderBy(asc(workspaces.name));
   }
 
   async workflowList(context: OperationContext, workspaceId: string) {
