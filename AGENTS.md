@@ -1,6 +1,6 @@
 # Working on Reflow
 
-This repository currently contains the product specification and tooling, not a runnable backend. Read README.md and the relevant docs before extending it. Do not report planned CLI/MCP commands as available. Backend implementation is TypeScript with Hono, Better Auth, Temporal, React Email, and a Resend adapter; Python scripts here only maintain the repository.
+This repository contains a runnable TypeScript backend plus product specifications and tooling. Read README.md and the relevant docs before extending it. Verify CLI/MCP commands before reporting them as available. Backend implementation is TypeScript with Hono, Better Auth, Temporal, React Email, and a Resend adapter; Python scripts here only maintain the repository.
 
 For operating Reflow, read `skills/reflow/SKILL.md`. For Resend, Temporal, or Better Auth implementation, install/load the official skills listed in `skills.lock.json` using `docs/SKILLS.md`. Treat upstream skills as implementation guidance; the user's requirements and Reflow's durable send/policy invariants determine product behavior.
 

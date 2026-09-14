@@ -1,0 +1,10 @@
+packages:
+  - .
+
+allowBuilds:
+  '@prisma/client': true
+  '@swc/core': true
+  '@temporalio/core-bridge': true
+  better-sqlite3: true
+  esbuild: true
+  protobufjs: true

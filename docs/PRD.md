@@ -1,12 +1,12 @@
 # Reflow product requirements
 
-Status: draft for implementation · Date: 2026-09-13 · Product: Social Robot email sequences
+Status: implementation baseline plus roadmap · Date: 2026-09-13 · Product: Reflow workflow automation
 
 ## 1. Product outcome
 
-An agent can turn a brief into reusable React Email templates and an executable email sequence, validate it, enroll recipients, and manage its complete lifecycle through MCP. A human or automation can perform the same operations through CLI. Temporal preserves execution across restarts, deploys, long waits, and recoverable failures. Resend delivers email and reports events through verified webhooks.
+An agent can turn a natural-language automation request into reusable React Email templates and an executable workflow, validate and simulate its capability graph, enroll recipients, and manage its lifecycle through MCP. A human or automation can perform the same operations through CLI. Temporal preserves execution across restarts, deploys, long waits, and recoverable failures. Resend delivers email and reports events through verified webhooks.
 
-The core product is sequence authoring **and execution**. A template gallery or email sender alone does not solve the problem.
+The core product is open-ended workflow authoring **and execution** within installed capabilities. Email sequences are one common workflow, not the authoring boundary. MCP host agents interpret natural language; Reflow exposes schemas, prompts, validation, simulation, and a generic Temporal graph interpreter. New integrations add named actions without adding a new public workflow type.
 
 ### Decisions established by this brief
 

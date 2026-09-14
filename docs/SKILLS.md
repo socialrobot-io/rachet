@@ -3,7 +3,7 @@
 There are two kinds of skills in this project:
 
 - Official Resend, Temporal, and Better Auth skills guide implementation. Sources and immutable revisions are recorded in [skills.lock.json](../skills.lock.json).
-- The first-party [reflow skill](../skills/reflow/SKILL.md) guides agents interacting with Reflow via MCP/CLI. Its reference files travel with the package. It explicitly identifies this repository as specification-stage until a runtime exists.
+- The first-party [reflow skill](../skills/reflow/SKILL.md) guides agents in translating natural-language intent into validated workflows and operating them through MCP/CLI. Its reference files travel with the package.
 
 The official skills were installed into the current user's Codex skills directory during this task. They will be available for automatic discovery on the next turn. For another machine, use the Codex skill installer with the repository, revision, and path from the lock file. With the standard Codex installation:
 
@@ -15,7 +15,7 @@ python3 "${CODEX_HOME:-$HOME/.codex}/skills/.system/skill-installer/scripts/inst
 
 These commands require network access and the Codex installer. Other agent clients can install the same directories from the linked GitHub revisions using their own skill installer. Installation adds instructions, not a Resend credential, Temporal server, or Reflow runtime. Do not run an unpinned package installation command as an implicit skill update.
 
-The [official Better Auth pack](https://better-auth.com/docs/ai-resources/skills) includes best practices, auth creation, email/password, organizations, two-factor authentication, and security. All six are installed. Installing a guidance pack does not enable every corresponding product feature. Follow version-matched Better Auth documentation when implementation starts; no package version is selected in this specification repository.
+The [official Better Auth pack](https://better-auth.com/docs/ai-resources/skills) includes best practices, auth creation, email/password, organizations, two-factor authentication, and security. All six are installed. Installing a guidance pack does not enable every corresponding product feature. Follow version-matched Better Auth documentation when changing authentication; runtime versions are pinned in `package.json` and `pnpm-lock.yaml`.
 
 Install the first-party skill with the repository's dependency-free installer:
 

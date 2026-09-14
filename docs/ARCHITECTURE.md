@@ -1,6 +1,12 @@
 # Reflow implementation architecture
 
-Status: proposed design; no runtime implementation exists yet. Product semantics and release gates are defined in [PRD](PRD.md).
+Status: runnable baseline plus planned hardening. Product semantics and release gates are defined in [PRD](PRD.md).
+
+## Agent-authored capability graphs
+
+MCP is the primary authoring surface. The server publishes a JSON Schema, installed action catalog, and `design-workflow` prompt. An MCP host agent translates natural-language intent into a finite graph of triggers, actions, delays, event waits, branches, and end states. Validation rejects unknown capabilities and structurally unsafe graphs before persistence. Simulation resolves sample data and traces control flow without side effects.
+
+Temporal runs one versioned, deterministic graph interpreter. Action nodes cross the activity boundary into a registry; `email.send` uses the provider abstraction and durable send ledger, while `contact.update` is a separate installed action. Future email providers, CRMs, HTTP callbacks, and product integrations add registry entries and activity handlers. User-authored graphs never choose arbitrary Temporal workflow names, task queues, modules, or code.
 
 ## 1. Structure and module ownership
 

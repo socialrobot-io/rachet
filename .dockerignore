@@ -1,0 +1,11 @@
+.git
+.github
+.pnpm-store
+node_modules
+dist
+coverage
+.env*
+secrets
+data
+backups
+*.log

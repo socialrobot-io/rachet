@@ -1,0 +1,124 @@
+name: reflow
+
+x-reflow: &reflow
+  image: reflow:${REFLOW_VERSION:-local}
+  build: .
+  restart: unless-stopped
+  environment:
+    NODE_ENV: production
+    PORT: 3000
+    PUBLIC_URL: https://${REFLOW_DOMAIN:?Set REFLOW_DOMAIN}
+    DATABASE_URL_FILE: /run/secrets/database_url
+    BETTER_AUTH_SECRET_FILE: /run/secrets/better_auth_secret
+    ALLOW_REGISTRATION: '${ALLOW_REGISTRATION:-false}'
+    TRUSTED_ORIGINS: 'https://${REFLOW_DOMAIN:?Set REFLOW_DOMAIN}'
+    TEMPORAL_ADDRESS: temporal:7233
+    TEMPORAL_NAMESPACE: reflow
+    RESEND_API_KEY_FILE: /run/secrets/resend_api_key
+    RESEND_WEBHOOK_SECRET_FILE: /run/secrets/resend_webhook_secret
+    REFLOW_FROM: '${REFLOW_FROM:?Set REFLOW_FROM}'
+    OAUTH_PROVIDER_ID: '${OAUTH_PROVIDER_ID:-}'
+    OAUTH_DISCOVERY_URL: '${OAUTH_DISCOVERY_URL:-}'
+    OAUTH_CLIENT_ID: '${OAUTH_CLIENT_ID:-}'
+    OAUTH_CLIENT_SECRET_FILE: /run/secrets/oauth_client_secret
+  secrets: [database_url, better_auth_secret, resend_api_key, resend_webhook_secret, oauth_client_secret]
+  depends_on:
+    migrate: { condition: service_completed_successfully }
+    temporal-namespace: { condition: service_completed_successfully }
+  networks: [reflow]
+  read_only: true
+  tmpfs: [/tmp]
+  security_opt: ['no-new-privileges:true']
+
+services:
+  postgres:
+    image: postgres:16.10-bookworm
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: reflow
+      POSTGRES_USER: reflow
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
+    secrets: [postgres_password]
+    volumes: ['reflow-db:/var/lib/postgresql/data']
+    healthcheck: { test: [CMD-SHELL, pg_isready -U reflow -d reflow], interval: 5s, timeout: 5s, retries: 20 }
+    networks: [reflow]
+
+  temporal-postgres:
+    image: postgres:16.10-bookworm
+    restart: unless-stopped
+    environment: { POSTGRES_USER: temporal, POSTGRES_PASSWORD_FILE: /run/secrets/temporal_postgres_password }
+    secrets: [temporal_postgres_password]
+    volumes: ['temporal-db:/var/lib/postgresql/data']
+    healthcheck: { test: [CMD-SHELL, pg_isready -U temporal], interval: 5s, timeout: 5s, retries: 20 }
+    networks: [reflow]
+
+  temporal-schema:
+    image: temporalio/admin-tools:1.29.1-tctl-1.18.4-cli-1.5.0
+    restart: on-failure:5
+    depends_on: { temporal-postgres: { condition: service_healthy } }
+    environment: { DB: postgres12, DB_PORT: 5432, POSTGRES_USER: temporal, POSTGRES_SEEDS: temporal-postgres }
+    secrets: [temporal_postgres_password]
+    volumes: ['./docker/temporal/scripts:/scripts:ro']
+    entrypoint: [/bin/sh, -c]
+    command: ['export POSTGRES_PWD="$$(cat /run/secrets/temporal_postgres_password)"; export SQL_PASSWORD="$$POSTGRES_PWD"; exec /scripts/setup-postgres.sh']
+    networks: [reflow]
+
+  temporal:
+    image: temporalio/server:1.29.1
+    restart: unless-stopped
+    depends_on: { temporal-schema: { condition: service_completed_successfully } }
+    environment: { DB: postgres12, DB_PORT: 5432, POSTGRES_USER: temporal, POSTGRES_SEEDS: temporal-postgres, BIND_ON_IP: 0.0.0.0, DYNAMIC_CONFIG_FILE_PATH: config/dynamicconfig/development-sql.yaml }
+    secrets: [temporal_postgres_password]
+    volumes: ['./docker/temporal/dynamicconfig:/etc/temporal/config/dynamicconfig:ro']
+    entrypoint: [/bin/sh, -c]
+    command: ['export POSTGRES_PWD="$$(cat /run/secrets/temporal_postgres_password)"; export SQL_PASSWORD="$$POSTGRES_PWD"; exec /etc/temporal/entrypoint.sh']
+    healthcheck: { test: [CMD, nc, -z, localhost, '7233'], interval: 5s, timeout: 3s, retries: 30 }
+    networks: [reflow]
+
+  temporal-namespace:
+    image: temporalio/admin-tools:1.29.1-tctl-1.18.4-cli-1.5.0
+    restart: on-failure:5
+    depends_on: { temporal: { condition: service_healthy } }
+    environment: { TEMPORAL_ADDRESS: 'temporal:7233', DEFAULT_NAMESPACE: reflow }
+    volumes: ['./docker/temporal/scripts:/scripts:ro']
+    entrypoint: [/bin/sh, /scripts/create-namespace.sh]
+    networks: [reflow]
+
+  migrate:
+    <<: *reflow
+    restart: 'no'
+    command: [node, dist/src/db/migrate.js]
+    depends_on: { postgres: { condition: service_healthy } }
+
+  app:
+    <<: *reflow
+    healthcheck: { test: [CMD, node, -e, "fetch('http://localhost:3000/health/ready').then(r=>{if(!r.ok)process.exit(1)})"], interval: 10s, timeout: 5s, retries: 10 }
+
+  worker:
+    <<: *reflow
+    command: [node, dist/src/worker.js]
+
+  dispatcher:
+    <<: *reflow
+    command: [node, dist/src/dispatcher.js]
+
+  caddy:
+    image: caddy:2.10.2-alpine
+    restart: unless-stopped
+    depends_on: { app: { condition: service_healthy } }
+    environment: { REFLOW_DOMAIN: '${REFLOW_DOMAIN:?Set REFLOW_DOMAIN}', ACME_EMAIL: '${ACME_EMAIL:?Set ACME_EMAIL}' }
+    ports: ['80:80', '443:443', '443:443/udp']
+    volumes: ['./docker/Caddyfile:/etc/caddy/Caddyfile:ro', 'caddy-data:/data', 'caddy-config:/config']
+    networks: [reflow]
+
+secrets:
+  database_url: { file: ./secrets/database_url }
+  postgres_password: { file: ./secrets/postgres_password }
+  temporal_postgres_password: { file: ./secrets/temporal_postgres_password }
+  better_auth_secret: { file: ./secrets/better_auth_secret }
+  resend_api_key: { file: ./secrets/resend_api_key }
+  resend_webhook_secret: { file: ./secrets/resend_webhook_secret }
+  oauth_client_secret: { file: ./secrets/oauth_client_secret }
+
+volumes: { reflow-db: {}, temporal-db: {}, caddy-data: {}, caddy-config: {} }
+networks: { reflow: {} }

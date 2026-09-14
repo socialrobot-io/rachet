@@ -26,10 +26,10 @@ def read_json(path):
     return json.loads(path.read_text(), object_pairs_hook=unique_pairs)
 
 
-def check_sequence(sequence):
-    require(sequence.get("schemaVersion") == "1", "Unsupported sequence schema version")
-    nodes = sequence.get("steps", [])
-    require(isinstance(nodes, list) and 0 < len(nodes) <= 100, "Expected 1–100 steps")
+def check_workflow(sequence):
+    require(sequence.get("schemaVersion") == "1", "Unsupported workflow schema version")
+    nodes = sequence.get("nodes", [])
+    require(isinstance(nodes, list) and 0 < len(nodes) <= 100, "Expected 1–100 nodes")
     steps = {}
     for node in nodes:
         require(isinstance(node, dict), "Step must be an object")
@@ -40,30 +40,25 @@ def check_sequence(sequence):
     edges = {}
     for key, node in steps.items():
         kind = node.get("type")
-        require(kind in {"send_email", "wait", "wait_for_event", "branch", "end"},
-                f"Unknown step type: {kind}")
+        require(kind in {"action", "delay", "wait_for_event", "branch", "end"}, f"Unknown node type: {kind}")
         if kind == "end":
             require(bool(node.get("reason")), f"End reason missing: {key}")
             require(not any(k in node for k in ("next", "onEvent", "onTimeout")),
                     f"End cannot have outgoing edges: {key}")
             edges[key] = []
         elif kind == "wait_for_event":
-            for field in ("eventType", "correlation", "since", "timeout", "onEvent", "onTimeout"):
+            for field in ("eventType", "timeoutSeconds", "onEvent", "onTimeout"):
                 require(bool(node.get(field)), f"Missing {field}: {key}")
             edges[key] = [node["onEvent"], node["onTimeout"]]
         elif kind == "branch":
-            branches = node.get("branches", [])
-            require(bool(branches) and bool(node.get("default")), f"Branch paths missing: {key}")
-            require(all(b.get("when") and b.get("next") for b in branches),
-                    f"Branch condition/target missing: {key}")
-            edges[key] = [b["next"] for b in branches] + [node["default"]]
+            require(node.get("condition") and node.get("onTrue") and node.get("onFalse"), f"Branch paths missing: {key}")
+            edges[key] = [node["onTrue"], node["onFalse"]]
         else:
             require(bool(node.get("next")), f"Next step missing: {key}")
-            if kind == "send_email":
-                require(bool(node.get("templateVersionId")), f"Template version missing: {key}")
-            if kind == "wait":
-                require(bool(node.get("duration")) != bool(node.get("until")),
-                        f"Wait needs exactly one duration/until: {key}")
+            if kind == "action":
+                require(bool(node.get("action")) and isinstance(node.get("input"), dict), f"Action capability/input missing: {key}")
+            if kind == "delay":
+                require(isinstance(node.get("durationSeconds"), int) and node["durationSeconds"] > 0, f"Delay duration missing: {key}")
             edges[key] = [node["next"]]
         require(all(target in steps for target in edges[key]), f"Dangling edge: {key}")
     active, visited = set(), set()
@@ -79,7 +74,7 @@ def check_sequence(sequence):
         active.remove(key)
         visited.add(key)
 
-    visit(sequence.get("entryStepId"))
+    visit(sequence.get("entryNodeId"))
     require(visited == set(steps), "Unreachable steps")
 
 
@@ -155,7 +150,7 @@ def main():
             check_markdown(path)
         if path.suffix == ".json":
             read_json(path)
-        if path.suffix in {".md", ".py", ".json", ".yml"} or path.name == "Makefile":
+        if path.suffix in {".md", ".py", ".yml"} or path.name == "Makefile":
             content = path.read_text()
             require(content.endswith("\n"), f"Missing final newline: {name}")
             require(not any(line.rstrip() != line for line in content.splitlines()),
@@ -164,8 +159,8 @@ def main():
                     f"Merge conflict marker: {name}")
     check_lock(read_json(ROOT / "skills.lock.json"))
     check_skill(ROOT / "skills/reflow")
-    for path in (ROOT / "examples").glob("*.sequence.json"):
-        check_sequence(read_json(path))
+    for path in (ROOT / "examples").glob("*.workflow.json"):
+        check_workflow(read_json(path))
     print("Repository checks passed: docs, links, JSON, graph, skill metadata, pinned sources, hygiene.")
 
 

@@ -3,44 +3,43 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from scripts.check_repo import ROOT, check_lock, check_markdown, check_sequence, read_json
+from scripts.check_repo import ROOT, check_lock, check_markdown, check_workflow, read_json
 from scripts.install_reflow_skill import install
 
 
-class SequenceChecks(unittest.TestCase):
+class WorkflowChecks(unittest.TestCase):
     def setUp(self):
-        self.sequence = read_json(ROOT / "examples/onboarding.sequence.json")
+        self.sequence = read_json(ROOT / "examples/onboarding.workflow.json")
 
     def test_example_is_valid(self):
-        check_sequence(self.sequence)
+        check_workflow(self.sequence)
 
     def test_rejects_broken_graphs(self):
         mutations = [
-            lambda s: s["steps"].append(copy.deepcopy(s["steps"][0])),
-            lambda s: s["steps"][0].update(next="absent"),
-            lambda s: s["steps"][0].update(next="welcome"),
-            lambda s: s["steps"].append({"id": "unused", "type": "end", "reason": "unused"}),
-            lambda s: s.update(entryStepId="absent"),
-            lambda s: s["steps"][1].pop("timeout"),
-            lambda s: s["steps"][-1].update(next="welcome"),
+            lambda s: s["nodes"].append(copy.deepcopy(s["nodes"][0])),
+            lambda s: s["nodes"][0].update(next="absent"),
+            lambda s: s["nodes"][0].update(next="welcome"),
+            lambda s: s["nodes"].append({"id": "unused", "type": "end", "reason": "unused"}),
+            lambda s: s.update(entryNodeId="absent"),
+            lambda s: s["nodes"][1].pop("timeoutSeconds"),
+            lambda s: s["nodes"][-1].update(next="welcome"),
         ]
         for mutate in mutations:
             with self.subTest(mutation=mutate):
                 value = copy.deepcopy(self.sequence)
                 mutate(value)
                 with self.assertRaises(ValueError):
-                    check_sequence(value)
+                    check_workflow(value)
 
     def test_wait_and_branch(self):
-        sequence = {"schemaVersion": "1", "entryStepId": "wait", "steps": [
-            {"id": "wait", "type": "wait", "duration": "P1D", "next": "branch"},
-            {"id": "branch", "type": "branch", "branches": [
-                {"when": {"exists": "activation"}, "next": "end"}], "default": "end"},
+        sequence = {"schemaVersion": "1", "entryNodeId": "wait", "nodes": [
+            {"id": "wait", "type": "delay", "durationSeconds": 86400, "next": "branch"},
+            {"id": "branch", "type": "branch", "condition": {"op": "exists", "value": {"path": "contact.activation"}}, "onTrue": "end", "onFalse": "end"},
             {"id": "end", "type": "end", "reason": "done"}]}
-        check_sequence(sequence)
-        sequence["steps"][0]["until"] = "2026-10-01T00:00:00Z"
+        check_workflow(sequence)
+        sequence["nodes"][0]["durationSeconds"] = 0
         with self.assertRaises(ValueError):
-            check_sequence(sequence)
+            check_workflow(sequence)
 
 
 class RepositoryChecks(unittest.TestCase):

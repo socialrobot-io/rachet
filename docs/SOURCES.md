@@ -1,6 +1,8 @@
 # Integration research and decision notes
 
-Official documentation consulted on 2026-09-13. These links establish vendor/protocol behavior. Product choices, capacity targets, schema examples, topology, and recovery policies are proposed Reflow requirements, not vendor guarantees. Exact package versions must be pinned and integration-tested during implementation.
+Official documentation consulted on 2026-09-13. These links establish vendor/protocol behavior. Product choices, capacity targets, schema examples, topology, and recovery policies are Reflow requirements, not vendor guarantees. Package versions are pinned in the lockfile and Compose definition.
+
+The Temporal Compose helper scripts and dynamic configuration under `docker/temporal/` are copied from `temporalio/samples-server` commit `ca1106b647c34323876bd6f221f4310271096dd8`.
 
 | Source | Verified constraint / design implication |
 |---|---|

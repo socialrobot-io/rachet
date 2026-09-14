@@ -1,0 +1,39 @@
+{
+  "schemaVersion": "1",
+  "description": "Send onboarding, wait up to three days for activation, then record that a nudge is needed.",
+  "trigger": { "type": "manual" },
+  "purpose": "marketing",
+  "topic": "onboarding",
+  "entryNodeId": "welcome",
+  "nodes": [
+    {
+      "id": "welcome",
+      "type": "action",
+      "action": "email.send",
+      "input": {
+        "templateVersionId": { "literal": "00000000-0000-4000-8000-000000000001" },
+        "props": { "literal": { "campaign": "activation" } }
+      },
+      "next": "await_activation",
+      "onError": "attention"
+    },
+    {
+      "id": "await_activation",
+      "type": "wait_for_event",
+      "eventType": "product.activated",
+      "timeoutSeconds": 259200,
+      "onEvent": "converted",
+      "onTimeout": "mark_for_nudge"
+    },
+    { "id": "converted", "type": "end", "reason": "activated" },
+    {
+      "id": "mark_for_nudge",
+      "type": "action",
+      "action": "contact.update",
+      "input": { "fields": { "literal": { "onboardingStatus": "needs_nudge" } } },
+      "next": "finished",
+      "onError": "fail"
+    },
+    { "id": "finished", "type": "end", "reason": "completed" }
+  ]
+}

@@ -1,0 +1,85 @@
+# Local infrastructure only: PostgreSQL + Temporal.
+# Run the API, worker, and dispatcher on the host with pnpm.
+# No Caddy, no ACME, no production app image.
+name: reflow-dev
+
+services:
+  postgres:
+    image: postgres:16.10-bookworm
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: reflow
+      POSTGRES_USER: reflow
+      POSTGRES_PASSWORD: reflow
+    ports: ['5433:5432']
+    volumes: ['reflow-dev-db:/var/lib/postgresql/data']
+    healthcheck: { test: [CMD-SHELL, pg_isready -U reflow -d reflow], interval: 5s, timeout: 5s, retries: 20 }
+    networks: [reflow-dev]
+
+  temporal-postgres:
+    image: postgres:16.10-bookworm
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: temporal
+      POSTGRES_PASSWORD: temporal
+    volumes: ['temporal-dev-db:/var/lib/postgresql/data']
+    healthcheck: { test: [CMD-SHELL, pg_isready -U temporal], interval: 5s, timeout: 5s, retries: 20 }
+    networks: [reflow-dev]
+
+  temporal-schema:
+    image: temporalio/admin-tools:1.29.1-tctl-1.18.4-cli-1.5.0
+    restart: on-failure:5
+    depends_on: { temporal-postgres: { condition: service_healthy } }
+    environment:
+      DB: postgres12
+      DB_PORT: 5432
+      POSTGRES_USER: temporal
+      POSTGRES_SEEDS: temporal-postgres
+      POSTGRES_PWD: temporal
+      SQL_PASSWORD: temporal
+    volumes: ['./docker/temporal/scripts:/scripts:ro']
+    entrypoint: [/bin/sh, /scripts/setup-postgres.sh]
+    networks: [reflow-dev]
+
+  temporal:
+    image: temporalio/server:1.29.1
+    restart: unless-stopped
+    depends_on: { temporal-schema: { condition: service_completed_successfully } }
+    environment:
+      DB: postgres12
+      DB_PORT: 5432
+      POSTGRES_USER: temporal
+      POSTGRES_PWD: temporal
+      SQL_PASSWORD: temporal
+      POSTGRES_SEEDS: temporal-postgres
+      BIND_ON_IP: 0.0.0.0
+      DYNAMIC_CONFIG_FILE_PATH: config/dynamicconfig/development-sql.yaml
+    ports: ['7233:7233']
+    volumes: ['./docker/temporal/dynamicconfig:/etc/temporal/config/dynamicconfig:ro']
+    healthcheck: { test: [CMD, nc, -z, localhost, '7233'], interval: 5s, timeout: 3s, retries: 30 }
+    networks: [reflow-dev]
+
+  temporal-namespace:
+    image: temporalio/admin-tools:1.29.1-tctl-1.18.4-cli-1.5.0
+    restart: on-failure:5
+    depends_on: { temporal: { condition: service_healthy } }
+    environment: { TEMPORAL_ADDRESS: 'temporal:7233', DEFAULT_NAMESPACE: reflow }
+    volumes: ['./docker/temporal/scripts:/scripts:ro']
+    entrypoint: [/bin/sh, /scripts/create-namespace.sh]
+    networks: [reflow-dev]
+
+  temporal-ui:
+    image: temporalio/ui:2.34.0
+    restart: unless-stopped
+    depends_on:
+      temporal: { condition: service_healthy }
+      temporal-namespace: { condition: service_completed_successfully }
+    environment:
+      TEMPORAL_ADDRESS: temporal:7233
+      TEMPORAL_CORS_ORIGINS: http://localhost:3000
+      TEMPORAL_DEFAULT_NAMESPACE: reflow
+    ports: ['8080:8080']
+    networks: [reflow-dev]
+
+volumes: { reflow-dev-db: {}, temporal-dev-db: {} }
+networks: { reflow-dev: {} }
