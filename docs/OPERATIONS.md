@@ -39,7 +39,7 @@ reflow call enrollment.create --file ./enrollment.json
 reflow call event.emit --file ./activation-event.json
 ```
 
-`reflow tui --workspace UUID` provides an interactive workflow browser backed by `workflow.list`. It renders a portable Unicode flow tree in the terminal and can toggle to Mermaid source with `m`. The equivalent noninteractive command is `reflow workflow show --workspace UUID --id UUID`, with `--format terminal|mermaid|json`. These are presentation clients over the shared operation contract, so they preserve CLI/MCP authorization and do not bypass the service layer.
+`reflow tui --workspace UUID` provides an interactive workflow browser backed by `workflow.list`. It renders a compact Unicode flow tree and can toggle with `m` to a Mermaid-parsed, box-and-arrow terminal diagram rendered inside Ink. Wide diagrams support horizontal panning. The equivalent noninteractive command is `reflow workflow show --workspace UUID --id UUID`, with `--format terminal|mermaid-terminal|mermaid|json`. These are presentation clients over the shared operation contract, so they preserve CLI/MCP authorization and do not bypass the service layer.
 
 Set `REFLOW_URL` and either `REFLOW_TOKEN` or `REFLOW_API_KEY`. Login and registration read passwords from files. Registration succeeds only when `ALLOW_REGISTRATION=true`. Preserve idempotency and event IDs on retries. Publishing is side-effect free; enrollment and event emission affect live durable workflows, and an `email.send` node may submit external email.
 

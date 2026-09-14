@@ -62,7 +62,7 @@ reflow
 
 The login prompt stores the server session and selected workspace in `~/.config/reflow/config.json` with owner-only permissions. `XDG_CONFIG_HOME` and `REFLOW_CONFIG_PATH` can relocate it. Run `reflow workspace list` or `reflow workspace use` to switch later. Environment variables remain temporary overrides.
 
-Plain `reflow` opens the remembered workspace. Use arrow keys or `j`/`k` to select, `/` to filter, `m` to switch between the terminal flow diagram and Mermaid source, `r` to refresh, and `q` to quit. The TUI calls the same authenticated `workspace.list` and `workflow.list` operations as MCP and `reflow call`; it does not connect directly to PostgreSQL or Temporal.
+Plain `reflow` opens the remembered workspace. Use arrow keys or `j`/`k` to select, `/` to filter, `m` to switch between the compact flow and rendered Mermaid diagram, arrow keys or `h`/`l` to pan a wide Mermaid view, `r` to refresh, and `q` to quit. The TUI calls the same authenticated `workspace.list` and `workflow.list` operations as MCP and `reflow call`; it does not connect directly to PostgreSQL or Temporal.
 
 Running a protected command before login exits cleanly with `Run \`reflow auth login\``. An expired or rejected saved session gives the same recovery path without printing a JavaScript stack trace.
 
@@ -70,10 +70,11 @@ For scripts and terminal scrollback, render one workflow without starting the TU
 
 ```sh
 reflow workflow show --name "Trial onboarding"
+reflow workflow show --name "Trial onboarding" --format mermaid-terminal
 reflow workflow show --name "Trial onboarding" --format mermaid > workflow.mmd
 ```
 
-The default renderer uses Unicode box drawing and works in ordinary terminals and over SSH. Mermaid is available as source output for Mermaid-compatible tools; Mermaid.js itself renders SVG/canvas rather than terminal cells.
+Both terminal views use Unicode box drawing and work in ordinary terminals and over SSH. The Mermaid view parses the generated Mermaid flowchart and lays it out as connected terminal boxes inside Ink. Mermaid source remains available for external Mermaid-compatible tools.
 
 Human authentication supports email/password and a configured OIDC provider. Better Auth serves OAuth authorization-server metadata for MCP. `reflow auth login` currently performs an interactive email/password login without echoing the password; `--email` and `--password-file` remain available for automation. Session bearer tokens, OAuth access tokens, and user-bound API keys can authorize operations. Initial setup creates exactly one deployment administrator and workspace. Administrators create later accounts; self-registration is available only with `ALLOW_REGISTRATION=true`.
 

@@ -1,4 +1,5 @@
 import type { FlowNode, WorkflowDefinition } from '../domain/contracts.js';
+import { renderMermaidASCII } from 'beautiful-mermaid';
 
 type Edge = { label: string; target: string };
 
@@ -88,4 +89,15 @@ export function renderMermaidWorkflow(definition: WorkflowDefinition): string {
     }
   }
   return lines.join('\n');
+}
+
+export function renderMermaidTerminal(definition: WorkflowDefinition, width = 100): string {
+  const rendered = renderMermaidASCII(renderMermaidWorkflow(definition), {
+    useAscii: false,
+    colorMode: 'none',
+    paddingX: width >= 120 ? 3 : 1,
+    paddingY: 1,
+    boxBorderPadding: 0,
+  });
+  return rendered.split('\n').map((line) => line.trimEnd()).join('\n').trimEnd();
 }

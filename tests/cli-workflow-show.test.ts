@@ -33,7 +33,7 @@ describe('workflow show CLI', () => {
     await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
   });
 
-  async function run(format: 'terminal' | 'mermaid') {
+  async function run(format: 'terminal' | 'mermaid-terminal' | 'mermaid') {
     return execFileAsync(process.execPath, ['--import', 'tsx', 'src/cli.ts', 'workflow', 'show', '--workspace', workspaceId, '--id', workflowId, '--format', format], {
       cwd: new URL('..', import.meta.url),
       env: { ...process.env, REFLOW_URL: url, REFLOW_TOKEN: 'test-token' },
@@ -45,5 +45,8 @@ describe('workflow show CLI', () => {
     expect(terminal.stdout).toContain('● welcome  action · email.send');
     const mermaid = await run('mermaid');
     expect(mermaid.stdout).toMatch(/^flowchart TD/);
+    const renderedMermaid = await run('mermaid-terminal');
+    expect(renderedMermaid.stdout).toContain('┌');
+    expect(renderedMermaid.stdout).toContain('welcome  action · email.send');
   }, 15_000);
 });

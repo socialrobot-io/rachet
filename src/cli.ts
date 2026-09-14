@@ -10,7 +10,7 @@ import { ReflowClient, ReflowClientError } from './client.js';
 import { chooseWorkspace, promptSecret, promptText, type WorkspaceChoice } from './cli-prompts.js';
 import { clearLogin, resolveCliContext, saveLogin, saveWorkspace, type CliContext, type SavedWorkspace } from './cli-state.js';
 import { workflowDefinitionSchema } from './domain/contracts.js';
-import { renderMermaidWorkflow, renderTerminalWorkflow } from './tui/workflow-graph.js';
+import { renderMermaidTerminal, renderMermaidWorkflow, renderTerminalWorkflow } from './tui/workflow-graph.js';
 
 class CliFailure extends Error {
   constructor(message: string, readonly hint?: string) {
@@ -160,7 +160,7 @@ workflow.command('show')
   .option('--workspace <id-or-slug>', 'Override the active workspace')
   .option('--id <id>', 'Workflow UUID')
   .option('--name <name>', 'Exact workflow name')
-  .option('--format <format>', 'terminal, mermaid, or json', 'terminal')
+  .option('--format <format>', 'terminal, mermaid-terminal, mermaid, or json', 'terminal')
   .action(async (options: { workspace?: string; id?: string; name?: string; format: string }) => {
     const context = await resolveCliContext();
     requireAuthentication(context);
@@ -170,9 +170,10 @@ workflow.command('show')
     if (!selected) throw new Error(options.id || options.name ? 'Workflow not found' : 'Specify --id or --name when the workspace has multiple workflows');
     const definition = workflowDefinitionSchema.parse(selected.definition);
     if (options.format === 'terminal') console.log(renderTerminalWorkflow(definition, process.stdout.columns ?? 100));
+    else if (options.format === 'mermaid-terminal') console.log(renderMermaidTerminal(definition, process.stdout.columns ?? 100));
     else if (options.format === 'mermaid') console.log(renderMermaidWorkflow(definition));
     else if (options.format === 'json') console.log(JSON.stringify(selected, null, 2));
-    else throw new Error('--format must be terminal, mermaid, or json');
+    else throw new Error('--format must be terminal, mermaid-terminal, mermaid, or json');
   });
 program.command('tui')
   .description('Browse and render workflows in an interactive terminal UI.')
