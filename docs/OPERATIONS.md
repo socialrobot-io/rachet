@@ -9,7 +9,7 @@ Every product operation is defined once in `src/operations.ts` and exposed as an
 | `system.capabilities`, `auth.whoami`, `workspace.list` | Discover runtime, actions, current access, and available workspaces |
 | `account.create` | Deployment administrator creates an account and optional workspace membership |
 | `credential.create`, `credential.revoke` | Create a user-bound machine API key, returning its secret once, or revoke it |
-| `template.create`, `template.list`, `template.publish`, `template.render` | Manage and preview immutable React Email-backed templates |
+| `template.create`, `template.list`, `template.publish`, `template.archive`, `template.render` | Manage HTML (preferred) or plain templates. CLI `reflow template push` renders React Email locally and uploads `html` + plain `body`. The server never executes TSX; it only interpolates `{{…}}` placeholders. `workflow.validate`/`publish` fail with `TEMPLATE_REFERENCE_INVALID` when `email.send` pins a missing version. `template.archive` fails with `TEMPLATE_IN_USE` while workflows still reference it, and archived templates cannot be republished. Errors include `hint` and `details.nextSteps` for agents. |
 | `workflow.actions` | List the installed action registry |
 | `workflow.create`, `workflow.list`, `workflow.validate`, `workflow.simulate`, `workflow.publish` | Author, check, trace, persist, and version capability graphs |
 | `contact.upsert`, `contact.list` | Manage enrolled contacts |
@@ -31,6 +31,10 @@ Graphs reject duplicate IDs, missing targets, cycles, unreachable nodes, unknown
 ## CLI examples
 
 ```sh
+reflow template init
+reflow template preview
+reflow template push emails/welcome.tsx --name Welcome --subject "Welcome, {{contact.firstName}}"
+reflow template list
 reflow call workflow.actions
 reflow call workflow.validate --file ./workflow-validation.json
 reflow call workflow.simulate --file ./workflow-simulation.json

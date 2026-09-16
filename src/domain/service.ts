@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { and, asc, eq, sql } from 'drizzle-orm';
+import { and, asc, eq, inArray, sql } from 'drizzle-orm';
 import type { Client } from '@temporalio/client';
 import type { ReflowAuth } from '../auth.js';
 import type { Database } from '../db/index.js';
@@ -12,6 +12,12 @@ import { validateActionNodes } from './action-catalog.js';
 import { simulateWorkflow } from './simulate.js';
 import { ReflowError, isUniqueViolation } from './errors.js';
 import { renderEmail } from './render.js';
+import {
+  buildTemplateRefIssues,
+  collectEmailSendTemplateRefs,
+  templateVersionIdsInDefinition,
+  throwTemplateRefIssues,
+} from './template-refs.js';
 import { cancelEnrollment, enrollmentEvent, pauseEnrollment, resumeEnrollment } from '../temporal/shared.js';
 
 function hash(value: unknown): string {
@@ -76,9 +82,38 @@ export class ReflowService {
     return result;
   }
 
-  async templateCreate(context: OperationContext, input: typeof templates.$inferInsert) {
+  async templateCreate(context: OperationContext, input: {
+    workspaceId: string;
+    name: string;
+    subject: string;
+    preheader?: string | undefined;
+    body?: string | undefined;
+    html?: string | undefined;
+    sourceKind?: 'plain' | 'html' | undefined;
+    tsxSource?: string | undefined;
+    propsSchema?: Record<string, unknown> | undefined;
+  }) {
     this.workspace(context, input.workspaceId, 'author');
-    const [created] = await this.db.insert(templates).values(input).returning();
+    const sourceKind = input.html?.trim() ? 'html' : (input.sourceKind ?? 'plain');
+    const body = input.body?.trim() ?? '';
+    const html = input.html?.trim() || null;
+    if (sourceKind === 'html') {
+      if (!html) throw new ReflowError('VALIDATION_FAILED', 'html is required for html templates', 422);
+      if (!body) throw new ReflowError('VALIDATION_FAILED', 'body (plain text) is required for html templates', 422);
+    } else if (!body) {
+      throw new ReflowError('VALIDATION_FAILED', 'body is required for plain templates', 422);
+    }
+    const [created] = await this.db.insert(templates).values({
+      workspaceId: input.workspaceId,
+      name: input.name,
+      subject: input.subject,
+      preheader: input.preheader,
+      body,
+      html,
+      sourceKind,
+      tsxSource: input.tsxSource?.trim() || null,
+      propsSchema: input.propsSchema ?? {},
+    }).returning();
     if (!created) throw new Error('Template creation failed');
     await this.audit(context, 'template.create', input.workspaceId, 'template', created.id);
     return created;
@@ -86,7 +121,107 @@ export class ReflowService {
 
   async templateList(context: OperationContext, workspaceId: string) {
     this.workspace(context, workspaceId);
-    return this.db.select().from(templates).where(eq(templates.workspaceId, workspaceId)).orderBy(asc(templates.name));
+    const rows = await this.db.select().from(templates).where(eq(templates.workspaceId, workspaceId)).orderBy(asc(templates.name));
+    const versions = await this.db.select({
+      id: templateVersions.id,
+      templateId: templateVersions.templateId,
+      version: templateVersions.version,
+      createdAt: templateVersions.createdAt,
+    }).from(templateVersions).where(eq(templateVersions.workspaceId, workspaceId));
+    return rows.map((row) => ({
+      ...row,
+      versions: versions.filter((version) => version.templateId === row.id).sort((a, b) => a.version - b.version),
+    }));
+  }
+
+  async templateArchive(context: OperationContext, input: { workspaceId: string; templateId: string }) {
+    this.workspace(context, input.workspaceId, 'author');
+    const [draft] = await this.db.select().from(templates).where(and(eq(templates.id, input.templateId), eq(templates.workspaceId, input.workspaceId))).limit(1);
+    if (!draft) throw new ReflowError('NOT_FOUND', 'Template not found', 404);
+    if (draft.state === 'archived') return draft;
+
+    const versionRows = await this.db.select({ id: templateVersions.id, version: templateVersions.version })
+      .from(templateVersions)
+      .where(and(eq(templateVersions.templateId, draft.id), eq(templateVersions.workspaceId, input.workspaceId)));
+    const versionIds = new Set(versionRows.map((row) => row.id));
+    if (versionIds.size > 0) {
+      const refs = await this.findTemplateVersionUsages(input.workspaceId, versionIds);
+      if (refs.length > 0) {
+        throw new ReflowError(
+          'TEMPLATE_IN_USE',
+          `Template "${draft.name}" cannot be archived because published version(s) are referenced by workflow(s): ${refs.map((ref) => `${ref.workflowName} (${ref.scope})`).join(', ')}.`,
+          409,
+          false,
+          {
+            hint: 'Remove or replace the email.send templateVersionId pins in those workflows, publish a new workflow version if needed, then archive the template. Templates that workflows still pin are kept so historical enrollments stay reproducible.',
+            details: {
+              templateId: draft.id,
+              templateName: draft.name,
+              referencedBy: refs,
+              nextSteps: [
+                'Call workflow_list and inspect definitions for this templateVersionId.',
+                'Update those email.send nodes to another published template version.',
+                'Call workflow_publish for updated drafts.',
+                'Retry template_archive.',
+              ],
+            },
+          },
+        );
+      }
+    }
+
+    const [archived] = await this.db.update(templates).set({ state: 'archived', updatedAt: new Date() }).where(eq(templates.id, draft.id)).returning();
+    await this.audit(context, 'template.archive', input.workspaceId, 'template', draft.id);
+    return archived;
+  }
+
+  private async findTemplateVersionUsages(workspaceId: string, versionIds: Set<string>) {
+    const refs: Array<{ workflowId: string; workflowName: string; scope: string; templateVersionId: string }> = [];
+    const drafts = await this.db.select({ id: sequences.id, name: sequences.name, definition: sequences.definition })
+      .from(sequences).where(eq(sequences.workspaceId, workspaceId));
+    for (const draft of drafts) {
+      for (const versionId of templateVersionIdsInDefinition(draft.definition)) {
+        if (!versionIds.has(versionId)) continue;
+        refs.push({ workflowId: draft.id, workflowName: draft.name, scope: 'draft', templateVersionId: versionId });
+      }
+    }
+    const published = await this.db.select({
+      sequenceId: sequenceVersions.sequenceId,
+      version: sequenceVersions.version,
+      definition: sequenceVersions.definition,
+    }).from(sequenceVersions).where(eq(sequenceVersions.workspaceId, workspaceId));
+    const names = new Map(drafts.map((row) => [row.id, row.name]));
+    for (const row of published) {
+      for (const versionId of templateVersionIdsInDefinition(row.definition)) {
+        if (!versionIds.has(versionId)) continue;
+        refs.push({
+          workflowId: row.sequenceId,
+          workflowName: names.get(row.sequenceId) ?? row.sequenceId,
+          scope: `published:v${row.version}`,
+          templateVersionId: versionId,
+        });
+      }
+    }
+    return refs;
+  }
+
+  private async assertTemplateRefs(workspaceId: string, definition: WorkflowDefinition) {
+    const refs = collectEmailSendTemplateRefs(definition);
+    if (refs.length === 0) return;
+    const ids = [...new Set(refs.map((ref) => ref.templateVersionId).filter((id): id is string => Boolean(id)))];
+    const existing = new Map<string, { templateId: string; templateState: string }>();
+    if (ids.length > 0) {
+      const rows = await this.db.select({
+        id: templateVersions.id,
+        templateId: templateVersions.templateId,
+        templateState: templates.state,
+      }).from(templateVersions)
+        .innerJoin(templates, eq(templates.id, templateVersions.templateId))
+        .where(and(eq(templateVersions.workspaceId, workspaceId), inArray(templateVersions.id, ids)));
+      for (const row of rows) existing.set(row.id, { templateId: row.templateId, templateState: row.templateState });
+    }
+    const issues = buildTemplateRefIssues(refs, existing);
+    if (issues.length > 0) throwTemplateRefIssues(issues);
   }
 
   async templatePublish(context: OperationContext, input: { workspaceId: string; templateId: string; expectedRevision: number }) {
@@ -95,12 +230,24 @@ export class ReflowService {
       const [draft] = await tx.select().from(templates).where(and(eq(templates.id, input.templateId), eq(templates.workspaceId, input.workspaceId))).for('update').limit(1);
       if (!draft) throw new ReflowError('NOT_FOUND', 'Template not found', 404);
       if (draft.revision !== input.expectedRevision) throw new ReflowError('REVISION_CONFLICT', 'Template revision changed', 409);
+      if (draft.state === 'archived') throw new ReflowError('VALIDATION_FAILED', 'Archived templates cannot be published; create a new template instead', 409);
+      if (draft.sourceKind === 'html' && !draft.html?.trim()) {
+        throw new ReflowError('VALIDATION_FAILED', 'html template is missing html content; re-push with `reflow template push`', 422);
+      }
       const countRows = await tx.select({ count: sql<number>`count(*)::int` }).from(templateVersions).where(eq(templateVersions.templateId, draft.id));
       const version = Number(countRows[0]?.count ?? 0) + 1;
       const [published] = await tx.insert(templateVersions).values({
         workspaceId: input.workspaceId, templateId: draft.id, version,
-        contentHash: hash({ subject: draft.subject, preheader: draft.preheader, body: draft.body, propsSchema: draft.propsSchema }),
-        subject: draft.subject, preheader: draft.preheader, body: draft.body, propsSchema: draft.propsSchema,
+        contentHash: hash({
+          subject: draft.subject,
+          preheader: draft.preheader,
+          body: draft.body,
+          html: draft.html,
+          sourceKind: draft.sourceKind,
+          propsSchema: draft.propsSchema,
+        }),
+        subject: draft.subject, preheader: draft.preheader, body: draft.body, html: draft.html,
+        sourceKind: draft.sourceKind, tsxSource: draft.tsxSource, propsSchema: draft.propsSchema,
       }).returning();
       await tx.update(templates).set({ state: 'published', updatedAt: new Date() }).where(eq(templates.id, draft.id));
       await tx.insert(auditEvents).values({ workspaceId: input.workspaceId, actorId: context.principal.userId, action: 'template.publish', targetType: 'template_version', targetId: published?.id });
@@ -118,6 +265,7 @@ export class ReflowService {
   async workflowCreate(context: OperationContext, input: { workspaceId: string; name: string; intent: string; definition: WorkflowDefinition }) {
     this.workspace(context, input.workspaceId, 'author');
     validateActionNodes(input.definition.nodes);
+    await this.assertTemplateRefs(input.workspaceId, input.definition);
     const [created] = await this.db.insert(sequences).values({ workspaceId: input.workspaceId, name: input.name, definition: { ...input.definition, intent: input.intent } }).returning();
     if (!created) throw new Error('Workflow creation failed');
     await this.audit(context, 'workflow.create', input.workspaceId, 'workflow', created.id);
@@ -148,12 +296,7 @@ export class ReflowService {
       if (draft.revision !== input.expectedRevision) throw new ReflowError('REVISION_CONFLICT', 'Workflow revision changed', 409);
       const definition = draft.definition as WorkflowDefinition;
       validateActionNodes(definition.nodes);
-      for (const node of definition.nodes) if (node.type === 'action' && node.action === 'email.send') {
-        const source = node.input.templateVersionId;
-        if (!source || !('literal' in source) || typeof source.literal !== 'string') throw new ReflowError('VALIDATION_FAILED', `email.send ${node.id} requires a literal published templateVersionId`, 422);
-        const [version] = await tx.select({ id: templateVersions.id }).from(templateVersions).where(and(eq(templateVersions.id, source.literal), eq(templateVersions.workspaceId, input.workspaceId))).limit(1);
-        if (!version) throw new ReflowError('VALIDATION_FAILED', `Template version ${source.literal} not found`, 422);
-      }
+      await this.assertTemplateRefs(input.workspaceId, definition);
       const countRows = await tx.select({ count: sql<number>`count(*)::int` }).from(sequenceVersions).where(eq(sequenceVersions.sequenceId, draft.id));
       const [version] = await tx.insert(sequenceVersions).values({ workspaceId: input.workspaceId, sequenceId: draft.id, version: Number(countRows[0]?.count ?? 0) + 1, contentHash: hash(definition), definition }).returning();
       await tx.update(sequences).set({ state: 'published', updatedAt: new Date() }).where(eq(sequences.id, draft.id));
@@ -162,8 +305,10 @@ export class ReflowService {
     });
   }
 
-  workflowValidate(context: OperationContext, input: { workspaceId: string; definition: WorkflowDefinition }) {
-    this.workspace(context, input.workspaceId, 'author'); validateActionNodes(input.definition.nodes);
+  async workflowValidate(context: OperationContext, input: { workspaceId: string; definition: WorkflowDefinition }) {
+    this.workspace(context, input.workspaceId, 'author');
+    validateActionNodes(input.definition.nodes);
+    await this.assertTemplateRefs(input.workspaceId, input.definition);
     return { valid: true, nodeCount: input.definition.nodes.length };
   }
 

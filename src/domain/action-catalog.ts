@@ -10,7 +10,7 @@ export type ActionDefinition = {
 
 export const actionCatalog = {
   'email.send': {
-    description: 'Render a published React Email template and send it through the configured email provider.',
+    description: 'Send a published template (stored HTML + plain text) through the configured email provider after interpolating {{placeholders}}.',
     sideEffect: true,
     input: {
       templateVersionId: { description: 'Published template version UUID.', required: true },

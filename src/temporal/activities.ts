@@ -5,15 +5,21 @@ import type { Config } from '../config.js';
 import { resolveActionInput, resolveValue } from '../domain/action-catalog.js';
 import type { FlowCondition, FlowNode } from '../domain/contracts.js';
 import { renderEmail } from '../domain/render.js';
-import { createDatabase } from '../db/index.js';
+import { createDatabase, type Database } from '../db/index.js';
 import { contacts, enrollments, sendIntents, suppressions, templateVersions } from '../db/schema.js';
+import type { EmailProvider } from '../providers/email-provider.js';
 import { ResendProvider } from '../providers/resend.js';
 
-let runtime: { config: Config; db: ReturnType<typeof createDatabase>['db']; provider: ResendProvider } | undefined;
+let runtime: { config: Config; db: Database; provider?: EmailProvider | undefined } | undefined;
 
-export function configureActivities(config: Config) {
-  const { db } = createDatabase(config);
-  runtime = { config, db, provider: new ResendProvider(config.resendApiKey ?? 'not-configured', config.resendWebhookSecret) };
+export function configureActivities(config: Config, overrides?: { db?: Database; provider?: EmailProvider }) {
+  const db = overrides?.db ?? createDatabase(config).db;
+  const provider = overrides?.provider ?? (config.resendApiKey ? new ResendProvider(config.resendApiKey, config.resendWebhookSecret) : undefined);
+  runtime = { config, db, provider };
+}
+
+export function resetActivities() {
+  runtime = undefined;
 }
 
 function getRuntime() {
@@ -49,7 +55,7 @@ export async function executeAction(input: { workspaceId: string; enrollmentId: 
 
 async function sendEmail(input: { workspaceId: string; enrollmentId: string; node: Extract<FlowNode, { type: 'action' }> }, resolved: Record<string, unknown>, row: { contact: typeof contacts.$inferSelect; enrollment: typeof enrollments.$inferSelect }): Promise<'succeeded' | 'needs_attention'> {
   const { config, db, provider } = getRuntime();
-  if (!config.resendApiKey) throw ApplicationFailure.nonRetryable('Resend is not configured', 'ValidationError');
+  if (!provider) throw ApplicationFailure.nonRetryable('No email provider is configured', 'ValidationError');
   if (typeof resolved.templateVersionId !== 'string') throw ApplicationFailure.nonRetryable('templateVersionId must resolve to a UUID', 'ValidationError');
   const [template] = await db.select().from(templateVersions).where(and(eq(templateVersions.id, resolved.templateVersionId), eq(templateVersions.workspaceId, input.workspaceId))).limit(1);
   if (!template) throw ApplicationFailure.nonRetryable('Template version not found', 'ValidationError');

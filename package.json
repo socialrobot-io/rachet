@@ -45,6 +45,7 @@
     "better-auth": "1.7.4",
     "commander": "14.0.3",
     "drizzle-orm": "0.45.2",
+    "esbuild": "0.25.12",
     "hono": "4.13.7",
     "ink": "7.1.1",
     "ink-picture": "2.1.0",

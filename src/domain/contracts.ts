@@ -4,8 +4,29 @@ export const workspaceIdSchema = z.uuid();
 export const accountCreateSchema = z.object({ email: z.email(), name: z.string().min(1).max(120), password: z.string().min(12).max(200), deploymentAdmin: z.boolean().default(false), workspaceId: z.uuid().optional(), role: z.enum(['owner', 'admin', 'author', 'sender', 'operator', 'viewer']).default('viewer') });
 export const credentialCreateSchema = z.object({ userId: z.string().min(1), name: z.string().min(1).max(120), scopes: z.array(z.enum(['read', 'write', 'send'])).min(1).default(['read']), expiresInSeconds: z.number().int().min(60).max(365 * 24 * 60 * 60).optional() });
 export const credentialRevokeSchema = z.object({ keyId: z.string().min(1) });
-export const templateCreateSchema = z.object({ workspaceId: workspaceIdSchema, name: z.string().min(1).max(120), subject: z.string().min(1).max(998), preheader: z.string().max(500).optional(), body: z.string().min(1).max(200_000), propsSchema: z.record(z.string(), z.unknown()).default({}) });
+export const templateCreateSchema = z.object({
+  workspaceId: workspaceIdSchema,
+  name: z.string().min(1).max(120),
+  subject: z.string().min(1).max(998),
+  preheader: z.string().max(500).optional(),
+  /** Plain-text body (always stored; used as the text/plain part). */
+  body: z.string().max(200_000).optional(),
+  /** Pre-rendered HTML with {{contact.*}} / {{variables.*}} placeholders. Prefer this over plain. */
+  html: z.string().max(500_000).optional(),
+  sourceKind: z.enum(['plain', 'html']).default('plain'),
+  /** Optional authoring source for provenance only. Never executed by the server. */
+  tsxSource: z.string().max(200_000).optional(),
+  propsSchema: z.record(z.string(), z.unknown()).default({}),
+}).superRefine((value, context) => {
+  if (value.sourceKind === 'html') {
+    if (!value.html?.trim()) context.addIssue({ code: 'custom', message: 'html is required for html templates', path: ['html'] });
+    if (!value.body?.trim()) context.addIssue({ code: 'custom', message: 'body (plain text) is required for html templates', path: ['body'] });
+  } else if (!value.body?.trim()) {
+    context.addIssue({ code: 'custom', message: 'body is required for plain templates', path: ['body'] });
+  }
+});
 export const templatePublishSchema = z.object({ workspaceId: workspaceIdSchema, templateId: z.uuid(), expectedRevision: z.number().int().positive() });
+export const templateArchiveSchema = z.object({ workspaceId: workspaceIdSchema, templateId: z.uuid() });
 export const templateRenderSchema = z.object({ workspaceId: workspaceIdSchema, templateVersionId: z.uuid(), props: z.record(z.string(), z.unknown()).default({}) });
 
 export const triggerSchema = z.discriminatedUnion('type', [

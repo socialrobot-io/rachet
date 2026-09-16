@@ -36,14 +36,23 @@ export function loadConfig(source: NodeJS.ProcessEnv = process.env) {
   const parsed = schema.parse(source);
   const betterAuthSecret = secret(parsed.BETTER_AUTH_SECRET, parsed.BETTER_AUTH_SECRET_FILE);
   if (!betterAuthSecret) throw new Error('BETTER_AUTH_SECRET or BETTER_AUTH_SECRET_FILE is required');
+  const publicUrl = parsed.PUBLIC_URL.replace(/\/$/, '');
+  const trustedOrigins = parsed.TRUSTED_ORIGINS.split(',').map((origin) => origin.trim()).filter(Boolean);
+  if (parsed.NODE_ENV === 'production') {
+    if (!publicUrl.startsWith('https://')) throw new Error('PUBLIC_URL must use https:// in production');
+    if (betterAuthSecret.length < 32) throw new Error('BETTER_AUTH_SECRET must be at least 32 characters in production');
+    if (trustedOrigins.some((origin) => !origin.startsWith('https://'))) {
+      throw new Error('TRUSTED_ORIGINS must contain only https:// origins in production');
+    }
+  }
   return {
     nodeEnv: parsed.NODE_ENV,
     port: parsed.PORT,
-    publicUrl: parsed.PUBLIC_URL.replace(/\/$/, ''),
+    publicUrl,
     databaseUrl: secret(parsed.DATABASE_URL, parsed.DATABASE_URL_FILE) ?? 'postgresql://reflow:reflow@localhost:5432/reflow',
     betterAuthSecret,
     allowRegistration: parsed.ALLOW_REGISTRATION === 'true',
-    trustedOrigins: parsed.TRUSTED_ORIGINS.split(',').map((origin) => origin.trim()),
+    trustedOrigins,
     temporalAddress: parsed.TEMPORAL_ADDRESS,
     temporalNamespace: parsed.TEMPORAL_NAMESPACE,
     temporalTaskQueue: parsed.TEMPORAL_TASK_QUEUE,

@@ -1,7 +1,7 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { authorizeOperation, type Operation } from './operations.js';
 import type { OperationContext } from './domain/contracts.js';
-import { ReflowError } from './domain/errors.js';
+import { ReflowError, errorPayload } from './domain/errors.js';
 import { z } from 'zod';
 import { workflowDefinitionSchema } from './domain/contracts.js';
 import { actionCatalog } from './domain/action-catalog.js';
@@ -24,7 +24,7 @@ export function createMcpServer(operations: Record<string, Operation>, context: 
         return { content: [{ type: 'text', text: JSON.stringify({ status: 'succeeded', data, requestId: context.requestId }) }], structuredContent: { status: 'succeeded', data, requestId: context.requestId } };
       } catch (error) {
         const detail = error instanceof ReflowError
-          ? { code: error.code, message: error.message, retryable: error.retryable }
+          ? errorPayload(error)
           : { code: 'INTERNAL', message: 'Operation failed', retryable: false };
         return { isError: true, content: [{ type: 'text', text: JSON.stringify(detail) }], structuredContent: detail };
       }
@@ -50,10 +50,13 @@ export function createMcpServer(operations: Record<string, Operation>, context: 
     `Design this workflow for workspace ${workspaceId}: ${intent}`,
     'Read reflow://workflow/actions and reflow://workflow/schema first.',
     'Use only installed capabilities. Explain any missing capability instead of inventing an action.',
-    'Create and publish any required templates, then build a graph with explicit paths, timeouts, and end states.',
+    'Create and publish any required templates (template_create + template_publish, or CLI `reflow template push`), then build a graph with explicit paths, timeouts, and end states.',
+    'Each email.send node must pin input.templateVersionId.literal to a published template version id in this workspace.',
     'Call workflow_validate, then workflow_simulate with representative sample data.',
+    'If workflow_validate returns TEMPLATE_REFERENCE_INVALID, read hint/details, create the missing templates, and retry validation.',
     'Show the trace and resolve validation errors before calling workflow_create.',
     'Do not publish or enroll contacts until the user has asked for that side effect.',
+    'Do not archive templates that workflows still reference; template_archive fails with TEMPLATE_IN_USE and explains which workflows pin them.',
   ].join('\n') } }] }));
   return server;
 }

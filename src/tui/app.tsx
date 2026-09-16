@@ -8,6 +8,10 @@ import { openWorkflowSvg } from './svg-preview.js';
 type Workflow = { id: string; name: string; state: string; revision: number; definition: WorkflowDefinition };
 type Focus = 'workflows' | 'node';
 
+export function toggleFocus(focus: Focus): Focus {
+  return focus === 'workflows' ? 'node' : 'workflows';
+}
+
 function useTerminalWidth(): number {
   const { stdout } = useStdout();
   const [width, setWidth] = useState(stdout.columns ?? 100);
@@ -174,7 +178,7 @@ export function ReflowTui({ client, workspaceId }: { client: ReflowClient; works
         .then((path) => setStatus(`Opened ${path}`))
         .catch((error: unknown) => setStatus(error instanceof Error ? `Error: ${error.message}` : 'Unable to open SVG'));
     }
-    else if (input === '\t') setFocus((value) => value === 'workflows' ? 'node' : 'workflows');
+    else if (key.tab || input === '\t') setFocus(toggleFocus);
     else if (key.escape) setFocus('workflows');
     else if (focus === 'node' && (key.backspace || key.leftArrow || input === 'h')) goBack();
     else if (focus === 'node' && input === 'g' && active) { setNodeId(active.definition.entryNodeId); setHistory([]); setRouteIndex(0); }

@@ -24,7 +24,7 @@ flowchart LR
   Outbox --> T[Temporal]
   T --> W[Workflow / activity workers]
   W --> PG
-  W --> Render[Restricted React Email renderer]
+  W --> Interpolate[Interpolate {{placeholders}} in stored HTML]
   W --> Adapter[Provider adapter]
   Adapter --> Resend[Resend]
   Resend --> Hook[Raw-body webhook verification]
@@ -35,7 +35,7 @@ flowchart LR
 | Module | External interface | Hidden implementation |
 |---|---|---|
 | Identity | Authenticate principal; authorize operation/resource | Better Auth, membership, scopes, revocation, workspace policy |
-| Authoring | Draft, validate, publish, clone, render, simulate | Source storage, isolated builds, immutable versions, prop mapping |
+| Authoring | Draft, validate, publish, clone, render, simulate | Local React Email render (CLI), HTML + plain storage, immutable versions, prop interpolation |
 | Audience | Upsert/import, select/snapshot, enroll eligibility | Identity resolution, consent evidence, dedupe, row errors |
 | Sequencing | Enroll, control, inspect, deliver event | Workflow graph interpretation, timers, exits, projection updates |
 | Delivery | Prepare, dispatch, reconcile send intent | Payload freezing, leases, quota reservations, provider outcomes |
@@ -50,8 +50,7 @@ Proposed monorepo layout (future directories, not placeholders claimed as implem
 apps/server/              Hono, Better Auth, HTTP MCP, webhook ingress
 apps/worker/              Temporal workflow and activity entrypoints
 apps/dispatcher/          outbox claims, workflow starts/signals, inbox jobs
-apps/renderer/            restricted TSX build/render process
-apps/cli/                 CLI plus MCP stdio bridge
+apps/cli/                 CLI plus MCP stdio bridge (local React Email render on template push)
 packages/contracts/      schemas, operation metadata, generated client
 packages/domain/         business policies and application operations
 packages/workflows/      deterministic versioned graph interpreter

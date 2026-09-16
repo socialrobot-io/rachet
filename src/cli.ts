@@ -11,6 +11,7 @@ import { chooseWorkspace, promptSecret, promptText, type WorkspaceChoice } from 
 import { clearLogin, resolveCliContext, saveLogin, saveWorkspace, type CliContext, type SavedWorkspace } from './cli-state.js';
 import { workflowDefinitionSchema } from './domain/contracts.js';
 import { renderMermaidWorkflow, renderWorkflowSvg } from './tui/workflow-graph.js';
+import { registerTemplateCommands } from './cli-templates.js';
 
 class CliFailure extends Error {
   constructor(message: string, readonly hint?: string) {
@@ -36,8 +37,13 @@ async function request(context: CliContext, path: string, body: Record<string, u
   const response = await fetch(`${context.url}${path}`, { method: 'POST', headers: headers(context), body: JSON.stringify(body) });
   const data = await response.json().catch(() => ({ message: response.statusText }));
   if (!response.ok) {
-    const message = typeof data === 'object' && data !== null && 'message' in data ? String(data.message) : JSON.stringify(data);
-    throw new ReflowClientError(response.status, message);
+    const record = typeof data === 'object' && data !== null ? data as Record<string, unknown> : {};
+    const message = typeof record.message === 'string' ? record.message : JSON.stringify(data);
+    throw new ReflowClientError(response.status, message, {
+      ...(typeof record.code === 'string' ? { code: record.code } : {}),
+      ...(typeof record.hint === 'string' ? { hint: record.hint } : {}),
+      ...(record.details && typeof record.details === 'object' ? { details: record.details as Record<string, unknown> } : {}),
+    });
   }
   return { data, token: response.headers.get('set-auth-token') };
 }
@@ -154,6 +160,9 @@ workspaceCommand.command('use').argument('[workspace]', 'Workspace ID, slug, or 
   await saveWorkspace(context.url, selected);
   console.log(`Workspace: ${selected.name} (${selected.slug})`);
 });
+
+registerTemplateCommands(program, { resolveCliContext, requireAuthentication, resolveWorkspace, client });
+
 type ListedWorkflow = { id: string; name: string; definition: unknown };
 const workflow = program.command('workflow').description('Inspect workflows with human-readable output.');
 workflow.command('show')
@@ -210,9 +219,15 @@ try {
 } catch (error) {
   let message = error instanceof Error ? error.message : 'Command failed';
   let hint = error instanceof CliFailure ? error.hint : undefined;
-  if (error instanceof ReflowClientError && error.status === 401) {
-    message = 'Your saved login is missing, invalid, or expired.';
-    hint = 'Run `reflow auth login` again.';
+  if (error instanceof ReflowClientError) {
+    if (error.status === 401) {
+      message = 'Your saved login is missing, invalid, or expired.';
+      hint = 'Run `reflow auth login` again.';
+    } else {
+      if (error.code) message = `${error.code}: ${message}`;
+      hint = error.hint ?? hint;
+      if (error.details) console.error(JSON.stringify({ details: error.details }, null, 2));
+    }
   } else if (error instanceof TypeError && error.message.toLowerCase().includes('fetch')) {
     message = 'Reflow could not reach the configured server.';
     hint = 'Check that the server is running and verify `REFLOW_URL`.';

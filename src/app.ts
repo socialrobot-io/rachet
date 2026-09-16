@@ -9,7 +9,7 @@ import type { ReflowAuth } from './auth.js';
 import type { Database } from './db/index.js';
 import { sendIntents, suppressions, webhookEvents } from './db/schema.js';
 import type { ReflowService } from './domain/service.js';
-import { ReflowError } from './domain/errors.js';
+import { ReflowError, errorPayload } from './domain/errors.js';
 import { createMcpServer } from './mcp.js';
 import { authorizeOperation, type Operation } from './operations.js';
 import { ResendProvider } from './providers/resend.js';
@@ -108,7 +108,7 @@ export function createApp(dependencies: Dependencies) {
       const data = await operation.invoke(execution, input);
       return context.json({ status: 'succeeded', data, requestId: execution.requestId });
     } catch (error) {
-      if (error instanceof ReflowError) return context.json({ code: error.code, message: error.message, retryable: error.retryable }, error.status as 400);
+      if (error instanceof ReflowError) return context.json(errorPayload(error), error.status as 400);
       if (error instanceof Error && error.name === 'ZodError') return context.json({ code: 'VALIDATION_FAILED', message: error.message, retryable: false }, 422);
       console.error(error);
       return context.json({ code: 'INTERNAL', message: 'Operation failed', retryable: false }, 500);

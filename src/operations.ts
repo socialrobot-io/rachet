@@ -2,7 +2,7 @@ import { z } from 'zod';
 import {
   accountCreateSchema, credentialCreateSchema, credentialRevokeSchema, contactUpsertSchema, enrollmentControlSchema, enrollmentCreateSchema,
   eventEmitSchema, workflowCreateSchema, workflowPublishSchema, workflowSimulateSchema, workflowDefinitionSchema, templateCreateSchema,
-  templatePublishSchema, templateRenderSchema, workspaceIdSchema,
+  templateArchiveSchema, templatePublishSchema, templateRenderSchema, workspaceIdSchema,
   type OperationContext,
 } from './domain/contracts.js';
 import type { ReflowService } from './domain/service.js';
@@ -52,19 +52,23 @@ export function createOperations(service: ReflowService): Record<string, Operati
       invoke: (context, input) => service.credentialRevoke(context, credentialRevokeSchema.parse(input)),
     },
     'template.create': {
-      description: 'Create a React Email-backed template draft.', input: templateCreateSchema, readOnly: false,
+      description: 'Create a template draft. Prefer sourceKind=html with pre-rendered html + plain-text body (CLI: `reflow template push` renders React Email locally). Subject/preheader/html/body use {{contact.*}} / {{variables.*}} placeholders. The server never executes TSX.', input: templateCreateSchema, readOnly: false,
       invoke: (context, input) => service.templateCreate(context, templateCreateSchema.parse(input)),
     },
     'template.list': {
-      description: 'List templates in a workspace.', input: workspaceOnly, readOnly: true,
+      description: 'List templates in a workspace, including published version ids for email.send pins.', input: workspaceOnly, readOnly: true,
       invoke: (context, input) => service.templateList(context, workspaceIdSchema.parse(input.workspaceId)),
     },
     'template.publish': {
-      description: 'Publish an immutable template version.', input: templatePublishSchema, readOnly: false,
+      description: 'Publish an immutable template version. Use the returned id as email.send input.templateVersionId.literal.', input: templatePublishSchema, readOnly: false,
       invoke: (context, input) => service.templatePublish(context, templatePublishSchema.parse(input)),
     },
+    'template.archive': {
+      description: 'Archive a template that is not referenced by any workflow draft or published workflow version. Fails with TEMPLATE_IN_USE and a hint when still referenced.', input: templateArchiveSchema, readOnly: false,
+      invoke: (context, input) => service.templateArchive(context, templateArchiveSchema.parse(input)),
+    },
     'template.render': {
-      description: 'Render an immutable template without sending.', input: templateRenderSchema, readOnly: true,
+      description: 'Render an immutable template without sending. Useful to preview HTML before enrollment.', input: templateRenderSchema, readOnly: true,
       invoke: (context, input) => service.templateRender(context, templateRenderSchema.parse(input)),
     },
     'workflow.actions': {
@@ -80,7 +84,7 @@ export function createOperations(service: ReflowService): Record<string, Operati
       invoke: (context, input) => service.workflowList(context, workspaceIdSchema.parse(input.workspaceId)),
     },
     'workflow.validate': {
-      description: 'Validate a proposed workflow graph and installed actions before saving it.', input: z.object({ workspaceId: workspaceIdSchema, definition: workflowDefinitionSchema }), readOnly: true,
+      description: 'Validate a proposed workflow graph, installed actions, and email.send template pins. Fails with TEMPLATE_REFERENCE_INVALID (and a hint) when a node points at a missing template version.', input: z.object({ workspaceId: workspaceIdSchema, definition: workflowDefinitionSchema }), readOnly: true,
       invoke: async (context, input) => service.workflowValidate(context, z.object({ workspaceId: workspaceIdSchema, definition: workflowDefinitionSchema }).parse(input)),
     },
     'workflow.simulate': {
@@ -88,7 +92,7 @@ export function createOperations(service: ReflowService): Record<string, Operati
       invoke: async (context, input) => service.workflowSimulate(context, workflowSimulateSchema.parse(input)),
     },
     'workflow.publish': {
-      description: 'Publish an immutable workflow version after resolving installed actions and templates.', input: workflowPublishSchema, readOnly: false,
+      description: 'Publish an immutable workflow version after resolving installed actions and templates. Fails with TEMPLATE_REFERENCE_INVALID when email.send pins are missing.', input: workflowPublishSchema, readOnly: false,
       invoke: (context, input) => service.workflowPublish(context, workflowPublishSchema.parse(input)),
     },
     'contact.upsert': {

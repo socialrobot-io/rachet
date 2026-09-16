@@ -2,7 +2,7 @@ import eslint from '@eslint/js';
 import tseslint from 'typescript-eslint';
 
 export default tseslint.config(
-  { ignores: ['dist/**', 'coverage/**', 'eslint.config.js', 'drizzle.config.ts', 'migrations/**'] },
+  { ignores: ['dist/**', 'coverage/**', 'eslint.config.js', 'drizzle.config.ts', 'migrations/**', 'examples/**'] },
   eslint.configs.recommended,
   ...tseslint.configs.strictTypeChecked,
   {

@@ -80,32 +80,40 @@ REFLOW_FROM=Reflow <onboarding@resend.dev>
 
 Restart `pnpm dev` and `pnpm dev:worker` so they reload the key.
 
-With Resend’s test sender (`onboarding@resend.dev`), you can only send to the email on your Resend account. Use a verified domain for other recipients.
+With Resend’s test sender (`onboarding@resend.dev`), you can only send to the email on your Resend account. Use a verified domain for other recipients. See the complete [Resend setup guide](docs/RESEND.md) for domain verification, webhooks, and safe test addresses.
 
-## 4. First project: welcome + nudge
+## 4. Email templates (React Email)
 
-A short worked example lives in [`examples/welcome-nudge/`](examples/welcome-nudge/). It:
-
-1. Creates and publishes two email templates
-2. Publishes a workflow (welcome → wait → reminder or done)
-3. Upserts a contact and enrolls them
-4. Optionally emits `product.activated` so the reminder is skipped
-
-Run it after the stack is up and you are logged in:
+Author `.tsx` locally. The CLI renders with [react-email `render`](https://react.email/docs/utilities/render) and uploads **HTML + plain text**. The API/worker never execute TSX; they only interpolate `{{contact.*}}` / `{{variables.*}}` at send time. Local templates can import whatever you need.
 
 ```sh
-cd examples/welcome-nudge
-./run.sh socialrobotio@gmail.com
+reflow template init                 # creates emails/welcome.tsx
+reflow template preview              # React Email viewer on :3030
+reflow template push emails/welcome.tsx \
+  --name Welcome \
+  --subject "Welcome, {{contact.firstName}}"
+reflow template list
 ```
 
-Read that folder’s README for each step and the JSON shapes.
+`push` renders locally, creates + publishes, and prints `templateVersionId`. Pin that id on each `email.send` node.
 
-## 5. Day-to-day commands
+`workflow.validate` / `workflow.publish` fail with `TEMPLATE_REFERENCE_INVALID` (plus `hint` + `details.nextSteps`) if a node points at a missing template. `template.archive` fails with `TEMPLATE_IN_USE` while any workflow draft or published version still pins it, and archived templates cannot be republished.
+
+## 5. First project: welcome + nudge
+
+Follow [`examples/welcome-nudge/README.md`](examples/welcome-nudge/README.md):
+
+1. `reflow template preview` / `reflow template push` for the two `.tsx` emails
+2. Pin the version ids in `workflow.template.json`
+3. `workflow.validate` → `workflow.create` → `workflow.publish`
+4. `contact.upsert` → `enrollment.create`
+
+## 6. Day-to-day commands
 
 ```sh
 reflow call system.capabilities
 reflow call workflow.actions
-reflow call template.list --input '{"workspaceId":"YOUR_WORKSPACE_ID"}'
+reflow template list
 reflow call workflow.list --input '{"workspaceId":"YOUR_WORKSPACE_ID"}'
 reflow call message.list --input '{"workspaceId":"YOUR_WORKSPACE_ID"}'
 ```
@@ -116,8 +124,8 @@ MCP clients talk to `http://localhost:3000/mcp` with a session token or API key.
 
 | Piece              | Role                                              |
 | ------------------ | ------------------------------------------------- |
-| Template           | Subject + body with `{{contact.*}}` / `{{variables.*}}` |
-| Template version   | Immutable pin used by `email.send`                |
+| Template           | Subject + React Email TSX (or plain body) with `{{contact.*}}` / `{{variables.*}}` |
+| Template version   | Immutable pin used by `email.send` (per-node override) |
 | Workflow           | Graph of actions, waits, branches, ends           |
 | Workflow version   | Immutable pin used by enrollment                  |
 | Contact            | Recipient + fields (`firstName`, `locale`, …)     |
@@ -140,6 +148,7 @@ make check
 | [docs/OPERATIONS.md](docs/OPERATIONS.md) | Full operation catalog |
 | [docs/AUTHENTICATION.md](docs/AUTHENTICATION.md) | Auth and accounts |
 | [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) | Production Compose |
+| [docs/RESEND.md](docs/RESEND.md) | Resend API keys, sender domains, webhooks, and testing |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | System design |
 | [docs/PRD.md](docs/PRD.md) | Product requirements |
 | [skills/reflow/SKILL.md](skills/reflow/SKILL.md) | Agent operating skill |

@@ -6,9 +6,16 @@ export type ReflowClientOptions = {
 };
 
 export class ReflowClientError extends Error {
-  constructor(readonly status: number, message: string) {
+  readonly code?: string | undefined;
+  readonly hint?: string | undefined;
+  readonly details?: Record<string, unknown> | undefined;
+
+  constructor(readonly status: number, message: string, extras?: { code?: string; hint?: string; details?: Record<string, unknown> }) {
     super(message);
     this.name = 'ReflowClientError';
+    this.code = extras?.code;
+    this.hint = extras?.hint;
+    this.details = extras?.details;
   }
 }
 
@@ -34,10 +41,13 @@ export class ReflowClient {
     });
     const payload = await response.json().catch(() => ({ message: response.statusText })) as unknown;
     if (!response.ok) {
-      const message = typeof payload === 'object' && payload !== null && 'message' in payload
-        ? String(payload.message)
-        : JSON.stringify(payload);
-      throw new ReflowClientError(response.status, message);
+      const record = typeof payload === 'object' && payload !== null ? payload as Record<string, unknown> : {};
+      const message = typeof record.message === 'string' ? record.message : JSON.stringify(payload);
+      throw new ReflowClientError(response.status, message, {
+        ...(typeof record.code === 'string' ? { code: record.code } : {}),
+        ...(typeof record.hint === 'string' ? { hint: record.hint } : {}),
+        ...(record.details && typeof record.details === 'object' ? { details: record.details as Record<string, unknown> } : {}),
+      });
     }
     if (typeof payload === 'object' && payload !== null && 'data' in payload) return payload.data as T;
     return payload as T;
