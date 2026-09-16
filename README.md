@@ -22,10 +22,9 @@ cp .env.dev.example .env
 pnpm install --frozen-lockfile
 make dev-infra
 pnpm migrate
-mkdir -p secrets
 umask 077
-openssl rand -base64 18 > secrets/admin_password
-pnpm setup -- --email admin@example.com --name Admin --password-file ./secrets/admin_password
+openssl rand -base64 18 > /tmp/reflow-admin-password
+pnpm setup -- --email admin@example.com --name Admin --password-file /tmp/reflow-admin-password
 ```
 
 Start three host processes (keep each terminal open):
@@ -56,25 +55,26 @@ pnpm build
 pnpm link --global   # once, so `reflow` is on your PATH
 
 export REFLOW_URL=http://localhost:3000
-reflow auth login --email admin@example.com --password-file ./secrets/admin_password
+reflow auth login --email admin@example.com --password-file /tmp/reflow-admin-password
 reflow workspace use
+rm /tmp/reflow-admin-password
 ```
 
 Your session is stored under `~/.config/reflow/`. Later accounts need an admin (`account.create`). Open signup stays off unless `ALLOW_REGISTRATION=true`.
 
 ## 3. Send email (Resend)
 
-Put your key in a secret file (do not commit it):
+Put your key in `.env.local` (do not commit it):
 
 ```sh
-printf '%s' 're_...' > secrets/resend_api_key
-chmod 600 secrets/resend_api_key
+printf '%s\n' 'RESEND_API_KEY=re_...' >> .env.local
+chmod 600 .env.local
 ```
 
-Add to `.env` or `.env.local`:
+Add to `.env.local`:
 
 ```sh
-RESEND_API_KEY_FILE=./secrets/resend_api_key
+RESEND_API_KEY=re_...
 REFLOW_FROM=Reflow <onboarding@resend.dev>
 ```
 

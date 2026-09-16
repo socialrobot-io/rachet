@@ -14,7 +14,7 @@
     "build": "tsc -p tsconfig.build.json && pnpm build:workflows",
     "build:workflows": "tsx scripts/bundle-workflows.ts",
     "check": "pnpm lint && pnpm typecheck && pnpm test && pnpm check:compose",
-    "check:compose": "if docker compose version >/dev/null 2>&1; then REFLOW_DOMAIN=reflow.example.test ACME_EMAIL=ops@example.test REFLOW_FROM=noreply@example.test docker compose -f compose.yaml config --quiet && docker compose -f compose.dev.yaml config --quiet; else echo 'SKIP: Docker Compose plugin unavailable'; fi",
+    "check:compose": "if docker compose version >/dev/null 2>&1; then REFLOW_DOMAIN=reflow.example.test ACME_EMAIL=ops@example.test REFLOW_FROM=noreply@example.test DATABASE_URL=postgresql://reflow:pw@postgres:5432/reflow BETTER_AUTH_SECRET=12345678901234567890123456789012 POSTGRES_PASSWORD=pw TEMPORAL_POSTGRES_PASSWORD=temporal-pw docker compose -f compose.yaml config --quiet && docker compose -f compose.dev.yaml config --quiet; else echo 'SKIP: Docker Compose plugin unavailable'; fi",
     "dev": "node --env-file=.env --env-file-if-exists=.env.local --import tsx --watch src/server.ts",
     "dev:infra": "docker compose -f compose.dev.yaml up -d",
     "dev:infra:down": "docker compose -f compose.dev.yaml down",

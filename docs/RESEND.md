@@ -6,15 +6,14 @@ Reflow uses Resend for outbound email and signed delivery webhooks. Resend is op
 
 In the [Resend API keys](https://resend.com/api-keys) dashboard, create a key with the least privilege that supports sending. Keep it server-side. Never put it in a React Email file, CLI command line, workflow definition, MCP prompt, or Git repository.
 
-For a normal Docker Compose host:
+For Docker Compose and Coolify, put the values in `.env.local` (or Coolify's masked environment variables):
 
 ```sh
-mkdir -p secrets
-umask 077
-printf '%s' 're_...' > secrets/resend_api_key
+RESEND_API_KEY=re_...
+RESEND_WEBHOOK_SECRET=whsec_...
 ```
 
-The production Compose file reads it from `RESEND_API_KEY_FILE=/run/secrets/resend_api_key`. For Coolify, use [`compose.coolify.yaml`](../compose.coolify.yaml) and set the masked `RESEND_API_KEY` service variable instead.
+Run Compose with `docker compose --env-file .env.local ...`. Coolify substitutes the same variables into the production Compose file.
 
 ## 2. Verify the sender domain
 
@@ -31,11 +30,12 @@ The `resend.dev` sender is a sandbox. It is useful for initial tests but can onl
 Set these values before starting the API and worker:
 
 ```sh
-RESEND_API_KEY_FILE=./secrets/resend_api_key
+RESEND_API_KEY=re_...
+RESEND_WEBHOOK_SECRET=whsec_...
 REFLOW_FROM='Reflow <mail.example.com>'
 ```
 
-For Coolify, set `RESEND_API_KEY` and `REFLOW_FROM` in the service environment. Restart or redeploy the `app`, `worker`, and `dispatcher` services after changing provider credentials.
+Restart or redeploy the `app`, `worker`, and `dispatcher` services after changing provider credentials.
 
 ## 4. Configure the webhook
 
@@ -47,13 +47,7 @@ https://<your-reflow-domain>/webhooks/resend
 
 Subscribe at least to `email.bounced`, `email.complained`, and `email.suppressed`. Delivery and engagement events such as `email.sent`, `email.delivered`, `email.delivery_delayed`, `email.opened`, and `email.clicked` can also be enabled for operational reporting.
 
-Copy the endpoint signing secret into Reflow. Do not use the API key as the webhook secret:
-
-```sh
-printf '%s' 'whsec_...' > secrets/resend_webhook_secret
-```
-
-Set `RESEND_WEBHOOK_SECRET_FILE=./secrets/resend_webhook_secret` for Docker Compose, or set the masked `RESEND_WEBHOOK_SECRET` variable for Coolify. Reflow verifies the raw request body and Svix signature headers before storing an event. Duplicate event IDs are safe to receive again.
+Copy the endpoint signing secret into `RESEND_WEBHOOK_SECRET`. Do not use the API key as the webhook secret. Reflow verifies the raw request body and Svix signature headers before storing an event. Duplicate event IDs are safe to receive again.
 
 ## 5. Test safely
 
