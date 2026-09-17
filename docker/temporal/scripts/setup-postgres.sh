@@ -54,17 +54,44 @@ create_database_if_needed() {
   return "${status}"
 }
 
+setup_schema_if_needed() {
+  database="$1"
+  output_file="$(mktemp)"
+
+  if temporal-sql-tool ${SQL_ARGS} --db "${database}" setup-schema -v 0.0 >"${output_file}" 2>&1; then
+    cat "${output_file}"
+    rm -f "${output_file}"
+    return 0
+  else
+    status=$?
+  fi
+
+  # setup-schema creates the schema_version table and is not repeatable. A
+  # later deployment should continue to update-schema when that table exists.
+  if grep -Eiq 'schema_version.*already exists|relation ["`]?schema_version["`]?.*exists' "${output_file}"; then
+    echo "Temporal schema: ${database} base schema already exists"
+    rm -f "${output_file}"
+    return 0
+  fi
+
+  cat "${output_file}" >&2
+  rm -f "${output_file}"
+  echo "ERROR: Temporal base schema setup failed for ${database} (exit ${status})." >&2
+  echo "Check TEMPORAL_POSTGRES_PASSWORD against the password used when the temporal-db volume was first initialized." >&2
+  return "${status}"
+}
+
 echo 'Starting PostgreSQL schema setup...'
 echo 'Waiting for PostgreSQL port to be available...'
 nc -z -w 10 "${POSTGRES_SEEDS}" "${DB_PORT}"
 echo 'PostgreSQL port is available'
 
 create_database_if_needed "${DBNAME}"
-run_step "${DBNAME} base schema" temporal-sql-tool ${SQL_ARGS} --db "${DBNAME}" setup-schema -v 0.0
+run_step "${DBNAME} base schema" setup_schema_if_needed "${DBNAME}"
 run_step "${DBNAME} versioned schema" temporal-sql-tool ${SQL_ARGS} --db "${DBNAME}" update-schema -d /etc/temporal/schema/postgresql/v12/temporal/versioned
 
 create_database_if_needed "${VISIBILITY_DBNAME}"
-run_step "${VISIBILITY_DBNAME} base schema" temporal-sql-tool ${SQL_ARGS} --db "${VISIBILITY_DBNAME}" setup-schema -v 0.0
+run_step "${VISIBILITY_DBNAME} base schema" setup_schema_if_needed "${VISIBILITY_DBNAME}"
 run_step "${VISIBILITY_DBNAME} versioned schema" temporal-sql-tool ${SQL_ARGS} --db "${VISIBILITY_DBNAME}" update-schema -d /etc/temporal/schema/postgresql/v12/visibility/versioned
 
 echo 'PostgreSQL schema setup complete'

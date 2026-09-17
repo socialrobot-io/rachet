@@ -29,6 +29,24 @@ x-reflow: &reflow
   tmpfs: [/tmp]
   security_opt: ['no-new-privileges:true']
 
+x-temporal-admin-tools: &temporal-admin-tools
+  image: reflow-temporal-admin-tools:${REFLOW_VERSION:-local}
+  build:
+    context: .
+    dockerfile: docker/temporal/admin-tools.Dockerfile
+
+x-temporal-server: &temporal-server
+  image: reflow-temporal-server:${REFLOW_VERSION:-local}
+  build:
+    context: .
+    dockerfile: docker/temporal/server.Dockerfile
+
+x-caddy: &caddy
+  image: reflow-caddy:${REFLOW_VERSION:-local}
+  build:
+    context: .
+    dockerfile: docker/caddy.Dockerfile
+
 services:
   postgres:
     image: postgres:16.10-bookworm
@@ -52,7 +70,7 @@ services:
     networks: [reflow]
 
   temporal-schema:
-    image: temporalio/admin-tools:1.29.1-tctl-1.18.4-cli-1.5.0
+    <<: *temporal-admin-tools
     restart: on-failure:5
     depends_on: { temporal-postgres: { condition: service_healthy } }
     environment:
@@ -62,13 +80,12 @@ services:
       POSTGRES_SEEDS: temporal-postgres
       POSTGRES_PWD: '${TEMPORAL_POSTGRES_PASSWORD:?Set TEMPORAL_POSTGRES_PASSWORD}'
       SQL_PASSWORD: '${TEMPORAL_POSTGRES_PASSWORD:?Set TEMPORAL_POSTGRES_PASSWORD}'
-    volumes: ['./docker/temporal/scripts:/scripts:ro']
     entrypoint: [/bin/sh]
     command: [/scripts/setup-postgres.sh]
     networks: [reflow]
 
   temporal:
-    image: temporalio/server:1.29.1
+    <<: *temporal-server
     restart: unless-stopped
     depends_on: { temporal-schema: { condition: service_completed_successfully } }
     environment:
@@ -80,16 +97,14 @@ services:
       SQL_PASSWORD: '${TEMPORAL_POSTGRES_PASSWORD:?Set TEMPORAL_POSTGRES_PASSWORD}'
       BIND_ON_IP: 0.0.0.0
       DYNAMIC_CONFIG_FILE_PATH: config/dynamicconfig/development-sql.yaml
-    volumes: ['./docker/temporal/dynamicconfig:/etc/temporal/config/dynamicconfig:ro']
     healthcheck: { test: [CMD, nc, -z, localhost, '7233'], interval: 5s, timeout: 3s, retries: 30 }
     networks: [reflow]
 
   temporal-namespace:
-    image: temporalio/admin-tools:1.29.1-tctl-1.18.4-cli-1.5.0
+    <<: *temporal-admin-tools
     restart: on-failure:5
     depends_on: { temporal: { condition: service_healthy } }
     environment: { TEMPORAL_ADDRESS: 'temporal:7233', DEFAULT_NAMESPACE: reflow }
-    volumes: ['./docker/temporal/scripts:/scripts:ro']
     entrypoint: [/bin/sh]
     command: [/scripts/create-namespace.sh]
     networks: [reflow]
@@ -113,12 +128,12 @@ services:
     command: [node, dist/src/dispatcher.js]
 
   caddy:
-    image: caddy:2.10.2-alpine
+    <<: *caddy
     restart: unless-stopped
     depends_on: { app: { condition: service_healthy } }
     environment: { REFLOW_DOMAIN: '${REFLOW_DOMAIN:?Set REFLOW_DOMAIN}', ACME_EMAIL: '${ACME_EMAIL:?Set ACME_EMAIL}' }
     ports: ['80:80', '443:443', '443:443/udp']
-    volumes: ['./docker/Caddyfile:/etc/caddy/Caddyfile:ro', 'caddy-data:/data', 'caddy-config:/config']
+    volumes: ['caddy-data:/data', 'caddy-config:/config']
     networks: [reflow]
 
 volumes: { reflow-db: {}, temporal-db: {}, caddy-data: {}, caddy-config: {} }
