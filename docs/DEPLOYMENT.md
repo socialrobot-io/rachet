@@ -40,7 +40,7 @@ Single-host Compose is suitable when the host, database volumes, backups, and re
 
 ## Coolify
 
-Coolify can deploy the checked-in `compose.yaml` directly. Set the variables below in the Coolify service environment; Coolify substitutes them into the Compose file at deploy time. Do not commit these values to Git, and restrict access to the Coolify project:
+Coolify can deploy the checked-in `compose.yaml` directly. Set the variables below in the Coolify service environment; Coolify substitutes them into the Compose file at deploy time. The Temporal scripts, Temporal dynamic configuration, and Caddyfile are baked into their service images so the stack does not depend on Coolify's temporary checkout directory after deployment. Do not commit these values to Git, and restrict access to the Coolify project:
 
 | Variable | Value |
 | --- | --- |
