@@ -6,7 +6,7 @@ Use a Linux host with Docker Engine, the Compose plugin, public DNS for `REFLOW_
 
 For local development without a public domain, use `compose.dev.yaml` and the host process workflow in [README.md](../README.md). Do not use `compose.yaml` on a laptop unless you have real DNS and ACME email. Configure Resend using the [Resend setup guide](RESEND.md).
 
-Copy `.env.example` to `.env.local` and set `REFLOW_DOMAIN`, `ACME_EMAIL`, `DATABASE_URL`, `POSTGRES_PASSWORD`, `TEMPORAL_POSTGRES_PASSWORD`, `BETTER_AUTH_SECRET`, `REFLOW_FROM`, and optional OIDC/Resend settings. Keep `.env.local` mode `0600` and never commit it. Compose interpolation uses these values when you run `docker compose --env-file .env.local ...`.
+Copy `.env.example` to `.env.local` and set `REFLOW_DOMAIN`, `ACME_EMAIL`, `DATABASE_URL`, `POSTGRES_PASSWORD`, `TEMPORAL_POSTGRES_PASSWORD`, `BETTER_AUTH_SECRET`, `REFLOW_FROM`, and optional OIDC/Resend settings. Quote values containing spaces or shell punctuation, for example `REFLOW_FROM="Social Robot <no-reply@m.socialrobot.io>"`. Keep `.env.local` mode `0600` and never commit it. Compose interpolation uses these values when you run `docker compose --env-file .env.local ...`.
 
 Start and inspect the deployment:
 

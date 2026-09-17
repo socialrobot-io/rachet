@@ -75,7 +75,7 @@ Add to `.env.local`:
 
 ```sh
 RESEND_API_KEY=re_...
-REFLOW_FROM=Reflow <onboarding@resend.dev>
+REFLOW_FROM="Reflow <onboarding@resend.dev>"
 ```
 
 Restart `pnpm dev` and `pnpm dev:worker` so they reload the key.
