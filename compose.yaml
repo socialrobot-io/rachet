@@ -127,11 +127,17 @@ services:
     <<: *reflow
     command: [node, dist/src/dispatcher.js]
 
+  # Opt-in TLS ingress for bare hosts. Off by default so Coolify (or any
+  # external proxy) can terminate TLS and route to app:3000 without binding
+  # host ports 80/443. Enable with: COMPOSE_PROFILES=caddy or --profile caddy
   caddy:
     <<: *caddy
+    profiles: [caddy]
     restart: unless-stopped
     depends_on: { app: { condition: service_healthy } }
-    environment: { REFLOW_DOMAIN: '${REFLOW_DOMAIN:?Set REFLOW_DOMAIN}', ACME_EMAIL: '${ACME_EMAIL:?Set ACME_EMAIL}' }
+    environment:
+      REFLOW_DOMAIN: '${REFLOW_DOMAIN:?Set REFLOW_DOMAIN}'
+      ACME_EMAIL: '${ACME_EMAIL:-}'
     ports: ['80:80', '443:443', '443:443/udp']
     volumes: ['caddy-data:/data', 'caddy-config:/config']
     networks: [reflow]
