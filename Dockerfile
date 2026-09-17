@@ -2,7 +2,9 @@ FROM node:22.22.0-bookworm-slim AS build
 RUN corepack enable
 WORKDIR /app
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
-RUN pnpm install --frozen-lockfile
+# The build needs TypeScript, tsx, and other devDependencies even when the
+# deployment platform exposes NODE_ENV=production while building.
+RUN pnpm install --frozen-lockfile --prod=false
 COPY . .
 RUN pnpm build
 

@@ -64,7 +64,7 @@ services:
       SQL_PASSWORD: '${TEMPORAL_POSTGRES_PASSWORD:?Set TEMPORAL_POSTGRES_PASSWORD}'
     volumes: ['./docker/temporal/scripts:/scripts:ro']
     entrypoint: [/bin/sh, -c]
-    command: [/scripts/setup-postgres.sh]
+    command: ['exec /scripts/setup-postgres.sh']
     networks: [reflow]
 
   temporal:
@@ -82,7 +82,7 @@ services:
       DYNAMIC_CONFIG_FILE_PATH: config/dynamicconfig/development-sql.yaml
     volumes: ['./docker/temporal/dynamicconfig:/etc/temporal/config/dynamicconfig:ro']
     entrypoint: [/bin/sh, -c]
-    command: [/etc/temporal/entrypoint.sh]
+    command: ['exec /etc/temporal/entrypoint.sh']
     healthcheck: { test: [CMD, nc, -z, localhost, '7233'], interval: 5s, timeout: 3s, retries: 30 }
     networks: [reflow]
 
