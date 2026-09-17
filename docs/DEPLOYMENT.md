@@ -55,3 +55,15 @@ Coolify can deploy the checked-in `compose.yaml` directly. Set the variables bel
 Set `REFLOW_DOMAIN`, `ACME_EMAIL`, `REFLOW_FROM`, `PUBLIC_URL`, and `TRUSTED_ORIGINS` to the same HTTPS hostname, then deploy. Add a DNS record for the hostname and allow inbound TCP 80/443 so Caddy can obtain its certificate.
 
 After the stack is healthy, run the one-time setup command from the Coolify server or an attached shell with a temporary password file outside the repository. Configure Resend's webhook URL as `https://<your-domain>/webhooks/resend` and verify `/health/ready` before signing in. Coolify should monitor the `app` health check; separately alert on worker/dispatcher restarts, Temporal backlog, and database volume backups.
+
+### Temporal schema troubleshooting
+
+The `temporal-schema` service is a one-shot migration container. If Coolify reports `service "temporal-schema" didn't complete successfully: exit 2`, open that service's own logs; the deployment summary only shows Compose orchestration. From a server shell, the equivalent command is:
+
+```sh
+docker compose --env-file .env.local logs --no-color temporal-schema
+```
+
+The schema bootstrap prints the failing database and phase. A password-authentication error usually means `TEMPORAL_POSTGRES_PASSWORD` was changed after the `temporal-db` named volume was initialized. PostgreSQL only applies `POSTGRES_PASSWORD` on first initialization, so restore the original Coolify variable for that volume and redeploy. For a brand-new installation with no data to preserve, delete the unused `temporal-db` volume from Coolify and deploy again; do not remove it from a live installation.
+
+The `NODE_ENV=production` build warning is informational here: the image explicitly installs development dependencies while compiling, then copies only the production runtime into the final image.
