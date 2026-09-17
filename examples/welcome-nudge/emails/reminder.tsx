@@ -40,6 +40,11 @@ export default function ReminderEmail({ contact, variables }: ReminderEmailProps
   );
 }
 
+ReminderEmail.PreviewProps = {
+  contact: { firstName: 'Ada', email: 'ada@example.com' },
+  variables: { productUrl: 'https://example.com/app' },
+} satisfies ReminderEmailProps;
+
 const main = {
   backgroundColor: '#f4f4f5',
   fontFamily: 'Arial, Helvetica, sans-serif',

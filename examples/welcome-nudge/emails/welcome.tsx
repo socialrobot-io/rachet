@@ -40,6 +40,11 @@ export default function WelcomeEmail({ contact, variables }: WelcomeEmailProps) 
   );
 }
 
+WelcomeEmail.PreviewProps = {
+  contact: { firstName: 'Ada', email: 'ada@example.com' },
+  variables: { productUrl: 'https://example.com/app' },
+} satisfies WelcomeEmailProps;
+
 const main = {
   backgroundColor: '#f4f4f5',
   fontFamily: 'Arial, Helvetica, sans-serif',

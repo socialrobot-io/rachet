@@ -35,6 +35,11 @@ reflow template init
 reflow template preview
 reflow template push emails/welcome.tsx --name Welcome --subject "Welcome, {{contact.firstName}}"
 reflow template list
+```
+
+Preview needs `react-email` and `@react-email/ui` installed in the project that owns `emails/` (React Email 6). The init/preview commands print an install hint when either is missing.
+
+```sh
 reflow call workflow.actions
 reflow call workflow.validate --file ./workflow-validation.json
 reflow call workflow.simulate --file ./workflow-simulation.json

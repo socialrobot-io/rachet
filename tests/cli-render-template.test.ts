@@ -32,3 +32,10 @@ describe('resolveReactEmailCli', () => {
     await expect(access(path)).resolves.toBeUndefined();
   });
 });
+
+describe('missingReactEmailProjectDeps', () => {
+  it('finds no missing deps in this repo', async () => {
+    const { missingReactEmailProjectDeps } = await import('../src/cli-templates.js');
+    expect(missingReactEmailProjectDeps()).toEqual([]);
+  });
+});

@@ -95,7 +95,9 @@ reflow template push emails/welcome.tsx \
 reflow template list
 ```
 
-`push` renders locally, creates + publishes, and prints `templateVersionId`. Pin that id on each `email.send` node.
+React Email 6 needs both `react-email` (components + CLI) and `@react-email/ui` (preview app) in the project that owns `emails/`. This repo already lists them. In another project, install matching versions (`pnpm add react-email@6.9.5 @react-email/ui@6.9.5`). Saying yes to the preview prompt only installs `@react-email/ui`; templates still import from `react-email`.
+
+Add `Component.PreviewProps` on each template so `template preview` has sample data. `push` renders locally, creates + publishes, and prints `templateVersionId`. Pin that id on each `email.send` node.
 
 `workflow.validate` / `workflow.publish` fail with `TEMPLATE_REFERENCE_INVALID` (plus `hint` + `details.nextSteps`) if a node points at a missing template. `template.archive` fails with `TEMPLATE_IN_USE` while any workflow draft or published version still pins it, and archived templates cannot be republished.
 

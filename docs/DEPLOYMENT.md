@@ -57,7 +57,7 @@ Single-host Compose is suitable when the host, database volumes, backups, and re
 
 ## Coolify
 
-Coolify can deploy the checked-in `compose.yaml` directly. Leave the `caddy` profile disabled (the default) and bind your domain to the `app` service on port `3000` so Coolify's proxy terminates TLS. Set the variables below in the Coolify service environment; Coolify substitutes them into the Compose file at deploy time. The Temporal scripts and Temporal dynamic configuration are baked into their service images so the stack does not depend on Coolify's temporary checkout directory after deployment. Do not commit these values to Git, and restrict access to the Coolify project:
+Coolify can deploy the checked-in `compose.yaml` directly. Leave the `caddy` profile disabled (the default) and attach your domain to the `app` service so Coolify's proxy terminates TLS and forwards to the container (which listens on `3000`). A plain `https://your.domain` Domains entry is enough; you do not need to put `:3000` in the domain field. Set the variables below in the Coolify service environment; Coolify substitutes them into the Compose file at deploy time. The Temporal scripts and Temporal dynamic configuration are baked into their service images so the stack does not depend on Coolify's temporary checkout directory after deployment. Do not commit these values to Git, and restrict access to the Coolify project:
 
 | Variable | Value |
 | --- | --- |

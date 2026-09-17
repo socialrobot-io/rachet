@@ -7,6 +7,12 @@ import type { ReflowClient } from './client.js';
 import type { CliContext, SavedWorkspace } from './cli-state.js';
 import { renderLocalReactEmailFile } from './cli-render-template.js';
 
+/** React Email 6 splits: `react-email` = components+CLI, `@react-email/ui` = preview app. */
+const REACT_EMAIL_DEPS = {
+  'react-email': '6.9.5',
+  '@react-email/ui': '6.9.5',
+} as const;
+
 const SAMPLE_WELCOME = `import {
   Body,
   Button,
@@ -50,6 +56,11 @@ export default function WelcomeEmail({ contact, variables }: Props) {
     </Html>
   );
 }
+
+WelcomeEmail.PreviewProps = {
+  contact: { firstName: 'Ada' },
+  variables: { productUrl: 'https://example.com/app' },
+} satisfies Props;
 `;
 
 export function resolveReactEmailCli(): string {
@@ -72,6 +83,27 @@ async function pathExists(path: string): Promise<boolean> {
   }
 }
 
+function packageResolvableFromCwd(specifier: string): boolean {
+  const require = createRequire(join(process.cwd(), 'package.json'));
+  try {
+    require.resolve(specifier);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** Packages React Email 6 needs in the project that owns emails/*.tsx. */
+export function missingReactEmailProjectDeps(): string[] {
+  return (Object.keys(REACT_EMAIL_DEPS) as Array<keyof typeof REACT_EMAIL_DEPS>)
+    .filter((name) => !packageResolvableFromCwd(name));
+}
+
+export function reactEmailInstallHint(missing: string[]): string {
+  const specs = missing.map((name) => `${name}@${REACT_EMAIL_DEPS[name as keyof typeof REACT_EMAIL_DEPS]}`);
+  return `pnpm add ${specs.join(' ')}   # or: npm i ${specs.join(' ')}`;
+}
+
 export function registerTemplateCommands(
   program: Command,
   helpers: {
@@ -92,6 +124,12 @@ export function registerTemplateCommands(
       const sample = join(root, 'welcome.tsx');
       if (!(await pathExists(sample))) await writeFile(sample, SAMPLE_WELCOME, 'utf8');
       console.log(`Created ${root}`);
+      const missing = missingReactEmailProjectDeps();
+      if (missing.length > 0) {
+        console.log('');
+        console.log('Install React Email in this project (templates import `react-email`; preview needs `@react-email/ui`):');
+        console.log(`  ${reactEmailInstallHint(missing)}`);
+      }
       console.log('Next:');
       console.log(`  reflow template preview --dir ${dir}`);
       console.log(`  reflow template push ${dir}/welcome.tsx --name Welcome --subject "Welcome, {{contact.firstName}}"`);
@@ -106,6 +144,14 @@ export function registerTemplateCommands(
       const dir = resolve(options.dir);
       if (!(await pathExists(dir))) {
         throw new Error(`Template directory not found: ${dir}. Run \`reflow template init\` first.`);
+      }
+      const missing = missingReactEmailProjectDeps();
+      if (missing.length > 0) {
+        throw new Error(
+          `Missing ${missing.join(' and ')} in ${process.cwd()}. `
+          + `React Email 6 needs both packages: \`react-email\` (components) and \`@react-email/ui\` (preview). `
+          + `Install with: ${reactEmailInstallHint(missing)}`,
+        );
       }
       const bin = resolveReactEmailCli();
       console.log(`Previewing ${dir} on http://localhost:${options.port}`);
