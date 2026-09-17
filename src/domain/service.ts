@@ -103,9 +103,82 @@ export class ReflowService {
     } else if (!body) {
       throw new ReflowError('VALIDATION_FAILED', 'body is required for plain templates', 422);
     }
-    const [created] = await this.db.insert(templates).values({
-      workspaceId: input.workspaceId,
-      name: input.name,
+    try {
+      const [created] = await this.db.insert(templates).values({
+        workspaceId: input.workspaceId,
+        name: input.name,
+        subject: input.subject,
+        preheader: input.preheader,
+        body,
+        html,
+        sourceKind,
+        tsxSource: input.tsxSource?.trim() || null,
+        propsSchema: input.propsSchema ?? {},
+      }).returning();
+      if (!created) throw new Error('Template creation failed');
+      await this.audit(context, 'template.create', input.workspaceId, 'template', created.id);
+      return created;
+    } catch (error) {
+      if (!isUniqueViolation(error)) throw error;
+      throw new ReflowError(
+        'TEMPLATE_NAME_EXISTS',
+        `A template named "${input.name}" already exists in this workspace.`,
+        409,
+        false,
+        {
+          hint: 'Call template.revise with the existing templateId (from template.list), or use `reflow template push` which upserts by name. Do not create a second template with a "v2" suffix.',
+          details: {
+            workspaceId: input.workspaceId,
+            name: input.name,
+            nextSteps: [
+              'template.list → find the row with this name',
+              'template.revise (update draft content) → template.publish',
+              'Or re-run `reflow template push <file> --name "<same name>"`',
+            ],
+          },
+        },
+      );
+    }
+  }
+
+  async templateRevise(context: OperationContext, input: {
+    workspaceId: string;
+    templateId: string;
+    expectedRevision: number;
+    subject: string;
+    preheader?: string | undefined;
+    body?: string | undefined;
+    html?: string | undefined;
+    sourceKind?: 'plain' | 'html' | undefined;
+    tsxSource?: string | undefined;
+    propsSchema?: Record<string, unknown> | undefined;
+  }) {
+    this.workspace(context, input.workspaceId, 'author');
+    const sourceKind = input.html?.trim() ? 'html' : (input.sourceKind ?? 'plain');
+    const body = input.body?.trim() ?? '';
+    const html = input.html?.trim() || null;
+    if (sourceKind === 'html') {
+      if (!html) throw new ReflowError('VALIDATION_FAILED', 'html is required for html templates', 422);
+      if (!body) throw new ReflowError('VALIDATION_FAILED', 'body (plain text) is required for html templates', 422);
+    } else if (!body) {
+      throw new ReflowError('VALIDATION_FAILED', 'body is required for plain templates', 422);
+    }
+    const [draft] = await this.db.select().from(templates).where(and(
+      eq(templates.id, input.templateId),
+      eq(templates.workspaceId, input.workspaceId),
+    )).limit(1);
+    if (!draft) throw new ReflowError('NOT_FOUND', 'Template not found', 404);
+    if (draft.revision !== input.expectedRevision) {
+      throw new ReflowError('REVISION_CONFLICT', 'Template revision changed', 409);
+    }
+    if (draft.state === 'archived') {
+      throw new ReflowError(
+        'VALIDATION_FAILED',
+        'Archived templates cannot be revised; create a new template with a different name',
+        409,
+      );
+    }
+    const [updated] = await this.db.update(templates).set({
       subject: input.subject,
       preheader: input.preheader,
       body,
@@ -113,10 +186,15 @@ export class ReflowService {
       sourceKind,
       tsxSource: input.tsxSource?.trim() || null,
       propsSchema: input.propsSchema ?? {},
-    }).returning();
-    if (!created) throw new Error('Template creation failed');
-    await this.audit(context, 'template.create', input.workspaceId, 'template', created.id);
-    return created;
+      revision: draft.revision + 1,
+      updatedAt: new Date(),
+    }).where(and(
+      eq(templates.id, draft.id),
+      eq(templates.revision, input.expectedRevision),
+    )).returning();
+    if (!updated) throw new ReflowError('REVISION_CONFLICT', 'Template revision changed', 409);
+    await this.audit(context, 'template.revise', input.workspaceId, 'template', updated.id);
+    return updated;
   }
 
   async templateList(context: OperationContext, workspaceId: string) {

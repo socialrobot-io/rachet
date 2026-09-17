@@ -26,6 +26,25 @@ export const templateCreateSchema = z.object({
   }
 });
 export const templatePublishSchema = z.object({ workspaceId: workspaceIdSchema, templateId: z.uuid(), expectedRevision: z.number().int().positive() });
+export const templateReviseSchema = z.object({
+  workspaceId: workspaceIdSchema,
+  templateId: z.uuid(),
+  expectedRevision: z.number().int().positive(),
+  subject: z.string().min(1).max(998),
+  preheader: z.string().max(500).optional(),
+  body: z.string().max(200_000).optional(),
+  html: z.string().max(500_000).optional(),
+  sourceKind: z.enum(['plain', 'html']).default('plain'),
+  tsxSource: z.string().max(200_000).optional(),
+  propsSchema: z.record(z.string(), z.unknown()).default({}),
+}).superRefine((value, context) => {
+  if (value.sourceKind === 'html') {
+    if (!value.html?.trim()) context.addIssue({ code: 'custom', message: 'html is required for html templates', path: ['html'] });
+    if (!value.body?.trim()) context.addIssue({ code: 'custom', message: 'body (plain text) is required for html templates', path: ['body'] });
+  } else if (!value.body?.trim()) {
+    context.addIssue({ code: 'custom', message: 'body is required for plain templates', path: ['body'] });
+  }
+});
 export const templateArchiveSchema = z.object({ workspaceId: workspaceIdSchema, templateId: z.uuid() });
 export const templateRenderSchema = z.object({ workspaceId: workspaceIdSchema, templateVersionId: z.uuid(), props: z.record(z.string(), z.unknown()).default({}) });
 

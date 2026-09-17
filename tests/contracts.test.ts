@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   templateCreateSchema,
+  templateReviseSchema,
   valueSourceSchema,
   workflowDefinitionSchema,
 } from '../src/domain/contracts.js';
@@ -54,6 +55,35 @@ describe('templateCreateSchema', () => {
       workspaceId,
       name: 'Bad',
       subject: 'Hi',
+    })).toThrow(/body/i);
+  });
+});
+
+describe('templateReviseSchema', () => {
+  const templateId = '00000000-0000-4000-8000-000000000002';
+
+  it('accepts html revise payloads with expectedRevision', () => {
+    const parsed = templateReviseSchema.parse({
+      workspaceId,
+      templateId,
+      expectedRevision: 1,
+      subject: 'Hi {{contact.firstName}}',
+      sourceKind: 'html',
+      html: '<p>Hello</p>',
+      body: 'Hello',
+    });
+    expect(parsed.expectedRevision).toBe(1);
+    expect(parsed.html).toContain('Hello');
+  });
+
+  it('rejects html revise missing body', () => {
+    expect(() => templateReviseSchema.parse({
+      workspaceId,
+      templateId,
+      expectedRevision: 1,
+      subject: 'Hi',
+      sourceKind: 'html',
+      html: '<p>Hi</p>',
     })).toThrow(/body/i);
   });
 });

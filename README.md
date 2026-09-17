@@ -92,6 +92,7 @@ reflow template preview              # React Email viewer on :3030
 reflow template push emails/welcome.tsx \
   --name Welcome \
   --subject "Welcome, {{contact.firstName}}"
+# Re-running with the same --name revises the draft and publishes a new version (no duplicate rows).
 reflow template list
 ```
 

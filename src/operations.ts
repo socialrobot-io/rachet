@@ -2,7 +2,7 @@ import { z } from 'zod';
 import {
   accountCreateSchema, credentialCreateSchema, credentialRevokeSchema, contactUpsertSchema, enrollmentControlSchema, enrollmentCreateSchema,
   eventEmitSchema, workflowCreateSchema, workflowPublishSchema, workflowSimulateSchema, workflowDefinitionSchema, templateCreateSchema,
-  templateArchiveSchema, templatePublishSchema, templateRenderSchema, workspaceIdSchema,
+  templateArchiveSchema, templatePublishSchema, templateReviseSchema, templateRenderSchema, workspaceIdSchema,
   type OperationContext,
 } from './domain/contracts.js';
 import type { ReflowService } from './domain/service.js';
@@ -29,7 +29,35 @@ export function createOperations(service: ReflowService): Record<string, Operati
   return {
     'system.capabilities': {
       description: 'Describe the implemented Reflow operations and runtime capabilities.', input: z.object({}), readOnly: true,
-      invoke: async () => ({ version: '0.1.0', emailProvider: 'resend', durableExecution: 'temporal', templateRenderer: 'react-email', workflowModel: 'validated-capability-graph', actions: actionCatalog, operations: Object.keys(createOperations(service)) }),
+      invoke: async () => ({
+        version: '0.1.0',
+        emailProvider: 'resend',
+        durableExecution: 'temporal',
+        templateRenderer: 'react-email',
+        workflowModel: 'validated-capability-graph',
+        actions: actionCatalog,
+        operations: Object.keys(createOperations(service)),
+        agentCookbook: {
+          beforeAuthoring: [
+            'Call template.list and workflow.list in the target workspace; reuse before inventing.',
+            'Check examples/ (welcome-nudge, socialrobot-onboarding*.workflow.json) for graph patterns.',
+            'Prefer `reflow template push` for React Email; it upserts by --name (revise + publish).',
+          ],
+          simulate: [
+            'Always simulate at least two paths: no events (timeout/false branches) and with key activation events received.',
+            'Use a fast-test twin (seconds, not days) when validating long delay sequences live.',
+          ],
+          sideEffects: [
+            'workflow.publish does not enroll. enrollment.create sends mail.',
+            'Keep idempotencyKey stable across retries (welcome-first-week-<userId>).',
+            'event.emit needs enrollmentId + stable eventId; product hooks must signal the enrollment.',
+          ],
+          eventVocabularyHint: [
+            'Prefer dotted product events: social.account_connected, social.post_scheduled, social.posts_queued.',
+            'Align names with the product analytics vocabulary when wiring hooks.',
+          ],
+        },
+      }),
     },
     'auth.whoami': {
       description: 'Return the authenticated principal and workspace access.', input: z.object({}), readOnly: true,
@@ -52,12 +80,16 @@ export function createOperations(service: ReflowService): Record<string, Operati
       invoke: (context, input) => service.credentialRevoke(context, credentialRevokeSchema.parse(input)),
     },
     'template.create': {
-      description: 'Create a template draft. Prefer sourceKind=html with pre-rendered html + plain-text body (CLI: `reflow template push` renders React Email locally). Subject/preheader/html/body use {{contact.*}} / {{variables.*}} placeholders. The server never executes TSX.', input: templateCreateSchema, readOnly: false,
+      description: 'Create a template draft. Prefer sourceKind=html with pre-rendered html + plain-text body (CLI: `reflow template push` renders React Email locally). Subject/preheader/html/body use {{contact.*}} / {{variables.*}} placeholders. The server never executes TSX. Fails with TEMPLATE_NAME_EXISTS when the name is taken; use template.revise or `reflow template push` (upserts by name).', input: templateCreateSchema, readOnly: false,
       invoke: (context, input) => service.templateCreate(context, templateCreateSchema.parse(input)),
     },
     'template.list': {
       description: 'List templates in a workspace, including published version ids for email.send pins.', input: workspaceOnly, readOnly: true,
       invoke: (context, input) => service.templateList(context, workspaceIdSchema.parse(input.workspaceId)),
+    },
+    'template.revise': {
+      description: 'Update draft content for an existing template (optimistic lock via expectedRevision). Call template.publish afterward for a new immutable version. Prefer `reflow template push --name` which revise+publish by name.', input: templateReviseSchema, readOnly: false,
+      invoke: (context, input) => service.templateRevise(context, templateReviseSchema.parse(input)),
     },
     'template.publish': {
       description: 'Publish an immutable template version. Use the returned id as email.send input.templateVersionId.literal.', input: templatePublishSchema, readOnly: false,

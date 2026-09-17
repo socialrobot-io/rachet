@@ -166,7 +166,7 @@ export function registerTemplateCommands(
     });
 
   template.command('push')
-    .description('Render a React Email .tsx locally, then create + publish HTML/plain text in the workspace.')
+    .description('Render a React Email .tsx locally, then create or revise + publish HTML/plain text in the workspace (upserts by --name).')
     .argument('<file>', 'Path to a React Email template (.tsx)')
     .requiredOption('--name <name>', 'Template name in the workspace')
     .requiredOption('--subject <subject>', 'Subject line (supports {{contact.firstName}} etc.)')
@@ -179,23 +179,55 @@ export function registerTemplateCommands(
       const path = resolve(file);
       const tsxSource = await readFile(path, 'utf8');
       const rendered = await renderLocalReactEmailFile(tsxSource, undefined, { resolveDir: dirname(path) });
-      const created = await helpers.client(context).call<{ id: string; revision: number }>('template.create', {
-        workspaceId: workspace.id,
-        name: options.name,
+      const client = helpers.client(context);
+      const content = {
         subject: options.subject,
         ...(options.preheader ? { preheader: options.preheader } : {}),
-        sourceKind: 'html',
+        sourceKind: 'html' as const,
         html: rendered.html,
         body: rendered.plainText,
         tsxSource,
-      });
-      const published = await helpers.client(context).call<{ id: string; version: number }>('template.publish', {
+      };
+      const existing = (await client.call<Array<{
+        id: string;
+        name: string;
+        state: string;
+        revision: number;
+      }>>('template.list', { workspaceId: workspace.id }))
+        .find((row) => row.name === options.name && row.state !== 'archived');
+
+      let templateId: string;
+      let expectedRevision: number;
+      let action: 'created' | 'revised';
+      if (existing) {
+        const revised = await client.call<{ id: string; revision: number }>('template.revise', {
+          workspaceId: workspace.id,
+          templateId: existing.id,
+          expectedRevision: existing.revision,
+          ...content,
+        });
+        templateId = revised.id;
+        expectedRevision = revised.revision;
+        action = 'revised';
+      } else {
+        const created = await client.call<{ id: string; revision: number }>('template.create', {
+          workspaceId: workspace.id,
+          name: options.name,
+          ...content,
+        });
+        templateId = created.id;
+        expectedRevision = created.revision;
+        action = 'created';
+      }
+
+      const published = await client.call<{ id: string; version: number }>('template.publish', {
         workspaceId: workspace.id,
-        templateId: created.id,
-        expectedRevision: created.revision,
+        templateId,
+        expectedRevision,
       });
       console.log(JSON.stringify({
-        templateId: created.id,
+        action,
+        templateId,
         templateVersionId: published.id,
         version: published.version,
         file: basename(path),
