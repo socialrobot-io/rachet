@@ -226,6 +226,9 @@ importers:
       react-email:
         specifier: 6.9.5
         version: 6.9.5(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
+      zod:
+        specifier: 4.3.6
+        version: 4.3.6
     devDependencies:
       '@types/react':
         specifier: 19.2.14
