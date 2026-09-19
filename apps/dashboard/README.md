@@ -5,10 +5,10 @@ One-column workflow operations console. Vite + React + Tailwind + [shadcn/ui](ht
 ## Run locally
 
 ```sh
-pnpm dev:dashboard
+pnpm dev
 ```
 
-Open http://localhost:5173. Vite proxies `/api` and `/v1` to the API.
+Open http://localhost:5173. This starts the full local stack. Use `pnpm dev:dashboard` only when the API and supporting services are already running; Vite proxies `/api` and `/v1` to the API.
 
 ## Stack
 

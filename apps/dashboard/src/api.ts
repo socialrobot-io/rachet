@@ -85,8 +85,26 @@ export async function signIn(email: string, password: string): Promise<SessionUs
   return user;
 }
 
-export async function signOut(): Promise<void> {
-  await fetch('/api/auth/sign-out', { method: 'POST', credentials: 'include' });
+export async function signOut(): Promise<{ url?: string; redirect?: boolean }> {
+  const response = await fetch('/api/auth/sign-out', {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({}),
+  });
+  const payload = await parseJson(response);
+  if (!response.ok) {
+    const record = typeof payload === 'object' && payload !== null ? payload as Record<string, unknown> : {};
+    throw new ApiError(
+      response.status,
+      typeof record.message === 'string' ? record.message : 'Sign-out failed',
+    );
+  }
+  const result = typeof payload === 'object' && payload !== null
+    ? payload as { success?: boolean; url?: string; redirect?: boolean }
+    : {};
+  if (result.success !== true) throw new ApiError(500, 'Sign-out failed');
+  return result;
 }
 
 export async function continueOAuth(oauthQuery: string): Promise<string> {

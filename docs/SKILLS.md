@@ -25,6 +25,6 @@ python3 scripts/install_reflow_skill.py
 
 It defaults to `$CODEX_HOME/skills/reflow` (or `~/.codex/skills/reflow`), can target another skills root with `--dest`, and refuses to overwrite different existing content. An identical installation is a no-op. To update, inspect differences and explicitly replace the old installation; the installer does not silently discard local modifications. Start a new turn/session for discovery.
 
-`make check` validates the first-party skill metadata and internal references. Release qualification must also exercise realistic MCP/CLI flows with that release's skill and discovered schemas. Maintain it alongside operation contracts and package it for `reflow skill export` / `reflow_skill_export` when the backend is built.
+`make check` validates the first-party skill metadata and internal references. Release qualification must also exercise realistic MCP/CLI flows with that release's skill and discovered schemas. Maintain it alongside operation contracts. Until a verified CLI/MCP export operation ships, install the first-party skill from the repository with the command above.
 
 Upstream skill updates are explicit: choose/review a revision, update the lock, reinstall, read relevant guidance, and rerun the affected implementation tests. Vendor advice must not replace Reflow's user-required Temporal orchestration with provider-native automations or bypass its send ledger. The pinned Temporal skill recommends evaluating task-queue fairness; qualify support against the chosen self-hosted version before enabling it.

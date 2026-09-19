@@ -19,6 +19,17 @@ reflow template preview
 reflow workflow show --name Onboarding
 ```
 
+Signal a live enrollment with a stable event ID:
+
+```sh
+reflow call event.emit --input '{
+  "enrollmentId": "ENROLLMENT_ID",
+  "eventId": "product-activation:ACTIVITY_ID",
+  "eventType": "product.activated",
+  "data": {}
+}'
+```
+
 The CLI stores short-lived access and rotating refresh credentials in a mode-`0600` config file. It never stores your Reflow password or dashboard cookie.
 
 React Email `.tsx` files are trusted local code. Review them before running:

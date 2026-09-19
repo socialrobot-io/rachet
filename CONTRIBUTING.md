@@ -1,15 +1,17 @@
 # Contributing
 
-The repository is at specification stage. The backend will use TypeScript; current Python utilities perform offline repository checks and skill installation only. Git, Python 3.9+, and Make are sufficient for the current checks. No email credentials, database, Temporal server, or network access are required.
+Reflow is an Nx TypeScript workspace containing a Hono API, Better Auth, Temporal workers, a React dashboard, shared contracts, and the published CLI. Python utilities only maintain repository metadata and the first-party skill.
+
+Install Node.js 22+, pnpm 11+, Docker Compose, and Python 3.9+. Start the complete local stack with `pnpm dev`; it provisions development infrastructure, migrates the database, performs first-admin setup when needed, and runs the API, worker, dispatcher, and dashboard.
 
 ```sh
 make check
 ```
 
-This validates required documentation, local Markdown file links and code fences, JSON syntax/duplicate keys, example graph references/reachability/cycles, first-party skill metadata, pinned upstream skill revisions, whitespace/conflict markers, and accidental inclusion of private runtime directories. Unit tests verify rejection of malformed graphs/links/JSON and protect existing skill installations against overwrite. These checks do not constitute a general secret scanner or runtime JSON Schema validator.
+This validates documentation and examples, linting, shared contracts, typechecks, backend and dashboard tests, Temporal execution and replay, production builds, Compose configuration, and the CLI package contents. It does not constitute a general secret scanner.
 
-CI runs the same command. Once backend code exists, add shared-contract/schema validation, typecheck, lint, unit/integration tests, Temporal history replay, CLI/MCP parity, auth policy tests, and production image/Compose checks. Do not add empty checks that succeed without testing runtime behavior.
+CI runs the same command from a clean checkout. Add regression coverage for every runtime bug and keep CLI/MCP behavior on the shared operation contract. Do not add empty checks that succeed without testing runtime behavior.
 
-Update [README](README.md), [PRD](docs/PRD.md), [architecture](docs/ARCHITECTURE.md), [authentication](docs/AUTHENTICATION.md), [operation catalog](docs/OPERATIONS.md), and the [agent skill](skills/reflow/SKILL.md) when their behavior changes. Mark commands as proposed until implemented. Keep changes focused and explain the affected behavior and validation in the commit/PR description.
+Update [README](README.md), [PRD](docs/PRD.md), [architecture](docs/ARCHITECTURE.md), [authentication](docs/AUTHENTICATION.md), [operation catalog](docs/OPERATIONS.md), [event guide](docs/EVENTS.md), and the [agent skill](skills/reflow/SKILL.md) when their behavior changes. Verify every documented CLI/MCP command before reporting it as available. Keep changes focused and explain the affected behavior and validation in the commit/PR description.
 
 Install the official implementation skills and first-party interaction skill using [skill setup](docs/SKILLS.md). Review upstream changes before advancing their pinned revisions. Do not commit `.env`, credentials, message bodies from real recipients, or production exports.

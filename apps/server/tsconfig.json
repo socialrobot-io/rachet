@@ -3,7 +3,8 @@
   "compilerOptions": {
     "rootDir": "src",
     "outDir": "../../dist/apps/server",
-    "declaration": false
+    "declaration": false,
+    "jsx": "react"
   },
   "include": ["src/**/*.ts", "src/**/*.tsx"]
 }

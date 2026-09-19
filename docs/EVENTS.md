@@ -1,0 +1,89 @@
+# Sending product events
+
+Product events resume enrollments waiting at a `wait_for_event` node. The event type must exactly match the node's `eventType`, and the event must target the specific enrollment—not merely the contact or workflow.
+
+## Test from the CLI
+
+Interactive CLI login remembers the active workspace, so only the enrollment and event fields are required:
+
+```sh
+reflow call event.emit --input '{
+  "enrollmentId": "ENROLLMENT_ID",
+  "eventId": "product-activation:ACTIVITY_ID",
+  "eventType": "product.activated",
+  "data": { "plan": "pro" }
+}'
+```
+
+Use an event ID derived from the upstream activity or database record. If delivery times out, retry the identical request with the same `eventId`; do not mint a new identity for the retry.
+
+For a saved request, place the same object in `activation-event.json` and run:
+
+```sh
+reflow call event.emit --file activation-event.json
+```
+
+## Send from your application over HTTP
+
+Create a machine credential with the `send` scope as a deployment administrator. First run `reflow call auth.whoami` to obtain the target user's ID, then create the credential:
+
+```sh
+reflow call credential.create --input '{
+  "userId": "USER_ID",
+  "name": "product-events",
+  "scopes": ["send"]
+}'
+```
+
+The secret is returned once. Store it in your secret manager and provide it to the application as `REFLOW_API_KEY`. Do not put the key in source code, command arguments, logs, or agent prompts.
+
+```ts
+const event = {
+  workspaceId: process.env.REFLOW_WORKSPACE_ID,
+  enrollmentId,
+  eventId: `product-activation:${activityId}`,
+  eventType: 'product.activated',
+  data: { plan },
+};
+
+const response = await fetch(`${process.env.REFLOW_URL}/v1/operations/event.emit`, {
+  method: 'POST',
+  headers: {
+    'content-type': 'application/json',
+    'x-api-key': process.env.REFLOW_API_KEY!,
+  },
+  body: JSON.stringify(event),
+});
+
+if (!response.ok) {
+  throw new Error(`Reflow event failed: ${response.status} ${await response.text()}`);
+}
+```
+
+Persist or deterministically derive `eventId` before making the request. A network timeout does not prove Reflow rejected the event, so retry with the same ID rather than generating another one. Supply `REFLOW_URL`, `REFLOW_WORKSPACE_ID`, and `REFLOW_API_KEY` through the application's secret-managed environment.
+
+## Send through MCP
+
+The MCP tool name uses an underscore while the CLI and HTTP operation use a dot:
+
+```text
+event_emit({
+  workspaceId: "WORKSPACE_ID",
+  enrollmentId: "ENROLLMENT_ID",
+  eventId: "product-activation:ACTIVITY_ID",
+  eventType: "product.activated",
+  data: { plan: "pro" }
+})
+```
+
+OAuth/MCP authorization must include `reflow:send`; API keys use the corresponding `send` scope. Workspace role checks still apply.
+
+## Event behavior
+
+- Events are accepted only for an existing enrollment in the same workspace.
+- An event can arrive before the enrollment reaches its matching wait; Temporal records it for deterministic progression.
+- A matching wait follows `onEvent`; if no matching event arrives before its deadline, it follows `onTimeout`.
+- Events do not create enrollments and do not bypass send policy or suppression checks.
+- Provider webhooks such as Resend delivery events are separate. Those arrive at `/webhooks/resend` and update message state; product events use `event.emit`.
+
+See the runnable [welcome + nudge tutorial](../examples/welcome-nudge/) for a complete wait, event, and timeout journey.

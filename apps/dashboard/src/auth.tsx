@@ -78,11 +78,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         await refresh();
       },
       logout: async () => {
-        await signOut();
+        const result = await signOut();
         setUser(null);
         setWorkspaces([]);
         setWorkspaceIdState(null);
         localStorage.removeItem(WORKSPACE_KEY);
+        if (result.redirect && result.url) window.location.assign(result.url);
       },
       refresh,
     }),
@@ -114,6 +115,8 @@ export function RequireAuth() {
 export function AppShell() {
   const { user, workspaces, workspaceId, setWorkspaceId, logout } = useAuth();
   const navigate = useNavigate();
+  const [signingOut, setSigningOut] = useState(false);
+  const [signOutError, setSignOutError] = useState<string | null>(null);
 
   return (
     <div className="min-h-dvh">
@@ -155,14 +158,29 @@ export function AppShell() {
               type="button"
               variant="outline"
               size="sm"
-              onClick={() => void logout().then(() => navigate('/login'))}
+              disabled={signingOut}
+              onClick={() => {
+                setSigningOut(true);
+                setSignOutError(null);
+                void logout().catch((reason: unknown) => {
+                  setSignOutError(reason instanceof Error ? reason.message : 'Sign-out failed');
+                  setSigningOut(false);
+                });
+              }}
             >
               <LogOut data-icon="inline-start" />
-              Sign out
+              {signingOut ? 'Signing out…' : 'Sign out'}
             </Button>
           </div>
         </div>
       </header>
+      {signOutError && (
+        <div className="mx-auto w-full max-w-6xl px-4 pt-4 sm:px-6">
+          <Alert variant="destructive">
+            <AlertDescription>{signOutError}</AlertDescription>
+          </Alert>
+        </div>
+      )}
       <Outlet />
     </div>
   );

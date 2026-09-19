@@ -13,6 +13,17 @@ async function exists(path: string): Promise<boolean> {
   }
 }
 
+if (!(await exists('.env'))) {
+  await copyFile('.env.dev.example', '.env');
+  await chmod('.env', 0o600);
+  console.log('Created .env from .env.dev.example');
+}
+
+// Load optional provider credentials first; .env supplies defaults for values
+// that are still absent. Local infrastructure settings below stay deterministic.
+if (await exists('.env.local')) process.loadEnvFile('.env.local');
+process.loadEnvFile('.env');
+
 const localEnvironment: NodeJS.ProcessEnv = {
   ...process.env,
   NODE_ENV: 'development',
@@ -36,12 +47,6 @@ async function run(command: string, args: string[]): Promise<void> {
       else reject(new Error(`${command} ${args.join(' ')} exited with ${signal ?? code}`));
     });
   });
-}
-
-if (!(await exists('.env'))) {
-  await copyFile('.env.dev.example', '.env');
-  await chmod('.env', 0o600);
-  console.log('Created .env from .env.dev.example');
 }
 
 await run('docker', ['compose', '-f', 'compose.dev.yaml', 'up', '-d']);

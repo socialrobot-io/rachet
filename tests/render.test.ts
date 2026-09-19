@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest';
+import { execFileSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 import { interpolate, renderEmail } from '../apps/server/src/domain/render.js';
 
 describe('interpolate', () => {
@@ -60,5 +62,18 @@ describe('renderEmail', () => {
     expect(rendered.html).toContain('Line one');
     expect(rendered.html).toContain('Line two pro');
     expect(rendered.plainText.toLowerCase()).toContain('line one');
+  });
+
+  it('wraps plain-text templates under the development tsx loader', () => {
+    const repositoryRoot = fileURLToPath(new URL('../', import.meta.url));
+    const script = [
+      "const { renderEmail } = await import('./apps/server/src/domain/render.tsx');",
+      "const result = await renderEmail({ subject: 'Hello', preheader: null, body: 'Line one', sourceKind: 'plain' }, {});",
+      "if (!result.html.includes('Line one')) process.exit(1);",
+    ].join(' ');
+    expect(() => execFileSync(process.execPath, ['--import', 'tsx', '--input-type=module', '--eval', script], {
+      cwd: repositoryRoot,
+      stdio: 'pipe',
+    })).not.toThrow();
   });
 });

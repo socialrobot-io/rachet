@@ -1,3 +1,4 @@
+import React from 'react';
 import { Body, Container, Head, Html, Preview, Text } from 'react-email';
 import { render, toPlainText } from 'react-email';
 import { ReflowError } from './errors.js';

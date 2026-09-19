@@ -6,10 +6,10 @@ Waits are 20 seconds so you can test without waiting days.
 
 ## Prerequisites
 
-- `pnpm dev`, `pnpm dev:worker`, `pnpm dev:dispatcher`
-- `reflow auth login` and `reflow workspace use`
+- `pnpm dev`
+- `npm install --global @socialrobot-io/reflow`
+- `reflow auth login --url http://localhost:3000`
 - Resend key loaded for real delivery
-- `pnpm build && pnpm link --global`
 
 ## 1. Preview templates
 
@@ -38,29 +38,16 @@ reflow template push examples/welcome-nudge/emails/reminder.tsx \
 
 Copy each printed `templateVersionId`.
 
-## 3. Build the workflow
+## 3. Validate and create the journey
 
-Edit `workflow.template.json`: replace `__WELCOME_VERSION_ID__` and `__REMINDER_VERSION_ID__` with those ids.
+Edit `workflow.template.json` once: replace `__WELCOME_VERSION_ID__` and `__REMINDER_VERSION_ID__` with the IDs returned above. The file is a complete `workflow.create` request; validation ignores its extra `name` and `intent` fields.
 
 ```sh
-# validate (workspaceId comes from your active workspace)
-reflow call workflow.validate --input "$(python3 - <<'PY'
-import json
-from pathlib import Path
-print(json.dumps({"definition": json.loads(Path("examples/welcome-nudge/workflow.template.json").read_text())}))
-PY
-)"
+reflow call workflow.validate \
+  --file examples/welcome-nudge/workflow.template.json
 
-reflow call workflow.create --input "$(python3 - <<'PY'
-import json
-from pathlib import Path
-print(json.dumps({
-  "name": "Welcome nudge",
-  "intent": "Welcome, wait 20s for product.activated, else remind.",
-  "definition": json.loads(Path("examples/welcome-nudge/workflow.template.json").read_text()),
-}))
-PY
-)"
+reflow call workflow.create \
+  --file examples/welcome-nudge/workflow.template.json
 ```
 
 Publish with the `id` and `revision` from create:
@@ -89,7 +76,7 @@ reflow call enrollment.create --input '{
 }'
 ```
 
-Optional: within 20s, skip the reminder:
+Optional: within 20 seconds, emit the product event and skip the reminder. Keep `eventId` stable if your application retries the request:
 
 ```sh
 reflow call event.emit --input '{
@@ -99,6 +86,8 @@ reflow call event.emit --input '{
   "data": {}
 }'
 ```
+
+For application HTTP and MCP examples, see [Sending product events](../../docs/EVENTS.md).
 
 ## Flow
 
@@ -114,4 +103,4 @@ welcome → wait 20s for product.activated
 | ---- | ------- |
 | `emails/welcome.tsx` | Welcome React Email |
 | `emails/reminder.tsx` | Reminder React Email |
-| `workflow.template.json` | Graph (pin template version ids) |
+| `workflow.template.json` | Create request containing the graph and pinned template-version IDs |

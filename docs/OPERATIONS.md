@@ -45,8 +45,9 @@ reflow call workflow.validate --file ./workflow-validation.json
 reflow call workflow.simulate --file ./workflow-simulation.json
 reflow call workflow.create --file ./workflow-create.json
 reflow call enrollment.create --file ./enrollment.json
-reflow call event.emit --file ./activation-event.json
 ```
+
+Send a product event with `reflow call event.emit --input '{...}'` or `--file activation-event.json`. The complete CLI, HTTP, and MCP examples are in [Sending product events](EVENTS.md).
 
 `reflow tui --workspace UUID` provides an interactive workflow browser backed by `workflow.list`. Its workflow pane generates an SVG from the Mermaid definition and displays it through Kitty, iTerm2, or Sixel terminal graphics. It never substitutes character art. Press `o` to open the exact SVG when the terminal cannot display inline images. The equivalent noninteractive command is `reflow workflow show --workspace UUID --id UUID`, with `--format svg|mermaid|json`; SVG is the default. These are presentation clients over the shared operation contract, so they preserve CLI/MCP authorization and do not bypass the service layer.
 
