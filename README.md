@@ -140,7 +140,9 @@ For production, replace the URL with `https://your-reflow.example/mcp`. Redirect
 
 Open your product repository in an MCP-capable agent, connect Reflow, and give it this prompt:
 
-> Use the Reflow MCP server to create a journey named **Activation welcome**. First inspect the installed actions, existing templates, and existing workflows so you reuse rather than duplicate them. Create a clean editorial React Email welcome template and reminder template: off-white background, near-black text, one muted emerald action button, concise copy, and no gradients. The journey should send the welcome message, wait 24 hours for `product.activated`, finish immediately when that event arrives, and otherwise send one reminder before finishing. Validate the graph and simulate both the event and timeout paths before creating it. Show me the result, then ask before publishing or enrolling anyone. Finally, inspect this application and propose the exact TypeScript changes to: (1) upsert the contact and create an enrollment in the successful account-creation handler using the stable idempotency key `activation-welcome:<userId>`; and (2) emit `product.activated` from the activation-complete handler using a stable upstream activity ID. Use environment variables for the Reflow URL, workspace ID, and machine credential. Never put a credential in source code or the chat.
+> Create an activation welcome journey for new users: welcome them, give them 24 hours to activate, remind them once if they don't, and stop messaging them as soon as they activate.
+>
+>Hook it up to the app, reuse our existing setup and style, test it, and show me the result before anything goes live.
 
 This prompt separates design from side effects: the agent can inspect, author, validate, and simulate, but must ask before publishing or enrolling a real contact.
 
