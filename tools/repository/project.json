@@ -6,6 +6,7 @@
   "targets": {
     "lint": {
       "executor": "nx:run-commands",
+      "dependsOn": ["contracts:build", "mcp-ext-skills:build"],
       "inputs": [
         "{workspaceRoot}/apps/server/src/**/*",
         "{workspaceRoot}/packages/cli/src/**/*",
@@ -15,12 +16,15 @@
         "{workspaceRoot}/tests/**/*",
         "{workspaceRoot}/*.ts",
         "{workspaceRoot}/eslint.config.js",
-        "{workspaceRoot}/package.json"
+        "{workspaceRoot}/package.json",
+        "{workspaceRoot}/tsconfig.lint.json",
+        "{workspaceRoot}/tsconfig.base.json"
       ],
       "options": { "command": "eslint .", "cwd": "{workspaceRoot}" }
     },
     "test": {
       "executor": "nx:run-commands",
+      "dependsOn": ["contracts:build", "mcp-ext-skills:build"],
       "inputs": [
         "{workspaceRoot}/apps/server/src/**/*",
         "{workspaceRoot}/packages/cli/src/**/*",
