@@ -22,3 +22,11 @@ __pycache__/
 .reflow/
 /emails/
 node_modules/.react-email-jsx-runtime/
+
+
+
+.nx/cache
+.nx/workspace-data
+.nx/migrate-runs
+.claude/worktrees
+.claude/settings.local.json
