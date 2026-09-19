@@ -14,6 +14,6 @@ const actorId = process.env.REFLOW_ACTOR_USER_ID;
 if (!actorId) throw new Error('REFLOW_ACTOR_USER_ID is required for trusted local stdio MCP; use the authenticated HTTP /mcp endpoint otherwise');
 const config = loadConfig(); const { db, pool } = createDatabase(config); const auth = createAuth(config, pool);
 const service = new ReflowService(db, await createTemporalClient(config), auth);
-const server = createMcpServer(createOperations(service), { principal: await service.principalFor(actorId), requestId: crypto.randomUUID() });
+const server = await createMcpServer(createOperations(service), { principal: await service.principalFor(actorId), requestId: crypto.randomUUID() });
 await server.connect(new StdioServerTransport());
 const shutdown = () => void pool.end(); process.once('SIGTERM', shutdown); process.once('SIGINT', shutdown);

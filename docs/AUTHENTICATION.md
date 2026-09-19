@@ -66,7 +66,7 @@ OAuth and API-key scopes can only narrow that set. Each operation also checks th
 - Use HTTPS for `PUBLIC_URL` and every trusted origin in production.
 - Keep `BETTER_AUTH_SECRET` high-entropy and at least 32 characters.
 - Leave `ALLOW_REGISTRATION=false` unless public account creation is intentional.
-- Keep `OAUTH_PUBLIC_REDIRECT_ORIGINS` empty unless a known web MCP client requires an HTTPS callback.
+- Keep `OAUTH_PUBLIC_REDIRECT_ORIGINS` empty unless a known web MCP client requires an HTTPS callback. Cursor currently requires the exact `https://www.cursor.com` origin.
 - Keep `OAUTH_PUBLIC_REDIRECT_SCHEMES` limited to installed native MCP clients that own those URI schemes.
 - Verify the dashboard login, consent, deny, refresh, logout, and Connected apps revocation paths.
 - Verify at least one intended MCP client through discovery, registration, PKCE, consent, and tool invocation.

@@ -6,6 +6,7 @@
     "packages/cli/src/**/*.ts",
     "packages/cli/src/**/*.tsx",
     "packages/contracts/src/**/*.ts",
+    "packages/mcp-ext-skills/src/**/*.ts",
     "scripts/**/*.ts",
     "tests/**/*.ts",
     "vitest.config.ts"

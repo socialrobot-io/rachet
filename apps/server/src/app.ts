@@ -153,7 +153,7 @@ export function createApp(dependencies: Dependencies) {
       });
     }
     const transport = new WebStandardStreamableHTTPServerTransport({ enableJsonResponse: true });
-    const mcp = createMcpServer(operations, execution);
+    const mcp = await createMcpServer(operations, execution);
     await mcp.connect(transport);
     return transport.handleRequest(context.req.raw);
   });
@@ -176,7 +176,12 @@ export function createApp(dependencies: Dependencies) {
     });
   }
   app.get('/.well-known/oauth-authorization-server', () => proxyAuthWellKnown('/.well-known/oauth-authorization-server'));
+  // RFC 8414 inserts the issuer path after the well-known prefix. Because the
+  // Reflow authorization-server issuer is /api/auth, OAuth clients such as
+  // Cursor discover it at this path rather than at the origin-only variant.
+  app.get('/.well-known/oauth-authorization-server/api/auth', () => proxyAuthWellKnown('/.well-known/oauth-authorization-server'));
   app.get('/.well-known/openid-configuration', () => proxyAuthWellKnown('/.well-known/openid-configuration'));
+  app.get('/.well-known/openid-configuration/api/auth', () => proxyAuthWellKnown('/.well-known/openid-configuration'));
 
   app.post('/webhooks/resend', async (context) => {
     if (!config.resendApiKey || !config.resendWebhookSecret) return context.text('Webhook not configured', 503);

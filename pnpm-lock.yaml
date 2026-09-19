@@ -23,6 +23,9 @@ importers:
       '@reflow/contracts':
         specifier: workspace:*
         version: link:packages/contracts
+      '@reflow/mcp-ext-skills':
+        specifier: workspace:*
+        version: link:packages/mcp-ext-skills
       '@temporalio/activity':
         specifier: 1.23.0
         version: 1.23.0
@@ -233,6 +236,15 @@ importers:
 
   packages/contracts:
     dependencies:
+      zod:
+        specifier: 4.3.6
+        version: 4.3.6
+
+  packages/mcp-ext-skills:
+    devDependencies:
+      '@modelcontextprotocol/sdk':
+        specifier: 1.30.0
+        version: 1.30.0(zod@4.3.6)
       zod:
         specifier: 4.3.6
         version: 4.3.6

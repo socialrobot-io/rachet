@@ -5,7 +5,7 @@ description: Author and operate durable Reflow workflows through MCP or CLI from
 
 # Reflow
 
-Prefer the authenticated MCP endpoint. Use CLI for the same operations or trusted host setup. Discover `system_capabilities` (includes `agentCookbook`), read `reflow://workflow/actions` and `reflow://workflow/schema`, and use the `design-workflow` MCP prompt when starting from natural language. Never invent actions absent from the installed catalog.
+Prefer the authenticated MCP endpoint. Use CLI for the same operations or trusted host setup. Discover this skill via SEP-2640 `skills/list` / `skills/get` (`skill://reflow/SKILL.md`) when the host supports it, then read its resources. Also call `system_capabilities` (includes `agentCookbook`), read `reflow://workflow/actions` and `reflow://workflow/schema`, and use the `design-workflow` MCP prompt when starting from natural language. Never invent actions absent from the installed catalog.
 
 ## Fast path (do this first)
 

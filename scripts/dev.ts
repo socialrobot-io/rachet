@@ -33,6 +33,9 @@ const localEnvironment: NodeJS.ProcessEnv = {
   BETTER_AUTH_SECRET: 'dev-only-change-me-to-at-least-32-chars',
   ALLOW_REGISTRATION: 'false',
   TRUSTED_ORIGINS: 'http://localhost:3000,http://localhost:5173',
+  // Cursor's current MCP OAuth flow uses its reviewed web callback rather
+  // than the cursor: private-use scheme. Production stays explicitly configured.
+  OAUTH_PUBLIC_REDIRECT_ORIGINS: process.env.OAUTH_PUBLIC_REDIRECT_ORIGINS || 'https://www.cursor.com',
   TEMPORAL_ADDRESS: 'localhost:7233',
   TEMPORAL_NAMESPACE: 'reflow',
   TEMPORAL_TASK_QUEUE: 'reflow-enrollments',
@@ -67,7 +70,7 @@ await run('node', [
   'tsx',
   'apps/server/src/setup.ts',
   '--email',
-  'admin@localhost',
+  'admin@localhost.com',
   '--name',
   'Admin',
   '--password-file',
@@ -78,7 +81,7 @@ await run('node', [
 console.log('\nReflow is ready:');
 console.log('  Dashboard: http://localhost:5173');
 console.log('  API + MCP: http://localhost:3000');
-console.log('  Fresh DB:  admin@localhost');
+console.log('  Fresh DB:  admin@localhost.com');
 console.log(`  Password:  ${passwordPath}${generatedPassword ? ' (created now; used only when initializing)' : ''}`);
 console.log('  Stop:      Ctrl+C, then pnpm dev:infra:down when you want to stop Docker\n');
 
