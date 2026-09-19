@@ -2,7 +2,7 @@
 
 The publishable npm package lives in `packages/cli`. The repository root, server, dashboard, and internal contracts package are private workspace projects and are not included in the CLI tarball.
 
-The public package name is `@socialrobot-io/reflow`. The `UNLICENSED` marker remains deliberate until the project licensing decision is supplied.
+The public package name is `@socialrobot-io/reflow`. The package is licensed under the GNU Affero General Public License v3.0 only (`AGPL-3.0-only`).
 
 ## One-time npm setup
 

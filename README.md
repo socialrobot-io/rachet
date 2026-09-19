@@ -8,6 +8,7 @@
 [![Node.js 22+](https://img.shields.io/badge/Node.js-22%2B-339933?logo=nodedotjs&logoColor=white)](package.json)
 [![MCP native](https://img.shields.io/badge/MCP-native-5A67D8)](docs/AUTHENTICATION.md)
 [![Self-hosted](https://img.shields.io/badge/deploy-self--hosted-168363?logo=docker&logoColor=white)](docs/DEPLOYMENT.md)
+[![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-blue.svg)](LICENSE)
 
 ## What this is
 
@@ -227,5 +228,9 @@ It runs repository validation, linting, typechecks, backend and dashboard tests,
 - [Resend setup](docs/RESEND.md)
 - [CLI release process](docs/RELEASING.md)
 - [Agent skill](skills/reflow/SKILL.md)
+
+## License
+
+Reflow is licensed under the [GNU Affero General Public License v3.0](LICENSE) only (`AGPL-3.0-only`).
 
 Reflow is early. If you try it, open an issue and tell us where setup hurt, which journey actions you need next, and whether the MCP flow felt natural.

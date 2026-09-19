@@ -2,6 +2,7 @@
   "name": "@reflow/mcp-ext-skills",
   "version": "0.1.0",
   "private": true,
+  "license": "AGPL-3.0-only",
   "type": "module",
   "description": "Temporary SEP-2640 skills extension shim for @modelcontextprotocol/sdk until typescript-sdk#2818 lands. Remove this package when the official /ext/skills exports ship.",
   "main": "./dist/index.js",
