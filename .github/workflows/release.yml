@@ -29,6 +29,8 @@ jobs:
       - name: Verify repository
         run: make check
       - name: Verify tag matches package version
-        run: test "${GITHUB_REF_NAME}" = "v$(node -p \"require('./packages/cli/package.json').version\")"
+        run: |
+          expected="v$(node -p 'require("./packages/cli/package.json").version')"
+          test "${GITHUB_REF_NAME}" = "${expected}"
       - name: Publish with provenance
         run: pnpm --filter @socialrobot-io/reflow publish --no-git-checks --provenance
