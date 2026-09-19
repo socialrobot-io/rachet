@@ -57,8 +57,22 @@ export class ReflowService {
     if (!role || !allowed.includes(role)) throw new ReflowError('FORBIDDEN', `Workspace ${permission} permission denied`, 403);
   }
 
-  private async audit(context: OperationContext, action: string, workspaceId: string | null, targetType?: string, targetId?: string) {
-    await this.db.insert(auditEvents).values({ workspaceId, actorId: context.principal.userId, action, targetType, targetId });
+  private async audit(
+    context: OperationContext,
+    action: string,
+    workspaceId: string | null,
+    targetType?: string,
+    targetId?: string,
+    details: Record<string, unknown> = {},
+  ) {
+    await this.db.insert(auditEvents).values({
+      workspaceId,
+      actorId: context.principal.userId,
+      action,
+      targetType,
+      targetId,
+      details,
+    });
   }
 
   async accountCreate(context: OperationContext, input: { email: string; name: string; password: string; deploymentAdmin: boolean; workspaceId?: string | undefined; role: typeof memberships.$inferInsert.role }) {
@@ -458,7 +472,7 @@ export class ReflowService {
 
   async enrollmentList(context: OperationContext, workspaceId: string) {
     this.workspace(context, workspaceId);
-    return this.db.select({
+    const rows = await this.db.select({
       id: enrollments.id,
       workspaceId: enrollments.workspaceId,
       sequenceVersionId: enrollments.sequenceVersionId,
@@ -483,6 +497,51 @@ export class ReflowService {
       .innerJoin(sequences, eq(sequences.id, sequenceVersions.sequenceId))
       .where(eq(enrollments.workspaceId, workspaceId))
       .orderBy(asc(enrollments.createdAt));
+
+    const enrollmentIds = rows.map((row) => row.id);
+    const receivedByEnrollment = new Map<string, Array<{
+      eventType: string;
+      eventId: string;
+      receivedAt: string;
+      data: Record<string, unknown>;
+    }>>();
+    if (enrollmentIds.length > 0) {
+      const emits = await this.db.select({
+        enrollmentId: auditEvents.targetId,
+        details: auditEvents.details,
+        createdAt: auditEvents.createdAt,
+      })
+        .from(auditEvents)
+        .where(and(
+          eq(auditEvents.workspaceId, workspaceId),
+          eq(auditEvents.action, 'event.emit'),
+          eq(auditEvents.targetType, 'enrollment'),
+          inArray(auditEvents.targetId, enrollmentIds),
+        ))
+        .orderBy(asc(auditEvents.createdAt));
+      for (const emit of emits) {
+        if (!emit.enrollmentId) continue;
+        const eventType = typeof emit.details.eventType === 'string' ? emit.details.eventType : null;
+        const eventId = typeof emit.details.eventId === 'string' ? emit.details.eventId : null;
+        if (!eventType || !eventId) continue;
+        const list = receivedByEnrollment.get(emit.enrollmentId) ?? [];
+        if (list.some((existing) => existing.eventId === eventId)) continue;
+        list.push({
+          eventType,
+          eventId,
+          receivedAt: emit.createdAt.toISOString(),
+          data: typeof emit.details.data === 'object' && emit.details.data !== null
+            ? emit.details.data as Record<string, unknown>
+            : {},
+        });
+        receivedByEnrollment.set(emit.enrollmentId, list);
+      }
+    }
+
+    return rows.map((row) => ({
+      ...row,
+      receivedEvents: receivedByEnrollment.get(row.id) ?? [],
+    }));
   }
 
   async enrollmentControl(context: OperationContext, input: { workspaceId: string; enrollmentId: string }, action: 'pause' | 'resume' | 'cancel') {
@@ -532,7 +591,11 @@ export class ReflowService {
     await this.withEnrollmentExecution(row, (handle) =>
       handle.signal(enrollmentEvent, input.eventType, input.eventId, input.data),
     );
-    await this.audit(context, 'event.emit', input.workspaceId, 'enrollment', row.id);
+    await this.audit(context, 'event.emit', input.workspaceId, 'enrollment', row.id, {
+      eventType: input.eventType,
+      eventId: input.eventId,
+      data: input.data,
+    });
     return { accepted: true, eventId: input.eventId };
   }
 

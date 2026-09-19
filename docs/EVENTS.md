@@ -82,6 +82,7 @@ OAuth/MCP authorization must include `reflow:send`; API keys use the correspondi
 
 - Events are accepted only for an existing enrollment in the same workspace.
 - An event can arrive before the enrollment reaches its matching wait; Temporal records it for deterministic progression.
+- Successful `event.emit` calls are also written to the enrollment audit trail with `eventType`, `eventId`, and `data`. The dashboard enrollment page lists those receipts under **Events seen** and in **History** immediately, even while the enrollment is still waiting on a later branch.
 - A matching wait follows `onEvent`; if no matching event arrives before its deadline, it follows `onTimeout`.
 - Events do not create enrollments and do not bypass send policy or suppression checks.
 - Provider webhooks such as Resend delivery events are separate. Those arrive at `/webhooks/resend` and update message state; product events use `event.emit`.

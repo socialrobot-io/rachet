@@ -1,4 +1,4 @@
-import type { Enrollment, FlowNode, WorkflowDefinition } from './types';
+import type { Enrollment, FlowNode, ReceivedEvent, WorkflowDefinition } from './types';
 
 const ACTIVE_STATES = new Set(['pending_start', 'running', 'waiting', 'paused', 'needs_attention']);
 
@@ -128,24 +128,30 @@ export type TraceItem = {
   nodeType?: string;
 };
 
+export type SeenEvent = {
+  type: string;
+  receivedAt?: string;
+};
+
 export type ExecutionTrace = {
   items: TraceItem[];
-  eventsSeen: string[];
+  eventsSeen: SeenEvent[];
 };
 
 export function buildExecutionTrace(
   definition: WorkflowDefinition,
   enrollment: Enrollment,
   messages: { stepId: string; state: string; subject: string; createdAt: string; acceptedAt: string | null }[],
+  receivedEvents: ReceivedEvent[] = enrollment.receivedEvents ?? [],
 ): ExecutionTrace {
   const nodes = new Map(definition.nodes.map((node) => [node.id, node]));
   const sent = new Map(messages.map((message) => [message.stepId, message]));
   const items: TraceItem[] = [];
-  const eventsSeen: string[] = [];
+  const pathEvents: string[] = [];
   const currentId = enrollment.currentStepId;
 
   const markEventSeen = (eventType: string) => {
-    if (!eventsSeen.includes(eventType)) eventsSeen.push(eventType);
+    if (!pathEvents.includes(eventType)) pathEvents.push(eventType);
   };
 
   items.push({
@@ -265,7 +271,33 @@ export function buildExecutionTrace(
     } else break;
   }
 
-  return { items, eventsSeen };
+  const eventItems: TraceItem[] = receivedEvents.map((event) => ({
+    id: `event:${event.eventId}`,
+    status: 'past',
+    title: `Event · ${event.eventType}`,
+    detail: event.eventId,
+    timestamp: event.receivedAt,
+  }));
+
+  const past = items.filter((item) => item.status === 'past');
+  const nonPast = items.filter((item) => item.status !== 'past');
+  const stamped = [...past.filter((item) => item.timestamp), ...eventItems].sort(
+    (left, right) => Date.parse(left.timestamp ?? '') - Date.parse(right.timestamp ?? ''),
+  );
+  const unstamped = past.filter((item) => !item.timestamp);
+  const merged = [...stamped, ...unstamped, ...nonPast];
+
+  const eventsSeen: SeenEvent[] = [];
+  for (const event of receivedEvents) {
+    if (!eventsSeen.some((seen) => seen.type === event.eventType)) {
+      eventsSeen.push({ type: event.eventType, receivedAt: event.receivedAt });
+    }
+  }
+  if (eventsSeen.length === 0) {
+    for (const eventType of pathEvents) eventsSeen.push({ type: eventType });
+  }
+
+  return { items: merged, eventsSeen };
 }
 
 function futureTitle(node: FlowNode): string {

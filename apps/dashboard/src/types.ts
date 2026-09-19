@@ -79,6 +79,14 @@ export type Enrollment = {
   workflowName: string;
   workflowVersion: number;
   definition: WorkflowDefinition;
+  receivedEvents?: ReceivedEvent[];
+};
+
+export type ReceivedEvent = {
+  eventType: string;
+  eventId: string;
+  receivedAt: string;
+  data?: Record<string, unknown>;
 };
 
 export type Message = {

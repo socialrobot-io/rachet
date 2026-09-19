@@ -368,7 +368,12 @@ export function EnrollmentDetailPage() {
 
   const { items: trace, eventsSeen } = useMemo(() => {
     if (!enrollment) return { items: [], eventsSeen: [] };
-    return buildExecutionTrace(enrollment.definition, enrollment, enrollmentMessages);
+    return buildExecutionTrace(
+      enrollment.definition,
+      enrollment,
+      enrollmentMessages,
+      enrollment.receivedEvents ?? [],
+    );
   }, [enrollment, enrollmentMessages]);
 
   const path = useMemo(

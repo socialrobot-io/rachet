@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom';
 import { Check, ArrowDown } from 'lucide-react';
 import type { ReactNode } from 'react';
 import type { TraceItem } from '@/flow';
+import { formatWhen } from '@/flow';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
@@ -183,7 +184,7 @@ export function EnrollmentList({
   );
 }
 
-export function EventsSeen({ events }: { events: string[] }) {
+export function EventsSeen({ events }: { events: { type: string; receivedAt?: string }[] }) {
   return (
     <section className="flex flex-col gap-3">
       <h2 className="text-[0.7rem] font-medium tracking-[0.08em] text-muted-foreground uppercase">
@@ -194,9 +195,16 @@ export function EventsSeen({ events }: { events: string[] }) {
       ) : (
         <ul className="flex flex-col gap-2">
           {events.map((event) => (
-            <li key={event} className="flex items-center gap-2 font-mono text-xs">
-              <span className="size-1 rounded-full bg-success" aria-hidden />
-              {event}
+            <li key={event.type} className="flex flex-col gap-0.5">
+              <span className="flex items-center gap-2 font-mono text-xs">
+                <span className="size-1 rounded-full bg-success" aria-hidden />
+                {event.type}
+              </span>
+              {event.receivedAt && (
+                <span className="pl-3 font-mono text-[0.65rem] text-muted-foreground">
+                  {formatWhen(event.receivedAt)}
+                </span>
+              )}
             </li>
           ))}
         </ul>
