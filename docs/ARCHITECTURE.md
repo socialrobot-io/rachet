@@ -44,22 +44,16 @@ flowchart LR
 
 Delivery has a provider seam because external protocols vary, explicitly required by the brief. Ship a Resend adapter and deterministic fake adapter used by simulation/integration tests. Do not create speculative adapters for every possible infrastructure dependency.
 
-Proposed monorepo layout (future directories, not placeholders claimed as implementation):
+Nx workspace layout:
 
 ```text
-apps/server/              Hono, Better Auth, HTTP MCP, webhook ingress
-apps/worker/              Temporal workflow and activity entrypoints
-apps/dispatcher/          outbox claims, workflow starts/signals, inbox jobs
-apps/cli/                 CLI plus MCP stdio bridge (local React Email render on template push)
-packages/contracts/      schemas, operation metadata, generated client
-packages/domain/         business policies and application operations
-packages/workflows/      deterministic versioned graph interpreter
-packages/persistence/    PostgreSQL repositories and migrations
-packages/providers/      provider contract, Resend, fake
-packages/templates/      first-party React Email starter assets
-packages/testing/        workflow fixtures, provider fault scenarios
-deploy/                  Compose, TLS, Temporal config, migration jobs
-docs/runbooks/           deployment, restore, upgrades, incident response
+apps/server/             Hono, Better Auth, HTTP MCP, Temporal worker/dispatcher entrypoints
+apps/dashboard/          permanent same-origin React operations and OAuth consent UI
+packages/contracts/      shared workflow and operation schemas
+packages/cli/            publishable, server-free npm CLI bundle
+migrations/              reviewed Better Auth and Reflow PostgreSQL migrations
+docker/                  Compose support, TLS, and Temporal configuration
+docs/                    architecture, setup, operations, and provider runbooks
 ```
 
 Use pnpm workspaces, strict TypeScript, supported Node LTS, schema validation shared across transports, and reviewed SQL migrations (proposed Drizzle). Select and pin exact compatible releases during foundation work; this PRD does not fabricate a tested version matrix.
@@ -165,19 +159,19 @@ For inbound replies, fetch content only when necessary in an activity, store it 
 
 Local replay targets persisted verified events, reuses effect IDs, and cannot bypass uniqueness or suppression. Track receipt failure, processing failure, and uncorrelated events separately so operators know what replay can fix.
 
-## 7. Authentication without a product UI
+## 7. Authentication and connected clients
 
 Mount Better Auth's handler on `/api/auth/*` in Hono; apply trusted-origin/CORS handling in the documented order. Sessions support identity administration, while application operations enforce workspace policy. [Official Hono integration](https://better-auth.com/docs/integrations/hono).
 
 Initial setup runs a one-shot host-admin bootstrap that creates the first deployment administrator/workspace in a locked transaction and records completion. Restarts do not reset credentials or create another administrator. Later account provisioning and policy management work through authenticated CLI/MCP operations. No public unauthenticated bootstrap route exists. See [authentication specification](AUTHENTICATION.md) for the complete account lifecycle.
 
-CLI and stdio bridge use expiring organization-owned API keys read from environment, a protected file, or OS credential storage. Never require secrets on command-line arguments or put them in MCP prompts. Better Auth supports organization-owned keys; application scopes and revocation checks remain mandatory. [API key plugin](https://better-auth.com/docs/plugins/api-key).
+The CLI is a public OAuth client. It registers a loopback callback, uses Authorization Code + PKCE in the dashboard, and keeps short-lived access and refresh credentials in a protected local file. It never copies a browser session cookie or accepts a password. Machine automation can use scoped API keys or confidential OAuth clients. Never require secrets on command-line arguments or put them in MCP prompts. [API key plugin](https://better-auth.com/docs/plugins/api-key).
 
 HTTP MCP is a protected resource. Publish authorization-server and protected-resource metadata, validate issuer/audience/expiry/scopes, and authorize every request. Machine access uses administrator-provisioned client IDs/secrets, explicit workspace scopes, and short-lived OAuth tokens. Clients exchange secrets at the token endpoint; they do not pass a provider secret to flow operations. [OAuth provider](https://better-auth.com/docs/plugins/oauth-provider).
 
-Configured OAuth/OIDC human login is required in v1. Better Auth brokers the configured external identity provider and issues Reflow-scoped credentials; external-provider access tokens are never directly accepted as Reflow tokens. CLI/MCP initiate a bound login challenge and complete it through the external provider. Protocol redirect/callback responses are allowed; no Reflow product dashboard is needed. Standard HTTP MCP authorization uses discovery, PKCE, exact redirect validation, and resource-specific tokens. Client compatibility is tested explicitly. [MCP authorization](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization).
+Better Auth can broker a configured external OAuth/OIDC provider and always issues the Reflow-scoped credential; external-provider access tokens are never directly accepted. The permanent same-origin dashboard owns login, explicit client consent, and Connected apps revocation. CLI/MCP operations remain independently complete and do not require an operator to use workflow screens. Standard HTTP MCP authorization uses discovery, PKCE, restricted redirects, and resource-specific tokens. [MCP authorization](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization).
 
-`ALLOW_REGISTRATION=false` is enforced for every account-creation path, including Better Auth routes and first OAuth sign-in. Existing provisioned accounts can sign in; unknown identities receive `REGISTRATION_DISABLED`. When enabled, self-registration is available through CLI/MCP with no administrator role. Deployment administrators provision accounts and attach workspace roles explicitly; protect the last enabled administrator in a transaction.
+`ALLOW_REGISTRATION=false` is enforced for Better Auth signup and first external-OAuth sign-in. Existing provisioned accounts can sign in. When enabled, self-registration creates a non-admin user and a new isolated, sending-disabled workspace; it never joins an existing tenant. Deployment administrators provision other accounts and attach workspace roles explicitly.
 
 Validate HTTP Origin where present, bind local bridge listeners to loopback if any, and use TLS. Never treat an MCP session ID as authentication. STDIO stdout contains protocol messages only. [MCP transport baseline](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports).
 

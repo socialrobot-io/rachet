@@ -34,7 +34,7 @@ describe('workflow show CLI', () => {
   });
 
   async function run(format: 'mermaid' | 'svg') {
-    return execFileAsync(process.execPath, ['--import', 'tsx', 'src/cli.ts', 'workflow', 'show', '--workspace', workspaceId, '--id', workflowId, '--format', format], {
+    return execFileAsync(process.execPath, ['--import', 'tsx', 'packages/cli/src/cli.ts', 'workflow', 'show', '--workspace', workspaceId, '--id', workflowId, '--format', format], {
       cwd: new URL('..', import.meta.url),
       env: { ...process.env, REFLOW_URL: url, REFLOW_TOKEN: 'test-token' },
     });

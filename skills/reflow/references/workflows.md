@@ -3,9 +3,9 @@
 ## Author from natural language
 
 1. Call `auth_whoami` and `system_capabilities` (read `agentCookbook`); read the action catalog and workflow schema resources.
-2. Call `template_list` and `workflow_list`. Reuse before inventing. Check `examples/` for graph patterns (especially `socialrobot-onboarding*.workflow.json` for multi-step onboarding).
+2. Call `template_list` and `workflow_list`. Reuse before inventing. Check `examples/` for graph patterns (`welcome-nudge/` for the React Email push flow, `onboarding.workflow.json` for a multi-step graph).
 3. Turn the request into a finite graph. Use only catalog actions. Every wait-for-event needs an explicit timeout route, every branch needs true and false routes, and all routes must reach an end node.
-4. Create/revise React Email templates with CLI `reflow template push` (upserts by `--name`). Put the returned immutable `templateVersionId` in `email.send.input.templateVersionId.literal`. Prefer this over MCP `template_create` for TSX sources; the server never executes TSX.
+4. Review the local React Email source, then create/revise it with CLI `reflow template push ... --allow-code-execution` (upserts by `--name`). Put the returned immutable `templateVersionId` in `email.send.input.templateVersionId.literal`. Prefer this over MCP `template_create` for TSX sources; the server never executes TSX.
 5. Call `workflow_validate`. Then call `workflow_simulate` twice: once with `receivedEvents: []`, once with the activation events the product will emit. Inspect resolved action inputs and both event/timeout scenarios.
 6. Call `workflow_create` with the original natural-language `intent` and validated definition. Publish only when requested. Publishing returns the immutable workflow version used for enrollment.
 7. Upsert contacts and call `enrollment_create` with a stable idempotency key when live execution is authorized.
@@ -24,24 +24,24 @@ Prefer dotted, product-stable names so app hooks and workflow branches stay alig
 
 | Event | Meaning |
 |-------|---------|
-| `social.account_connected` | User connected at least one social account |
-| `social.post_scheduled` | User scheduled (non-draft) a post |
-| `social.posts_queued` | Habit success: enough posts queued (product-defined threshold) |
+| `account.connected` | User connected an external account |
+| `post.scheduled` | User scheduled (non-draft) a post |
+| `posts.queued` | Habit success: enough posts queued (product-defined threshold) |
 
-Contact fields can mirror progress (`contact.accountConnected`) for enrollment-time state when events have not been emitted yet. See `examples/socialrobot-onboarding.workflow.json`.
+Contact fields can mirror progress (`contact.accountConnected`) for enrollment-time state when events have not been emitted yet.
 
-When the product already emits analytics names (e.g. PostHog `social_post_created`), either map them at the emit boundary or use those exact strings in the graph. Do not mix both without a mapping layer.
+When the product already emits analytics names (e.g. PostHog `post_created`), either map them at the emit boundary or use those exact strings in the graph. Do not mix both without a mapping layer.
 
 ## Enrollment variables
 
-Pass deep links as enrollment `variables` (interpolated as `{{variables.*}}` in templates). Common SocialRobot set:
+Pass deep links as enrollment `variables` (interpolated as `{{variables.*}}` in templates). Typical set:
 
 ```json
 {
-  "accountsUrl": "https://socialrobot.io/scheduler/accounts",
-  "composeUrl": "https://socialrobot.io/scheduler",
-  "calendarUrl": "https://socialrobot.io/scheduler/calendar?view=week",
-  "replyMailto": "mailto:hey@socialrobot.io?subject=What's%20getting%20in%20the%20way"
+  "accountsUrl": "https://app.example.com/accounts",
+  "composeUrl": "https://app.example.com/compose",
+  "calendarUrl": "https://app.example.com/calendar?view=week",
+  "replyMailto": "mailto:founder@example.com?subject=What's%20getting%20in%20the%20way"
 }
 ```
 
@@ -49,7 +49,7 @@ Idempotency key pattern: `welcome-first-week-<userId>` (or email when no user id
 
 ## Long sequences and live QA
 
-For multi-day delays, keep a **fast-test twin** (same branches, `timeoutSeconds` / `durationSeconds` in the tens of seconds) for enrollment smoke tests. Pattern: `examples/socialrobot-onboarding.fast-test.workflow.json`.
+For multi-day delays, keep a **fast-test twin** (same branches, `timeoutSeconds` / `durationSeconds` in the tens of seconds) for enrollment smoke tests.
 
 ## Operate and recover
 

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { workflowDefinitionSchema } from '../src/domain/contracts.js';
-import { validateActionNodes } from '../src/domain/action-catalog.js';
-import { simulateWorkflow } from '../src/domain/simulate.js';
+import { workflowDefinitionSchema } from '../packages/contracts/src/index.js';
+import { validateActionNodes } from '../apps/server/src/domain/action-catalog.js';
+import { simulateWorkflow } from '../apps/server/src/domain/simulate.js';
 
 const workflow = {
   schemaVersion: '1', description: 'Welcome and wait for activation', trigger: { type: 'manual' }, purpose: 'marketing', topic: 'onboarding', entryNodeId: 'welcome',

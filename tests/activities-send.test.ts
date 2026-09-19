@@ -7,9 +7,9 @@ import {
   sendIntents,
   suppressions,
   workspaces,
-} from '../src/db/schema.js';
-import type { WorkflowDefinition } from '../src/domain/contracts.js';
-import { configureActivities, executeAction, resetActivities } from '../src/temporal/activities.js';
+} from '../apps/server/src/db/schema.js';
+import type { WorkflowDefinition } from '../packages/contracts/src/index.js';
+import { configureActivities, executeAction, resetActivities } from '../apps/server/src/temporal/activities.js';
 import { adminContext, probeDbRuntime, type DbRuntime } from './helpers/db-runtime.js';
 import { FakeEmailProvider } from './helpers/fake-email-provider.js';
 

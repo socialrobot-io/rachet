@@ -1,0 +1,14 @@
+{
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "name": "dashboard",
+  "root": "apps/dashboard",
+  "sourceRoot": "apps/dashboard/src",
+  "projectType": "application",
+  "targets": {
+    "lint": { "executor": "nx:run-commands", "options": { "command": "pnpm --filter dashboard lint" } },
+    "build": { "executor": "nx:run-commands", "outputs": ["{projectRoot}/dist"], "options": { "command": "pnpm --filter dashboard build" } },
+    "typecheck": { "executor": "nx:run-commands", "options": { "command": "pnpm --dir apps/dashboard exec tsc -b" } },
+    "test": { "executor": "nx:run-commands", "options": { "command": "pnpm --filter dashboard test" } },
+    "dev": { "executor": "nx:run-commands", "options": { "command": "pnpm --filter dashboard dev" } }
+  }
+}

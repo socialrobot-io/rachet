@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { workflowDefinitionSchema } from '../src/domain/contracts.js';
-import { renderMermaidWorkflow, renderWorkflowSvg } from '../src/tui/workflow-graph.js';
+import { workflowDefinitionSchema } from '../packages/contracts/src/index.js';
+import { renderMermaidWorkflow, renderWorkflowSvg } from '../packages/cli/src/tui/workflow-graph.js';
 
 describe('workflow diagram rendering', () => {
   const definition = workflowDefinitionSchema.parse(JSON.parse(readFileSync(new URL('../examples/onboarding.workflow.json', import.meta.url), 'utf8')));

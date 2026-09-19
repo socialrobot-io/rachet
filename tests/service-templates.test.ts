@@ -1,12 +1,12 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { Client } from '@temporalio/client';
 import { eq } from 'drizzle-orm';
-import type { ReflowAuth } from '../src/auth.js';
-import { loadConfig } from '../src/config.js';
-import { createDatabase, type Database } from '../src/db/index.js';
-import { workspaces } from '../src/db/schema.js';
-import type { OperationContext, WorkflowDefinition } from '../src/domain/contracts.js';
-import { ReflowService } from '../src/domain/service.js';
+import type { ReflowAuth } from '../apps/server/src/auth.js';
+import { loadConfig } from '../apps/server/src/config.js';
+import { createDatabase, type Database } from '../apps/server/src/db/index.js';
+import { workspaces } from '../apps/server/src/db/schema.js';
+import type { OperationContext, WorkflowDefinition } from '../packages/contracts/src/index.js';
+import { ReflowService } from '../apps/server/src/domain/service.js';
 
 type Runtime = {
   service: ReflowService;

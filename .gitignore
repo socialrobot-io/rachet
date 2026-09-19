@@ -4,6 +4,7 @@ node_modules/
 dist/
 coverage/
 .turbo/
+.nx/
 *.tsbuildinfo
 .DS_Store
 .env
@@ -18,5 +19,6 @@ __pycache__/
 *.pyc
 .venv/
 .reflow-render-*/
+.reflow/
 /emails/
 node_modules/.react-email-jsx-runtime/

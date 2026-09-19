@@ -8,4 +8,5 @@ coverage
 secrets
 data
 backups
+.reflow
 *.log

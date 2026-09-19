@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ReflowError, errorPayload, isUniqueViolation } from '../src/domain/errors.js';
+import { ReflowError, errorPayload, isUniqueViolation } from '../apps/server/src/domain/errors.js';
 
 describe('ReflowError', () => {
   it('serializes hint and details when present', () => {

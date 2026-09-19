@@ -13,6 +13,9 @@ describe('CLI errors before login', () => {
   beforeAll(async () => {
     directory = await mkdtemp(join(tmpdir(), 'reflow-errors-'));
     environment = { ...process.env, REFLOW_CONFIG_PATH: join(directory, 'missing.json'), REFLOW_URL: 'http://127.0.0.1:1' };
+    // Nx sets FORCE_COLOR for task output; do not leak it into the child CLI's
+    // exact stderr contract, especially when the host also sets NO_COLOR.
+    delete environment.FORCE_COLOR;
     delete environment.REFLOW_TOKEN;
     delete environment.REFLOW_API_KEY;
     delete environment.REFLOW_WORKSPACE_ID;
@@ -21,7 +24,7 @@ describe('CLI errors before login', () => {
 
   async function run(...arguments_: string[]) {
     try {
-      await execFileAsync(process.execPath, ['--import', 'tsx', 'src/cli.ts', ...arguments_], { cwd: new URL('..', import.meta.url), env: environment });
+      await execFileAsync(process.execPath, ['--import', 'tsx', 'packages/cli/src/cli.ts', ...arguments_], { cwd: new URL('..', import.meta.url), env: environment });
       throw new Error('Expected command to fail');
     } catch (error) {
       return error as Error & { code: number; stderr: string; stdout: string };

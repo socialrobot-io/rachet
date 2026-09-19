@@ -4,9 +4,9 @@ import {
   resolveValue,
   validateActionNodes,
   valueAtPath,
-} from '../src/domain/action-catalog.js';
-import { ReflowError } from '../src/domain/errors.js';
-import type { FlowNode } from '../src/domain/contracts.js';
+} from '../apps/server/src/domain/action-catalog.js';
+import { ReflowError } from '../apps/server/src/domain/errors.js';
+import type { FlowNode } from '../packages/contracts/src/index.js';
 
 describe('action catalog value resolution', () => {
   const root = {

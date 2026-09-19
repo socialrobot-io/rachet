@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { interpolate, renderEmail } from '../src/domain/render.js';
+import { interpolate, renderEmail } from '../apps/server/src/domain/render.js';
 
 describe('interpolate', () => {
   it('replaces nested scalar paths and tolerates whitespace', () => {

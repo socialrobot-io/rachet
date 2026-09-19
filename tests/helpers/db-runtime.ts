@@ -1,9 +1,9 @@
 import type { Client } from '@temporalio/client';
-import type { ReflowAuth } from '../../src/auth.js';
-import { loadConfig } from '../../src/config.js';
-import { createDatabase, type Database } from '../../src/db/index.js';
-import type { OperationContext } from '../../src/domain/contracts.js';
-import { ReflowService } from '../../src/domain/service.js';
+import type { ReflowAuth } from '../../apps/server/src/auth.js';
+import { loadConfig } from '../../apps/server/src/config.js';
+import { createDatabase, type Database } from '../../apps/server/src/db/index.js';
+import type { OperationContext } from '../../packages/contracts/src/index.js';
+import { ReflowService } from '../../apps/server/src/domain/service.js';
 
 export type DbRuntime = {
   service: ReflowService;

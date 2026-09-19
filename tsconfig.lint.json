@@ -1,0 +1,13 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": { "noEmit": true },
+  "include": [
+    "apps/server/src/**/*.ts",
+    "packages/cli/src/**/*.ts",
+    "packages/cli/src/**/*.tsx",
+    "packages/contracts/src/**/*.ts",
+    "scripts/**/*.ts",
+    "tests/**/*.ts",
+    "vitest.config.ts"
+  ]
+}

@@ -1,75 +1,71 @@
-# Authentication and account provisioning
+# Authentication and connected clients
 
-Status: required v1 behavior; not yet implemented. This document replaces the earlier draft's deferred OAuth assumption. Every product/account operation is exposed through CLI and MCP. The external identity provider may present its own login/consent screen; Reflow requires no operator UI.
+Reflow uses Better Auth 1.7.4 for browser sessions, OAuth 2.1 authorization, API keys, and optional upstream OAuth/OIDC sign-in. The dashboard is the human login and consent surface. Product authorization is still enforced by Reflow workspace roles and operation scopes after Better Auth establishes identity.
 
-## Initial setup and administrators
+## Initial administrator
 
-`reflow setup` is a local host CLI operation invoked by the initial Compose setup job. It creates a deployment administrator, initial workspace, and bootstrap-completed marker in one locked database transaction. Concurrent attempts create at most one initial administrator. Re-running setup reports completion and never resets a password or issues a new admin credential.
+Initial setup is a trusted deployment-host command, not a public route:
 
-Provision a bootstrap password from a protected secret file or pre-bind a configured OIDC identity by issuer and immutable subject. No default password, public setup route, or first-visitor-becomes-admin behavior. Setup writes one-time credentials only to a protected output file. Remove bootstrap secret mounts after successful setup. Authentication email delivery must be available independently of user campaign enrollment when password verification/reset is enabled.
+```sh
+pnpm setup -- --email admin@example.com --name Admin --password-file /run/secrets/reflow_admin_password
+```
 
-Deployment administrators can create normal accounts or other deployment administrators through `account.create` and `account.set_role`. Workspace administrators can manage only authorized workspace membership and workspace client credentials. A transaction prevents removing, disabling, or demoting the last enabled deployment administrator. Account disablement revokes sessions and blocks new tokens/commands; suspending active workflows is a separate explicit action.
+It takes a PostgreSQL advisory lock, creates one deployment administrator and one initial workspace, and records an initialization marker. It cannot be used to reset an existing deployment. Keep the password file outside the repository and remove it after setup.
 
-Admin-created accounts receive a one-time activation credential or an explicit issuer/subject binding. Activation credentials expire, are single-use, and require setting a password before normal use. No invitation email is silently sent by account creation. Administrators may deliver credentials through their own authorized channel.
+Later accounts are created with the authenticated `account.create` operation. `ALLOW_REGISTRATION=false` is the default. When registration is explicitly enabled, a new verified non-admin user gets a new isolated workspace as owner; registration never joins an existing tenant and its workspace starts with sending disabled.
 
-## Registration policy
+## Dashboard sessions
 
-`ALLOW_REGISTRATION=false` is the default deployment setting. Store the effective policy centrally and expose it through `registration_policy.get`. An administrator may update the persisted setting through either interface unless the deployment environment explicitly locks it. Return `POLICY_LOCKED` for attempted overrides; expose the source and effective revision to administrators. A supplied environment value takes precedence over the persisted value; when neither exists, use false. Restarting does not silently reset a persisted administrator choice.
+The same-origin dashboard signs in at `/auth/login` with Better Auth's email/password flow. In production, email verification is required and verification mail uses the separately configured Resend credential. Cookies remain HTTP-only, SameSite, and secure on HTTPS deployments. CSRF and origin checks remain enabled, trusted origins are explicit, OAuth tokens stored for an upstream identity provider are encrypted, and authentication endpoints are rate limited in database-backed storage.
 
-| Path | Disabled | Enabled |
-|---|---|---|
-| CLI/MCP password registration | `REGISTRATION_DISABLED` | Create pending-verification non-admin account |
-| First-time OAuth identity | Reject unless explicitly pre-provisioned | Create non-admin account after verified identity policy |
-| Existing password/OAuth account login | Allowed subject to normal checks | Allowed subject to normal checks |
-| Administrator account creation | Allowed with deployment-admin scope | Allowed with deployment-admin scope |
-| Direct Better Auth signup endpoint | Same disabled check | Same validation and non-admin defaults |
+An optional upstream OAuth/OIDC provider can be configured with `OAUTH_PROVIDER_ID`, `OAUTH_DISCOVERY_URL`, `OAUTH_CLIENT_ID`, and `OAUTH_CLIENT_SECRET` (or its file variant). Reflow-issued access tokens—not upstream provider tokens—authorize Reflow operations.
 
-Users cannot request their own deployment role, privileged scopes, workspace membership, or verified-email status in registration input. Self-registration creates an isolated workspace with the new user as workspace owner, **not** a deployment administrator. Sending remains disabled until ownership verification and administrator sending activation; registration alone must not turn a public endpoint into an unrestricted mail relay. Admin-created memberships can use an existing workspace.
+## CLI login
 
-Password registration is usable through CLI (`reflow auth register`) or the unauthenticated auth-only MCP tool surface. Accept passwords through stdin/protected client storage rather than shell arguments or agent conversation text. The stdio bridge can resolve a local secret reference without returning its bytes to the model. HTTP clients must use secure credential entry/transport; do not expose a general server-file-read tool.
+`reflow auth login --url https://reflow.example.com` uses OAuth Authorization Code with PKCE:
 
-Verification and password reset use single-use expiring challenges completed through CLI/MCP. Challenge start responses avoid account enumeration. Apply authentication-specific rate limits; public auth operations do not gain product scopes. Verify provider email claims before using them as email ownership evidence.
+1. The CLI binds an ephemeral callback on `127.0.0.1`.
+2. It registers a native public client and creates a verifier, S256 challenge, and state value.
+3. It opens the Reflow dashboard authorization page (or prints the URL with `--no-open`).
+4. The user signs in and explicitly approves the requested scopes.
+5. The callback validates state, exchanges the short-lived code, and stores the resulting short-lived access token plus rotating refresh token.
 
-## Configured human OAuth/OIDC
+The CLI configuration is mode `0600` under `${XDG_CONFIG_HOME:-~/.config}/reflow/config.json`. Passwords and dashboard session cookies are never copied into it. Expired access tokens are refreshed before an operation; a failed or revoked refresh requires a new login. `REFLOW_TOKEN`, `REFLOW_API_KEY`, and `REFLOW_WORKSPACE_ID` remain process-local automation overrides.
 
-Administrators configure provider ID, issuer/discovery URL or explicit endpoints, client ID, client-secret reference, scopes, and allowed redirect/origin settings. Better Auth's generic OAuth integration supplies external provider support. [Official integration](https://better-auth.com/docs/plugins/generic-oauth).
+The published CLI intentionally does not expose a generic `/api/auth/*` proxy. Account creation and credential administration use named Reflow operations with their normal authorization checks.
 
-1. CLI/MCP starts a login challenge with a provider ID and client-bound verifier. Return challenge ID, authorization URL, expiry, and polling interval.
-2. User authenticates at the configured provider. CLI can open that URL or print it for another device; this is an identity-provider interaction, not a Reflow dashboard.
-3. Backend validates state, PKCE, issuer, audience, nonce when applicable, and exact callback destination. It resolves the external identity and applies registration policy before creating an account.
-4. CLI/MCP completes or polls the challenge using the original verifier. A successful callback alone never releases credentials to an unauthenticated caller knowing only the challenge ID. Expired/reused/mismatched challenges fail.
-5. Store resulting Reflow credentials in protected client storage. Return identity/scopes to the caller; keep tokens out of ordinary tool results and logs where client credential plumbing supports it.
+## MCP and dynamic client registration
 
-Bind accounts by provider/issuer and immutable subject. Do not auto-link a new provider identity merely because its email matches an administrator. Existing users link identities after reauthentication, or a deployment administrator pre-binds a verified issuer/subject. Provider removal cannot silently disable the last administrator's only access method.
+HTTP MCP is an OAuth protected resource at `/mcp`. Reflow publishes protected-resource, OAuth authorization-server, and OpenID discovery metadata. Public MCP clients use PKCE and the same dashboard login/consent pages as the CLI.
 
-CLI local password login remains available for the initial administrator if configured; never use the OAuth resource-owner-password grant as a substitute for provider login.
+Unauthenticated dynamic registration is limited to public clients (`token_endpoint_auth_method=none`) and rejects client credentials. Redirects are limited to loopback HTTP, native schemes explicitly listed in `OAUTH_PUBLIC_REDIRECT_SCHEMES` (default: `cursor`), and exact HTTPS origins listed in `OAUTH_PUBLIC_REDIRECT_ORIGINS`. Every dynamically registered client requires consent; there is no consent bypass.
 
-## Remembered CLI context
+The dashboard's **Connected apps** page lists grants for the signed-in user and revokes them. Revocation removes the consent so the client must authorize again. The one-time secret returned by `credential.create` is deliberately excluded from the MCP tool catalog and its resource listing, preventing an agent transcript from becoming credential storage.
 
-`reflow auth login` prompts for email and a non-echoed password, calls Better Auth's normal email sign-in endpoint, retrieves `workspace.list`, and asks the user to choose when more than one workspace is available. The CLI stores the resulting Reflow session token and workspace identity in its per-user configuration file with mode `0600`; it never stores the password. `reflow workspace list` and `reflow workspace use` inspect or change the selection, and `reflow auth logout` removes the saved credential.
+## Machine access and stdio
 
-Plain `reflow` opens the TUI in the selected workspace. Workspace-aware CLI calls inject the selected `workspaceId` only when the input omitted it. An explicit input value wins. `REFLOW_URL`, `REFLOW_TOKEN`, `REFLOW_API_KEY`, and `REFLOW_WORKSPACE_ID` are process-local overrides and do not mutate saved state.
+Non-interactive systems use a scoped user-bound API key or an administrator-provisioned confidential OAuth client. Credentials belong in a secret manager or protected environment/file, never command arguments, prompts, or logs. Reflow intersects credential scopes with current workspace membership and role checks on every operation.
 
-## Machine clients and flow triggers
+The stdio MCP bridge is a trusted, single-user host adapter. It refuses to start unless both `REFLOW_STDIO_TRUSTED_HOST=true` and `REFLOW_ACTOR_USER_ID` are set. Do not expose it through a shared service or remote transport; use authenticated HTTP MCP instead.
 
-Administrators create a service client with workspace ID, allowed scopes, optional allowed sequence IDs, and expiry. Emit its client secret once; store a verifier where supported. OAuth client credentials use the Better Auth OAuth provider's supported machine grant. [Provider documentation](https://better-auth.com/docs/plugins/oauth-provider).
+## Scope and role enforcement
 
-The client sends client ID and secret over TLS to the token endpoint, obtains a short-lived Reflow access token, then invokes `event.emit`, `enrollment.create`, or other granted operations. No cookie, human session, or browser is needed. Prefer a secret file/secret manager; never use a shared global flow-trigger secret across tenants.
+Browser sessions derive coarse scopes from current roles:
 
-Tokens contain/bind issuer, audience, principal, workspace, allowed scopes, and expiry. HTTP API and MCP audiences are explicit; a token for the identity provider or Resend is not a Reflow credential. At every request, intersect token scopes with current client policy and disabled state. Flow eligibility still enforces consent, suppression, caps, and published version requirements.
+- any workspace membership grants `reflow:read`;
+- owner, admin, author, or operator grants `reflow:write`;
+- owner, admin, or sender grants `reflow:send`;
+- deployment administrators receive all three.
 
-Rotation uses a bounded overlap period between old/new secrets. New token issuance with the old secret stops at the configured cutoff. Revocation or client disablement blocks active tokens through application checks even if their signatures remain valid. Recovery never prints stored client secrets.
+OAuth and API-key scopes can only narrow that set. Each operation also checks the role against the target workspace, so a workspace identifier in request input never grants access.
 
-Triggering retries preserve the original event ID/idempotency key. Token refresh/renewal does not create a new logical event or enrollment. The backend maps events to permitted sequences and cannot be asked to start arbitrary Temporal workflow types or task queues.
+## Redirect and deployment checklist
 
-## MCP authentication and parity
-
-HTTP MCP implements protected-resource metadata and OAuth discovery; public client authorization uses PKCE and the configured provider login path. Trusted first-party clients can have administrator-preconfigured grants. Other clients require an explicit authorization decision, available through a short-lived CLI/MCP authorization challenge (`auth.authorization_approve` or `auth.authorization_deny`) that displays client, resource, and requested scopes. No unconditional consent bypass. The final redirect is protocol output, not a dashboard. Validate this headless consent flow against selected MCP clients before release. [MCP authorization](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization).
-
-An unauthenticated MCP connection may discover only the auth/policy operations needed to establish access; product tools remain protected. For clients that expect an HTTP 401 discovery flow, use the standard OAuth transport path. STDIO can authenticate with OAuth or machine credentials using protected local configuration and serve the same product tools. The bridge must not become a privileged bypass.
-
-Infrastructure bootstrap is CLI-only because it precedes the server. External provider login and protocol token exchange are transport prerequisites. After authentication, all account, policy, credential, sequence, template, recipient, trigger, monitoring, and recovery operations have CLI/MCP parity. Secret bytes are handled by credential plumbing rather than mandatory model-visible tool arguments.
-
-## Required verification
-
-Test concurrent bootstrap, restart without reset, last-admin protection, every signup bypass path, OAuth identity-linking attacks, mismatched state/nonce/issuer/audience, callback replay, registration toggling, machine scope escalation, workspace isolation, secret overlap/revocation, login challenge theft, and trigger retry dedupe. These are release acceptance requirements; the repository's current documentation checks do not implement or prove them.
+- Use HTTPS for `PUBLIC_URL` and every trusted origin in production.
+- Keep `BETTER_AUTH_SECRET` high-entropy and at least 32 characters.
+- Leave `ALLOW_REGISTRATION=false` unless public account creation is intentional.
+- Keep `OAUTH_PUBLIC_REDIRECT_ORIGINS` empty unless a known web MCP client requires an HTTPS callback.
+- Keep `OAUTH_PUBLIC_REDIRECT_SCHEMES` limited to installed native MCP clients that own those URI schemes.
+- Verify the dashboard login, consent, deny, refresh, logout, and Connected apps revocation paths.
+- Verify at least one intended MCP client through discovery, registration, PKCE, consent, and tool invocation.
+- Configure npm trusted publishing separately; npm credentials are unrelated to Reflow runtime authentication.

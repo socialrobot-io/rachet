@@ -1,12 +1,24 @@
 # Deployment
 
+## Fastest path: one host
+
+On a Linux server with Docker Engine, Docker Compose, public DNS, and ports 80/443 available, point the hostname at the server and run:
+
+```sh
+./scripts/deploy.sh reflow.example.com admin@example.com
+```
+
+The script generates secrets under `.reflow/`, builds and starts the complete stack, enables Caddy TLS, runs migrations, and performs idempotent first-admin setup. Re-run the same command to deploy an update. After the first successful login, move or securely delete `.reflow/production-admin-password`.
+
+The sections below cover manual deployments, external ingress, Coolify, backups, and production customization.
+
 ## Prerequisites
 
 Use a Linux host with Docker Engine and the Compose plugin, public DNS for `REFLOW_DOMAIN`, and an HTTPS ingress in front of `app:3000`. SMTP delivery also requires a verified Resend domain and a configured Resend webhook pointing to `https://REFLOW_DOMAIN/webhooks/resend`.
 
 For local development without a public domain, use `compose.dev.yaml` and the host process workflow in [README.md](../README.md). Do not use `compose.yaml` on a laptop unless you have real DNS and a working HTTPS front door. Configure Resend using the [Resend setup guide](RESEND.md).
 
-Copy `.env.example` to `.env.local` and set `REFLOW_DOMAIN`, `DATABASE_URL`, `POSTGRES_PASSWORD`, `TEMPORAL_POSTGRES_PASSWORD`, `BETTER_AUTH_SECRET`, `REFLOW_FROM`, and optional OIDC/Resend settings. Quote values containing spaces or shell punctuation, for example `REFLOW_FROM="Social Robot <no-reply@m.socialrobot.io>"`. Keep `.env.local` mode `0600` and never commit it. Compose interpolation uses these values when you run `docker compose --env-file .env.local ...`.
+Copy `.env.example` to `.env.local` and set `REFLOW_DOMAIN`, `DATABASE_URL`, `POSTGRES_PASSWORD`, `TEMPORAL_POSTGRES_PASSWORD`, `BETTER_AUTH_SECRET`, `REFLOW_FROM`, and optional OIDC/Resend settings. Quote values containing spaces or shell punctuation, for example `REFLOW_FROM="Example App <no-reply@mail.example.com>"`. Keep `.env.local` mode `0600` and never commit it. Compose interpolation uses these values when you run `docker compose --env-file .env.local ...`.
 
 Start and inspect the deployment:
 
@@ -21,7 +33,7 @@ Create the one-time deployment administrator after migrations finish:
 
 ```sh
 docker compose --env-file .env.local run --rm \
-  app node dist/src/cli.js setup \
+  app node dist/apps/server/setup.js \
   --email admin@example.com --name Admin \
   --password-file /path/to/admin_password
 ```
@@ -30,7 +42,7 @@ Setup is guarded by a PostgreSQL advisory lock and an initialization marker. A s
 
 ## Ingress
 
-By default the Compose stack does not publish host ports. Terminate TLS outside the stack (Coolify, Traefik, Cloudflare, nginx, or similar) and reverse-proxy to `app` on port `3000`. Set `REFLOW_DOMAIN`, `PUBLIC_URL`, and `TRUSTED_ORIGINS` to that HTTPS hostname.
+By default the Compose stack does not publish host ports. Terminate TLS outside the stack (Coolify, Traefik, Cloudflare, nginx, or similar) and reverse-proxy to `app` on port `3000`. Set `REFLOW_DOMAIN`, `PUBLIC_URL`, and `TRUSTED_ORIGINS` to that HTTPS hostname. The operations console is served from the same `app` origin, so operators open `https://REFLOW_DOMAIN/` after signing in.
 
 Optional built-in Caddy is available for bare hosts that need Compose to own ports 80/443 and ACME certificates. It is gated behind the Compose profile `caddy` and is off unless you enable it:
 
@@ -57,7 +69,7 @@ Single-host Compose is suitable when the host, database volumes, backups, and re
 
 ## Coolify
 
-Coolify can deploy the checked-in `compose.yaml` directly. Leave the `caddy` profile disabled (the default) and attach your domain to the `app` service so Coolify's proxy terminates TLS and forwards to the container (which listens on `3000`). A plain `https://your.domain` Domains entry is enough; you do not need to put `:3000` in the domain field. Set the variables below in the Coolify service environment; Coolify substitutes them into the Compose file at deploy time. The Temporal scripts and Temporal dynamic configuration are baked into their service images so the stack does not depend on Coolify's temporary checkout directory after deployment. Do not commit these values to Git, and restrict access to the Coolify project:
+Coolify can deploy the checked-in `compose.yaml` directly. Leave the `caddy` profile disabled (the default) and attach your domain to the `app` service so Coolify's proxy terminates TLS and forwards to the container (which listens on `3000`). A plain `https://your.domain` Domains entry is enough; you do not need to put `:3000` in the domain field. That same hostname serves the API, MCP, webhooks, and the operations console. Set the variables below in the Coolify service environment; Coolify substitutes them into the Compose file at deploy time. The Temporal scripts and Temporal dynamic configuration are baked into their service images so the stack does not depend on Coolify's temporary checkout directory after deployment. Do not commit these values to Git, and restrict access to the Coolify project:
 
 | Variable | Value |
 | --- | --- |
@@ -68,8 +80,12 @@ Coolify can deploy the checked-in `compose.yaml` directly. Leave the `caddy` pro
 | `RESEND_API_KEY` | Resend API key (optional for simulation) |
 | `RESEND_WEBHOOK_SECRET` | Resend signing secret (optional without webhooks) |
 | `OAUTH_CLIENT_SECRET` | OIDC client secret, or leave empty when OIDC is disabled |
+| `OAUTH_PUBLIC_REDIRECT_ORIGINS` | comma-separated exact HTTPS origins for reviewed web clients; empty by default |
+| `OAUTH_PUBLIC_REDIRECT_SCHEMES` | comma-separated installed native-client schemes; defaults to `cursor` |
 
 Set `REFLOW_DOMAIN`, `REFLOW_FROM`, `PUBLIC_URL`, and `TRUSTED_ORIGINS` to the same HTTPS hostname Coolify assigns, then deploy. `ACME_EMAIL` is not required unless you enable the `caddy` profile.
+
+Leave `OAUTH_PUBLIC_REDIRECT_ORIGINS` empty for CLI and loopback MCP clients. `OAUTH_PUBLIC_REDIRECT_SCHEMES` defaults to `cursor`; keep it to the comma-separated native clients installed in your environment. Add only exact HTTPS origins for web MCP clients you have reviewed. Operators authorize clients in the dashboard and can revoke grants from **Connected apps**.
 
 After the stack is healthy, run the one-time setup command from the Coolify server or an attached shell with a temporary password file outside the repository. Configure Resend's webhook URL as `https://<your-domain>/webhooks/resend` and verify `/health/ready` before signing in. Coolify should monitor the `app` health check; separately alert on worker/dispatcher restarts, Temporal backlog, and database volume backups.
 

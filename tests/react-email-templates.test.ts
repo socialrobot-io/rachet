@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { renderLocalReactEmailFile, placeholderProps } from '../src/cli-render-template.js';
-import { interpolate, renderEmail } from '../src/domain/render.js';
+import { renderLocalReactEmailFile, placeholderProps } from '../packages/cli/src/cli-render-template.js';
+import { interpolate, renderEmail } from '../apps/server/src/domain/render.js';
 
 const welcomeTsx = readFileSync(new URL('../examples/welcome-nudge/emails/welcome.tsx', import.meta.url), 'utf8');
 

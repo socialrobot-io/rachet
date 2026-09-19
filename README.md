@@ -1,157 +1,173 @@
-![Reflow — agent-authored, durable by design](docs/assets/reflow-banner.png)
+![Reflow — journeys that keep moving](docs/assets/reflow-banner.png)
 
 # Reflow
 
-Reflow runs email workflows that survive restarts, long waits, and retries.
+[![Repository checks](https://github.com/socialrobot-io/reflow/actions/workflows/sanity.yml/badge.svg)](https://github.com/socialrobot-io/reflow/actions/workflows/sanity.yml)
+[![npm version](https://img.shields.io/npm/v/%40socialrobot-io%2Freflow?logo=npm&label=npm)](https://www.npmjs.com/package/@socialrobot-io/reflow)
+[![npm downloads](https://img.shields.io/npm/dm/%40socialrobot-io%2Freflow?logo=npm&label=downloads)](https://www.npmjs.com/package/@socialrobot-io/reflow)
+[![Node.js 22+](https://img.shields.io/badge/Node.js-22%2B-339933?logo=nodedotjs&logoColor=white)](package.json)
+[![MCP native](https://img.shields.io/badge/MCP-native-5A67D8)](docs/AUTHENTICATION.md)
+[![Self-hosted](https://img.shields.io/badge/deploy-self--hosted-168363?logo=docker&logoColor=white)](docs/DEPLOYMENT.md)
 
-You describe the flow. An MCP agent (or you, via CLI) creates templates, saves a graph, publishes it, and enrolls contacts. Temporal keeps each enrollment alive. Resend sends the mail.
+**Open-source journey engine for agents.**
 
-There is no operator dashboard. CLI and MCP use the same operations.
+Enroll contacts in durable sequences that send, wait, branch, and react to events. Agents author journeys through MCP or the CLI; Temporal keeps every enrollment alive across restarts and retries. Email ships through Resend today, with push and other channels designed to fit the same action model.
 
-## What you need
+Reflow also includes a small operations console for login, approvals, live runs, messages, and connected apps. Agents build. Humans stay in control.
 
-- Node.js 22+
-- pnpm 11+
-- Docker Compose (Postgres + Temporal)
-- A [Resend](https://resend.com) API key if you want real email (optional for validate/simulate)
+## Why Reflow
 
-## 1. Start the stack locally
+- **Built for agents.** MCP and CLI expose the same typed operations, validation, and policy checks.
+- **Durable by default.** A journey can wait for days, survive deploys, receive events, and resume exactly where it stopped.
+- **Safe to retry.** Immutable versions, stable idempotency keys, suppression checks, and a durable send ledger protect delivery.
+- **Your infrastructure.** Run Reflow with Docker Compose, PostgreSQL, Temporal, and your own Resend account.
+- **More than email.** `email.send` is the first channel action. The journey graph is already channel-agnostic.
+
+## Run it locally
+
+You need Node.js 22+, pnpm 11+, and Docker Compose.
 
 ```sh
-cp .env.dev.example .env
-pnpm install --frozen-lockfile
-make dev-infra
-pnpm migrate
-umask 077
-openssl rand -base64 18 > /tmp/reflow-admin-password
-pnpm setup -- --email admin@example.com --name Admin --password-file /tmp/reflow-admin-password
+git clone https://github.com/socialrobot-io/reflow.git
+cd reflow
+pnpm install
+pnpm dev
 ```
 
-Start three host processes (keep each terminal open):
+That one development command creates the local environment, starts PostgreSQL and Temporal, applies migrations, initializes the first administrator when needed, and runs the API, worker, dispatcher, and dashboard.
+
+Open [http://localhost:5173](http://localhost:5173). Sign in as `admin@localhost`; the generated password is stored in `.reflow/dev-admin-password` with mode `0600`.
 
 ```sh
-pnpm dev              # API :3000
-pnpm dev:worker       # Temporal worker
-pnpm dev:dispatcher   # Outbox / webhook side work
+cat .reflow/dev-admin-password
 ```
 
-Local ports:
+Stop the application with `Ctrl+C`. Stop its Docker services with `pnpm dev:infra:down`.
 
-| Service     | Address                 |
-| ----------- | ----------------------- |
-| API         | http://localhost:3000   |
-| Postgres    | localhost:5433          |
-| Temporal    | localhost:7233          |
-| Temporal UI | http://localhost:8080   |
-
-Stop infra with `make dev-infra-down`.
-
-For production Compose with TLS, see [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
-
-## 2. Sign in
+## Install the CLI
 
 ```sh
-pnpm build
-pnpm link --global   # once, so `reflow` is on your PATH
-
-export REFLOW_URL=http://localhost:3000
-reflow auth login --email admin@example.com --password-file /tmp/reflow-admin-password
-reflow workspace use
-rm /tmp/reflow-admin-password
+npm install --global @socialrobot-io/reflow
+reflow auth login --url http://localhost:3000
 ```
 
-Your session is stored under `~/.config/reflow/`. Later accounts need an admin (`account.create`). Open signup stays off unless `ALLOW_REGISTRATION=true`.
+The CLI opens the Reflow dashboard and uses OAuth Authorization Code with PKCE. It stores short-lived access and rotating refresh credentials in a protected local file—never your password or browser cookie.
 
-## 3. Send email (Resend)
-
-Put your key in `.env.local` (do not commit it):
+Once connected:
 
 ```sh
-printf '%s\n' 'RESEND_API_KEY=re_...' >> .env.local
-chmod 600 .env.local
+reflow workspace list
+reflow template init
+reflow template preview
+reflow call system.capabilities
 ```
 
-Add to `.env.local`:
+## Deploy on one host
+
+Point a hostname at a Linux server with Docker, Docker Compose, and ports 80/443 available. Then run:
 
 ```sh
-RESEND_API_KEY=re_...
-REFLOW_FROM="Reflow <onboarding@resend.dev>"
+./scripts/deploy.sh reflow.example.com admin@example.com
 ```
 
-Restart `pnpm dev` and `pnpm dev:worker` so they reload the key.
+The script generates deployment secrets, builds the images, initializes PostgreSQL and Temporal, obtains TLS through Caddy, runs migrations, and creates the first administrator. Re-running it is safe. Generated credentials live under `.reflow/` with restrictive permissions; move or delete the administrator password after the first successful login.
 
-With Resend’s test sender (`onboarding@resend.dev`), you can only send to the email on your Resend account. Use a verified domain for other recipients. See the complete [Resend setup guide](docs/RESEND.md) for domain verification, webhooks, and safe test addresses.
+For Coolify, external databases, secret files, backups, and production topology, see [the deployment guide](docs/DEPLOYMENT.md).
 
-## 4. Email templates (React Email)
+## Connect an MCP client
 
-Author `.tsx` locally. The CLI renders with [react-email `render`](https://react.email/docs/utilities/render) and uploads **HTML + plain text**. The API/worker never execute TSX; they only interpolate `{{contact.*}}` / `{{variables.*}}` at send time. Local templates can import whatever you need.
+Point the client at:
+
+```text
+https://your-reflow.example/mcp
+```
+
+Reflow publishes OAuth metadata for automatic client discovery. Public clients must use PKCE. The dashboard shows the requested scopes before approval, and users can revoke a CLI or MCP grant from **Connected apps**. Native callback schemes and web callback origins are operator allowlists.
+
+Cursor users can start from [`.cursor/mcp.json`](.cursor/mcp.json).
+
+## Create your first journey
+
+The [welcome + nudge example](examples/welcome-nudge/) is the shortest complete path:
+
+1. Author and preview two React Email templates.
+2. Publish immutable template versions.
+3. Validate and simulate the journey graph.
+4. Publish it and enroll a contact.
+5. Watch Temporal carry the contact through the wait and follow-up.
+
+```text
+enroll → welcome email → wait 2 days → activated?
+                                      ├─ yes → end
+                                      └─ no  → nudge email → end
+```
+
+React Email templates run locally as trusted code when pushed, so the CLI requires an explicit acknowledgement:
 
 ```sh
-reflow template init                 # creates emails/welcome.tsx
-reflow template preview              # React Email viewer on :3030
 reflow template push emails/welcome.tsx \
   --name Welcome \
-  --subject "Welcome, {{contact.firstName}}"
-# Re-running with the same --name revises the draft and publishes a new version (no duplicate rows).
-reflow template list
+  --subject "Welcome, {{contact.firstName}}" \
+  --allow-code-execution
 ```
 
-React Email 6 needs both `react-email` (components + CLI) and `@react-email/ui` (preview app) in the project that owns `emails/`. This repo already lists them. In another project, install matching versions (`pnpm add react-email@6.9.5 @react-email/ui@6.9.5`). Saying yes to the preview prompt only installs `@react-email/ui`; templates still import from `react-email`.
+The server and Temporal worker receive rendered HTML and plain text; they never execute uploaded TSX.
 
-Add `Component.PreviewProps` on each template so `template preview` has sample data. `push` renders locally, creates + publishes, and prints `templateVersionId`. Pin that id on each `email.send` node.
+## How it fits together
 
-`workflow.validate` / `workflow.publish` fail with `TEMPLATE_REFERENCE_INVALID` (plus `hint` + `details.nextSteps`) if a node points at a missing template. `template.archive` fails with `TEMPLATE_IN_USE` while any workflow draft or published version still pins it, and archived templates cannot be republished.
-
-## 5. First project: welcome + nudge
-
-Follow [`examples/welcome-nudge/README.md`](examples/welcome-nudge/README.md):
-
-1. `reflow template preview` / `reflow template push` for the two `.tsx` emails
-2. Pin the version ids in `workflow.template.json`
-3. `workflow.validate` → `workflow.create` → `workflow.publish`
-4. `contact.upsert` → `enrollment.create`
-
-## 6. Day-to-day commands
-
-```sh
-reflow call system.capabilities
-reflow call workflow.actions
-reflow template list
-reflow call workflow.list --input '{"workspaceId":"YOUR_WORKSPACE_ID"}'
-reflow call message.list --input '{"workspaceId":"YOUR_WORKSPACE_ID"}'
+```text
+Agent / operator
+      │
+      ├── MCP ────────┐
+      ├── CLI ────────┼── shared operations + authorization
+      └── Dashboard ──┘                │
+                                       ▼
+                              PostgreSQL + Temporal
+                                       │
+                                       ▼
+                                 Resend today
+                          push / SMS / webhooks next
 ```
 
-MCP clients talk to `http://localhost:3000/mcp` with a session token or API key. Cursor can use [`.cursor/mcp.json`](.cursor/mcp.json).
+| Concept | What it means |
+| --- | --- |
+| Journey | A graph of actions, waits, branches, events, and end states |
+| Journey version | Immutable graph used by new enrollments |
+| Template version | Immutable rendered content pinned by a send action |
+| Enrollment | One durable run for one contact |
+| Event | A named signal that can resume a waiting enrollment |
+| Action | A channel or data operation such as `email.send` or `contact.update` |
 
-## Mental model
+The current action catalog includes `email.send` and `contact.update`. Agents discover the installed catalog and schemas at runtime instead of guessing capabilities.
 
-| Piece              | Role                                              |
-| ------------------ | ------------------------------------------------- |
-| Template           | Subject + React Email TSX (or plain body) with `{{contact.*}}` / `{{variables.*}}` |
-| Template version   | Immutable pin used by `email.send` (per-node override) |
-| Workflow           | Graph of actions, waits, branches, ends           |
-| Workflow version   | Immutable pin used by enrollment                  |
-| Contact            | Recipient + fields (`firstName`, `locale`, …)     |
-| Enrollment         | One durable Temporal run for one contact          |
-| Event              | Named signal into a waiting enrollment            |
+## Development
 
-Installed actions today: `email.send`, `contact.update`. See [docs/OPERATIONS.md](docs/OPERATIONS.md).
+The Nx workspace contains the permanent dashboard, TypeScript server, shared contracts, and publishable CLI:
 
-## Checks
+```text
+apps/dashboard       React operations and OAuth UI
+apps/server          Hono, Better Auth, Temporal, Resend
+packages/contracts   shared operation and journey schemas
+packages/cli         @socialrobot-io/reflow
+```
+
+Run the complete release gate with:
 
 ```sh
 make check
 ```
 
-## Docs
+It runs repository validation, linting, typechecks, unit and integration tests, Temporal replay checks, all builds, Compose validation, and an npm package dry run.
 
-| Doc | Topic |
-| --- | ----- |
-| [examples/welcome-nudge](examples/welcome-nudge/) | Small end-to-end tutorial |
-| [docs/OPERATIONS.md](docs/OPERATIONS.md) | Full operation catalog |
-| [docs/AUTHENTICATION.md](docs/AUTHENTICATION.md) | Auth and accounts |
-| [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) | Production Compose |
-| [docs/RESEND.md](docs/RESEND.md) | Resend API keys, sender domains, webhooks, and testing |
-| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | System design |
-| [docs/PRD.md](docs/PRD.md) | Product requirements |
-| [skills/reflow/SKILL.md](skills/reflow/SKILL.md) | Agent operating skill |
+## Documentation
+
+- [Welcome + nudge tutorial](examples/welcome-nudge/)
+- [Operations catalog](docs/OPERATIONS.md)
+- [Authentication and OAuth](docs/AUTHENTICATION.md)
+- [Deployment guide](docs/DEPLOYMENT.md)
+- [Architecture](docs/ARCHITECTURE.md)
+- [Resend setup](docs/RESEND.md)
+- [CLI release process](docs/RELEASING.md)
+- [Agent skill](skills/reflow/SKILL.md)
+
+Reflow is early. If you try it, open an issue and tell us where setup hurt, which journey actions you need next, and whether the MCP flow felt natural.

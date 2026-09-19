@@ -1,17 +1,17 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { TestWorkflowEnvironment } from '@temporalio/testing';
 import { Worker } from '@temporalio/worker';
-import type { WorkflowDefinition } from '../src/domain/contracts.js';
+import type { WorkflowDefinition } from '../packages/contracts/src/index.js';
 import {
   cancelEnrollment,
   enrollmentEvent,
   enrollmentStatus,
   pauseEnrollment,
   resumeEnrollment,
-} from '../src/temporal/shared.js';
-import { enrollmentWorkflow } from '../src/temporal/workflows.js';
+} from '../apps/server/src/temporal/shared.js';
+import { enrollmentWorkflow } from '../apps/server/src/temporal/workflows.js';
 
-const workflowsPath = new URL('../src/temporal/workflows.ts', import.meta.url).pathname;
+const workflowsPath = new URL('../apps/server/src/temporal/workflows.ts', import.meta.url).pathname;
 
 type ActionOutcome = 'succeeded' | 'failed' | 'needs_attention';
 

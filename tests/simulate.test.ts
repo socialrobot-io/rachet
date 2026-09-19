@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { workflowDefinitionSchema } from '../src/domain/contracts.js';
-import { simulateWorkflow } from '../src/domain/simulate.js';
+import { workflowDefinitionSchema } from '../packages/contracts/src/index.js';
+import { simulateWorkflow } from '../apps/server/src/domain/simulate.js';
 
 const base = {
   schemaVersion: '1' as const,

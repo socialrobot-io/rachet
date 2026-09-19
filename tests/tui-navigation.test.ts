@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { toggleFocus } from '../src/tui/app.js';
+import { toggleFocus } from '../packages/cli/src/tui/app.js';
 
 describe('TUI focus navigation', () => {
   it('toggles focus for Tab', () => {

@@ -1,4 +1,4 @@
-import type { EmailProvider, FrozenMessage, SendOutcome } from '../../src/providers/email-provider.js';
+import type { EmailProvider, FrozenMessage, SendOutcome } from '../../apps/server/src/providers/email-provider.js';
 
 /** Deterministic provider for activity/integration tests. */
 export class FakeEmailProvider implements EmailProvider {

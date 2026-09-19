@@ -4,7 +4,7 @@ import {
   templateReviseSchema,
   valueSourceSchema,
   workflowDefinitionSchema,
-} from '../src/domain/contracts.js';
+} from '../packages/contracts/src/index.js';
 
 const workspaceId = '00000000-0000-4000-8000-000000000001';
 

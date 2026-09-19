@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { loadConfig } from '../src/config.js';
+import { loadConfig } from '../apps/server/src/config.js';
 
 const base = {
   NODE_ENV: 'production',
@@ -18,6 +18,9 @@ describe('production configuration', () => {
   });
 
   it('accepts HTTPS origins and a strong secret', () => {
-    expect(loadConfig(base).publicUrl).toBe('https://reflow.example.com');
+    const config = loadConfig(base);
+    expect(config.publicUrl).toBe('https://reflow.example.com');
+    expect(config.dashboardDir).toBe('apps/dashboard/dist');
+    expect(config.oauthPublicRedirectSchemes).toEqual(['cursor:']);
   });
 });

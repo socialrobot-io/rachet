@@ -20,18 +20,20 @@ reflow template preview --dir examples/welcome-nudge/emails
 
 ## 2. Publish templates
 
-`push` renders each `.tsx` on your machine (any imports you need), then uploads HTML + plain text. The server only interpolates `{{…}}` at send time.
+`push` renders each reviewed `.tsx` on your machine (any imports you need), then uploads HTML + plain text. Because TSX is local code, the explicit acknowledgement flag is required. The server only interpolates `{{…}}` at send time.
 
 ```sh
 reflow template push examples/welcome-nudge/emails/welcome.tsx \
   --name "Welcome nudge / welcome" \
   --subject "Welcome, {{contact.firstName}}" \
-  --preheader "Your account is ready."
+  --preheader "Your account is ready." \
+  --allow-code-execution
 
 reflow template push examples/welcome-nudge/emails/reminder.tsx \
   --name "Welcome nudge / reminder" \
   --subject "Still there, {{contact.firstName}}?" \
-  --preheader "A quick nudge."
+  --preheader "A quick nudge." \
+  --allow-code-execution
 ```
 
 Copy each printed `templateVersionId`.

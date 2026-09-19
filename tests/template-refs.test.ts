@@ -4,9 +4,9 @@ import {
   collectEmailSendTemplateRefs,
   templateVersionIdsInDefinition,
   throwTemplateRefIssues,
-} from '../src/domain/template-refs.js';
-import { workflowDefinitionSchema } from '../src/domain/contracts.js';
-import { ReflowError } from '../src/domain/errors.js';
+} from '../apps/server/src/domain/template-refs.js';
+import { workflowDefinitionSchema } from '../packages/contracts/src/index.js';
+import { ReflowError } from '../apps/server/src/domain/errors.js';
 
 const definition = workflowDefinitionSchema.parse({
   schemaVersion: '1',

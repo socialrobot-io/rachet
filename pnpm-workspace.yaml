@@ -1,5 +1,7 @@
 packages:
   - .
+  - apps/*
+  - packages/*
 
 allowBuilds:
   '@prisma/client': true
@@ -7,4 +9,5 @@ allowBuilds:
   '@temporalio/core-bridge': true
   better-sqlite3: true
   esbuild: true
+  nx: true
   protobufjs: true

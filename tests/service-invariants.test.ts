@@ -1,8 +1,8 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { eq } from 'drizzle-orm';
-import { contacts, enrollments, outbox, workspaces } from '../src/db/schema.js';
-import type { WorkflowDefinition } from '../src/domain/contracts.js';
-import { ReflowError } from '../src/domain/errors.js';
+import { contacts, enrollments, outbox, workspaces } from '../apps/server/src/db/schema.js';
+import type { WorkflowDefinition } from '../packages/contracts/src/index.js';
+import { ReflowError } from '../apps/server/src/domain/errors.js';
 import { adminContext, probeDbRuntime, roleContext, type DbRuntime } from './helpers/db-runtime.js';
 
 const runtime = await probeDbRuntime();

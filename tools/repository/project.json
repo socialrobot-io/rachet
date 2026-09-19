@@ -1,0 +1,35 @@
+{
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "name": "repository",
+  "root": "tools/repository",
+  "projectType": "library",
+  "targets": {
+    "lint": {
+      "executor": "nx:run-commands",
+      "inputs": [
+        "{workspaceRoot}/apps/server/src/**/*",
+        "{workspaceRoot}/packages/cli/src/**/*",
+        "{workspaceRoot}/packages/contracts/src/**/*",
+        "{workspaceRoot}/scripts/**/*",
+        "{workspaceRoot}/tests/**/*",
+        "{workspaceRoot}/*.ts",
+        "{workspaceRoot}/eslint.config.js",
+        "{workspaceRoot}/package.json"
+      ],
+      "options": { "command": "eslint .", "cwd": "{workspaceRoot}" }
+    },
+    "test": {
+      "executor": "nx:run-commands",
+      "inputs": [
+        "{workspaceRoot}/apps/server/src/**/*",
+        "{workspaceRoot}/packages/cli/src/**/*",
+        "{workspaceRoot}/packages/contracts/src/**/*",
+        "{workspaceRoot}/tests/**/*",
+        "{workspaceRoot}/vitest.config.ts",
+        "{workspaceRoot}/package.json",
+        "{workspaceRoot}/pnpm-lock.yaml"
+      ],
+      "options": { "command": "vitest run", "cwd": "{workspaceRoot}" }
+    }
+  }
+}

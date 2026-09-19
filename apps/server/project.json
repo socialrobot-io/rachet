@@ -1,0 +1,43 @@
+{
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "name": "server",
+  "root": "apps/server",
+  "sourceRoot": "apps/server/src",
+  "projectType": "application",
+  "implicitDependencies": ["contracts"],
+  "targets": {
+    "build": {
+      "executor": "nx:run-commands",
+      "outputs": ["{workspaceRoot}/dist/apps/server", "{workspaceRoot}/dist/workflow-bundle.js"],
+      "options": { "command": "tsc -p apps/server/tsconfig.build.json && pnpm build:workflows" }
+    },
+    "typecheck": {
+      "executor": "nx:run-commands",
+      "options": { "command": "tsc -p apps/server/tsconfig.json --noEmit" }
+    },
+    "dev": {
+      "executor": "nx:run-commands",
+      "options": { "command": "node --env-file=.env --env-file-if-exists=.env.local --import tsx --watch apps/server/src/server.ts" }
+    },
+    "dev-worker": {
+      "executor": "nx:run-commands",
+      "options": { "command": "node --env-file=.env --env-file-if-exists=.env.local --import tsx --watch apps/server/src/worker.ts" }
+    },
+    "dev-dispatcher": {
+      "executor": "nx:run-commands",
+      "options": { "command": "node --env-file=.env --env-file-if-exists=.env.local --import tsx --watch apps/server/src/dispatcher.ts" }
+    },
+    "migrate-db": {
+      "executor": "nx:run-commands",
+      "options": { "command": "node --env-file=.env --env-file-if-exists=.env.local --import tsx apps/server/src/db/migrate.ts" }
+    },
+    "setup": {
+      "executor": "nx:run-commands",
+      "options": { "command": "node --env-file=.env --env-file-if-exists=.env.local --import tsx apps/server/src/setup.ts", "forwardAllArgs": true }
+    },
+    "mcp": {
+      "executor": "nx:run-commands",
+      "options": { "command": "tsx apps/server/src/mcp-stdio.ts" }
+    }
+  }
+}

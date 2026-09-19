@@ -14,7 +14,7 @@ The core product is open-ended workflow authoring **and execution** within insta
 - Temporal for durable workflows; React Email for email templates.
 - MCP is the primary interface; CLI has complete functional parity.
 - Resend is the first delivery provider; provider-specific behavior stays behind an adapter.
-- Docker Compose deployment. No product dashboard, editor, or other operator UI.
+- Docker Compose deployment. Permanent same-origin dashboard in the `app` image; CLI/MCP remain complete control planes rather than wrappers around dashboard screens.
 - This phase delivers the PRD and architecture in a local Git repository.
 - Configured OAuth login and client-ID/client-secret machine access are v1 requirements.
 - Initial setup creates an administrator. Administrators can create accounts; self-registration is disabled unless `ALLOW_REGISTRATION=true`, and then works through CLI and MCP.

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { placeholderProps, renderLocalReactEmailFile } from '../src/cli-render-template.js';
-import { resolveReactEmailCli } from '../src/cli-templates.js';
+import { placeholderProps, renderLocalReactEmailFile } from '../packages/cli/src/cli-render-template.js';
+import { resolveReactEmailCli } from '../packages/cli/src/cli-templates.js';
 import { access } from 'node:fs/promises';
 
 describe('placeholderProps', () => {
@@ -35,7 +35,7 @@ describe('resolveReactEmailCli', () => {
 
 describe('missingReactEmailProjectDeps', () => {
   it('finds no missing deps in this repo', async () => {
-    const { missingReactEmailProjectDeps } = await import('../src/cli-templates.js');
+    const { missingReactEmailProjectDeps } = await import('../packages/cli/src/cli-templates.js');
     expect(missingReactEmailProjectDeps()).toEqual([]);
   });
 });

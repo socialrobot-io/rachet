@@ -1,6 +1,6 @@
 # Operations and MCP contract
 
-Every product operation is defined once in `src/operations.ts` and exposed as an HTTP operation, an MCP tool with dots converted to underscores, and the generic `reflow call` CLI command. Better Auth protocol endpoints are available through `reflow auth call` when direct protocol administration is needed.
+Every product operation is defined once in `apps/server/src/operations.ts` and exposed as an HTTP operation, an MCP tool with dots converted to underscores, and the generic `reflow call` CLI command. Authentication protocol endpoints are intentionally not exposed through a generic CLI proxy.
 
 ## Implemented operation catalog
 
@@ -8,8 +8,8 @@ Every product operation is defined once in `src/operations.ts` and exposed as an
 | --- | --- |
 | `system.capabilities`, `auth.whoami`, `workspace.list` | Discover runtime, actions, current access, and available workspaces |
 | `account.create` | Deployment administrator creates an account and optional workspace membership |
-| `credential.create`, `credential.revoke` | Create a user-bound machine API key, returning its secret once, or revoke it |
-| `template.create`, `template.list`, `template.revise`, `template.publish`, `template.archive`, `template.render` | Manage HTML (preferred) or plain templates. CLI `reflow template push` renders React Email locally and **upserts by `--name`** (revise + publish). Duplicate create returns `TEMPLATE_NAME_EXISTS` with a hint. The server never executes TSX; it only interpolates `{{…}}` placeholders. `workflow.validate`/`publish` fail with `TEMPLATE_REFERENCE_INVALID` when `email.send` pins a missing version. `template.archive` fails with `TEMPLATE_IN_USE` while workflows still reference it, and archived templates cannot be republished. Errors include `hint` and `details.nextSteps` for agents. |
+| `credential.create`, `credential.revoke` | Create a user-bound machine API key, returning its secret once, or revoke it. Secret-returning creation is HTTP/CLI only and is excluded from MCP/model-visible catalogs. |
+| `template.create`, `template.list`, `template.revise`, `template.publish`, `template.archive`, `template.render` | Manage HTML (preferred) or plain templates. CLI `reflow template push --allow-code-execution` renders reviewed local React Email code and **upserts by `--name`** (revise + publish). The server never executes TSX; it only interpolates `{{…}}` placeholders. |
 | `workflow.actions` | List the installed action registry |
 | `workflow.create`, `workflow.list`, `workflow.validate`, `workflow.simulate`, `workflow.publish` | Author, check, trace, persist, and version capability graphs |
 | `contact.upsert`, `contact.list` | Manage enrolled contacts |
@@ -18,7 +18,7 @@ Every product operation is defined once in `src/operations.ts` and exposed as an
 | `event.emit` | Signal a stable named event and JSON payload to an enrollment |
 | `message.list`, `webhook_event.list` | Inspect send ledger and verified Resend events |
 
-MCP also serves `reflow://operations`, `reflow://workflow/schema`, and `reflow://workflow/actions`, plus the `design-workflow` authoring prompt. `system.capabilities` includes an `agentCookbook` checklist (reuse before invent, simulate two paths, enrollment side effects). The prompt tells the MCP host agent how to turn natural language into a graph, create templates, validate, simulate, and save it. The server performs deterministic validation and execution; it does not need a built-in LLM.
+MCP also serves `reflow://operations`, `reflow://workflow/schema`, and `reflow://workflow/actions`, plus the `design-workflow` authoring prompt. Operations marked non-model-visible (currently one-time credential creation) are omitted from both the MCP tools and operation resource. `system.capabilities` includes an `agentCookbook` checklist (reuse before invent, simulate two paths, enrollment side effects).
 
 ## Workflow graph
 
@@ -33,7 +33,7 @@ Graphs reject duplicate IDs, missing targets, cycles, unreachable nodes, unknown
 ```sh
 reflow template init
 reflow template preview
-reflow template push emails/welcome.tsx --name Welcome --subject "Welcome, {{contact.firstName}}"
+reflow template push emails/welcome.tsx --name Welcome --subject "Welcome, {{contact.firstName}}" --allow-code-execution
 reflow template list
 ```
 

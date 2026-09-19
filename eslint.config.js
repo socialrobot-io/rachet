@@ -2,12 +2,12 @@ import eslint from '@eslint/js';
 import tseslint from 'typescript-eslint';
 
 export default tseslint.config(
-  { ignores: ['dist/**', 'coverage/**', 'eslint.config.js', 'drizzle.config.ts', 'migrations/**', 'examples/**', 'emails/**'] },
+  { ignores: ['**/dist/**', '.nx/**', 'coverage/**', 'eslint.config.js', 'drizzle.config.ts', 'migrations/**', 'examples/**', 'emails/**', 'apps/dashboard/**', '.agents/**'] },
   eslint.configs.recommended,
   ...tseslint.configs.strictTypeChecked,
   {
     languageOptions: {
-      parserOptions: { projectService: true, tsconfigRootDir: import.meta.dirname },
+      parserOptions: { project: ['./tsconfig.lint.json'], tsconfigRootDir: import.meta.dirname },
     },
     rules: {
       '@typescript-eslint/no-confusing-void-expression': 'off',

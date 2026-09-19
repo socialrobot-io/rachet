@@ -21,6 +21,8 @@ x-reflow: &reflow
     OAUTH_DISCOVERY_URL: '${OAUTH_DISCOVERY_URL:-}'
     OAUTH_CLIENT_ID: '${OAUTH_CLIENT_ID:-}'
     OAUTH_CLIENT_SECRET: '${OAUTH_CLIENT_SECRET:-}'
+    OAUTH_PUBLIC_REDIRECT_ORIGINS: '${OAUTH_PUBLIC_REDIRECT_ORIGINS:-}'
+    OAUTH_PUBLIC_REDIRECT_SCHEMES: '${OAUTH_PUBLIC_REDIRECT_SCHEMES:-cursor}'
   depends_on:
     migrate: { condition: service_completed_successfully }
     temporal-namespace: { condition: service_completed_successfully }
@@ -112,7 +114,7 @@ services:
   migrate:
     <<: *reflow
     restart: 'no'
-    command: [node, dist/src/db/migrate.js]
+    command: [node, dist/apps/server/db/migrate.js]
     depends_on: { postgres: { condition: service_healthy } }
 
   app:
@@ -121,11 +123,11 @@ services:
 
   worker:
     <<: *reflow
-    command: [node, dist/src/worker.js]
+    command: [node, dist/apps/server/worker.js]
 
   dispatcher:
     <<: *reflow
-    command: [node, dist/src/dispatcher.js]
+    command: [node, dist/apps/server/dispatcher.js]
 
   # Opt-in TLS ingress for bare hosts. Off by default so Coolify (or any
   # external proxy) can terminate TLS and route to app:3000 without binding
