@@ -1,24 +1,30 @@
-# Releasing the CLI
+# Releasing npm packages
 
-The publishable npm package lives in `packages/cli`. The repository root, server, dashboard, and internal contracts package are private workspace projects and are not included in the CLI tarball.
+Two public packages ship from this repository:
 
-The public package name is `@socialrobot-io/reflow`. The package is licensed under the GNU Affero General Public License v3.0 only (`AGPL-3.0-only`).
+| Package | Path | Role |
+| --- | --- | --- |
+| `@socialrobot-io/reflow` | `packages/cli` | CLI |
+| `@socialrobot-io/reflow-sdk` | `packages/sdk` | Server-side SDK for UI backends |
+
+Both are licensed under the GNU Affero General Public License v3.0 only (`AGPL-3.0-only`). The repository root, server, dashboard, and internal packages stay private and are not published.
 
 ## One-time npm setup
 
 1. Ensure the `@socialrobot-io` npm organization and package publishing permissions are configured.
-2. Configure npm trusted publishing for this GitHub repository and the workflow file `.github/workflows/release.yml`.
+2. Configure npm trusted publishing for this GitHub repository and the workflow file `.github/workflows/release.yml` for both `@socialrobot-io/reflow` and `@socialrobot-io/reflow-sdk`.
 3. Protect the GitHub Environment named `npm` if release approvals are required.
 
 The workflow uses GitHub OIDC and npm provenance. It does not require a long-lived `NPM_TOKEN` secret.
 
 ## Release procedure
 
-1. Update `packages/cli/package.json` to the release version.
-2. Run `make check` from a clean checkout.
-3. Inspect the dry-run tarball output and confirm that only the compiled CLI, its README, and package metadata are present.
-4. Create and push a tag named `v<version>` matching the package version exactly.
+1. Update `packages/cli/package.json` to the release version. The git tag must match that CLI version (`v0.1.2` for CLI `0.1.2`).
+2. Set `packages/sdk/package.json` to the SDK version you want published in the same release (independent of the CLI version when needed).
+3. Run `make check` from a clean checkout.
+4. Inspect dry-run tarballs and confirm each package only contains its compiled output, README, LICENSE, and package metadata.
+5. Create and push a tag named `v<cli-version>`.
 
-The release workflow repeats the full check, verifies the tag/version match, and publishes from `packages/cli` with public access and provenance.
+The release workflow runs the full check, verifies the tag matches the CLI version, then publishes both packages with public access and provenance.
 
 Do not publish the repository root with `npm publish`; it is intentionally private.

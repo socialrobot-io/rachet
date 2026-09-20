@@ -1,4 +1,4 @@
-name: Release CLI
+name: Release packages
 
 on:
   push:
@@ -28,9 +28,11 @@ jobs:
         run: pnpm install --frozen-lockfile
       - name: Verify repository
         run: make check
-      - name: Verify tag matches package version
+      - name: Verify tag matches CLI package version
         run: |
           expected="v$(node -p 'require("./packages/cli/package.json").version')"
           test "${GITHUB_REF_NAME}" = "${expected}"
-      - name: Publish with provenance
+      - name: Publish CLI with provenance
         run: pnpm --filter @socialrobot-io/reflow publish --no-git-checks --provenance
+      - name: Publish SDK with provenance
+        run: pnpm --filter @socialrobot-io/reflow-sdk publish --no-git-checks --provenance
