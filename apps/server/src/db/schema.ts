@@ -142,6 +142,28 @@ export const enrollments = pgTable('enrollments', {
   ...timestamps,
 }, (table) => [uniqueIndex('enrollment_idempotency_unique').on(table.workspaceId, table.idempotencyKey)]);
 
+/**
+ * Durable inbox for product events delivered to an enrollment.
+ *
+ * The event identity is scoped to an enrollment. `payloadHash` prevents a
+ * producer from accidentally reusing an identity for different data, while
+ * `deliveredAt` distinguishes durable acceptance from Temporal delivery.
+ */
+export const enrollmentEvents = pgTable('enrollment_events', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  workspaceId: uuid('workspace_id').notNull().references(() => workspaces.id, { onDelete: 'cascade' }),
+  enrollmentId: uuid('enrollment_id').notNull().references(() => enrollments.id, { onDelete: 'cascade' }),
+  eventId: text('event_id').notNull(),
+  eventType: text('event_type').notNull(),
+  data: jsonb('data').$type<Record<string, unknown>>().notNull().default({}),
+  payloadHash: text('payload_hash').notNull(),
+  deliveredAt: timestamp('delivered_at', { withTimezone: true }),
+  ...timestamps,
+}, (table) => [
+  uniqueIndex('enrollment_event_identity_unique').on(table.enrollmentId, table.eventId),
+  index('enrollment_event_workspace_idx').on(table.workspaceId, table.enrollmentId),
+]);
+
 export const sendIntents = pgTable('send_intents', {
   id: uuid('id').primaryKey().defaultRandom(),
   workspaceId: uuid('workspace_id').notNull().references(() => workspaces.id, { onDelete: 'cascade' }),

@@ -230,6 +230,24 @@ function LaneLabel({ children }: { children: ReactNode }) {
   );
 }
 
+function RouteLabel({ label, taken, decided }: { label: string; taken: boolean; decided: boolean }) {
+  return (
+    <LaneLabel>
+      <span className="inline-flex items-center gap-1.5">
+        {label}
+        {decided && (
+          <span className={cn(
+            'rounded-full px-1.5 py-0.5 text-[9px] tracking-normal',
+            taken ? 'bg-success/10 text-success' : 'bg-muted text-muted-foreground',
+          )}>
+            {taken ? 'Taken' : 'Not taken'}
+          </span>
+        )}
+      </span>
+    </LaneLabel>
+  );
+}
+
 function Sequence({ blocks, paint, dimmed }: { blocks: Block[]; paint: Paint; dimmed?: boolean }) {
   return (
     <div className={cn('flex flex-col', dimmed && 'opacity-40')}>
@@ -253,6 +271,7 @@ function BranchView({ block, paint }: { block: Extract<Block, { kind: 'branch' }
   // Which arm did this enrollment take? The untaken arm dims.
   const tookYes = path?.edgeKeys.has(`${block.id}->${block.node.onTrue}`) ?? false;
   const tookNo = path?.edgeKeys.has(`${block.id}->${block.node.onFalse}`) ?? false;
+  const decided = tookYes || tookNo;
 
   // Exit guard: one arm empty, the other is just an exit.
   const exitArm = yes.length === 1 && yes[0].kind === 'exit' ? { exit: yes[0], negated: false }
@@ -352,11 +371,11 @@ function BranchView({ block, paint }: { block: Extract<Block, { kind: 'branch' }
       </div>
       <div className="grid gap-3 p-3 sm:grid-cols-2">
         <div>
-          <LaneLabel>Yes</LaneLabel>
+          <RouteLabel label="Yes" taken={tookYes} decided={decided} />
           <Sequence blocks={yes} paint={paint} dimmed={tookNo} />
         </div>
         <div>
-          <LaneLabel>No</LaneLabel>
+          <RouteLabel label="No" taken={tookNo} decided={decided} />
           <Sequence blocks={no} paint={paint} dimmed={tookYes} />
         </div>
       </div>

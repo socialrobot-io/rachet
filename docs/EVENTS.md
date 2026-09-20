@@ -17,6 +17,19 @@ reflow call event.emit --input '{
 
 Use an event ID derived from the upstream activity or database record. If delivery times out, retry the identical request with the same `eventId`; do not mint a new identity for the retry.
 
+The first call returns an explicit receipt:
+
+```json
+{
+  "accepted": true,
+  "duplicate": false,
+  "delivery": "delivered",
+  "eventId": "product-activation:ACTIVITY_ID"
+}
+```
+
+Repeating the same ID and payload is a successful idempotent no-op: it returns `accepted: false`, `duplicate: true`, and does not apply the event to the workflow again. Reusing the ID with a different event type or payload returns `IDEMPOTENCY_CONFLICT` (HTTP 409). `delivery: "queued"` means the event is safely stored and the dispatcher is retrying Temporal delivery; `delivery: "delivered"` means Temporal accepted it.
+
 For a saved request, place the same object in `activation-event.json` and run:
 
 ```sh
@@ -81,9 +94,12 @@ OAuth/MCP authorization must include `reflow:send`; API keys use the correspondi
 ## Event behavior
 
 - Events are accepted only for an existing enrollment in the same workspace.
+- Event identity is scoped to the enrollment. Repeating an identical `(enrollmentId, eventId)` is a no-op, including after that enrollment completes; conflicting reuse is rejected.
+- Reflow stores the event and its retry job atomically before delivery. A transient Temporal outage therefore produces `delivery: "queued"` instead of losing the event.
 - An event can arrive before the enrollment reaches its matching wait; Temporal records it for deterministic progression.
-- Successful `event.emit` calls are also written to the enrollment audit trail with `eventType`, `eventId`, and `data`. The dashboard enrollment page lists those receipts under **Events seen** and in **History** immediately, even while the enrollment is still waiting on a later branch.
+- The first `event.emit` receipt is written to the enrollment audit trail with `eventType`, `eventId`, and `data`. The dashboard lists delivered receipts under **Events seen** and in **History**.
 - A matching wait follows `onEvent`; if no matching event arrives before its deadline, it follows `onTimeout`.
+- A branch is evaluated once when execution reaches it. An event delivered after a false `event_received` branch does not rewind execution; the dashboard labels the chosen route and calls out the late event in History.
 - Events do not create enrollments and do not bypass send policy or suppression checks.
 - Provider webhooks such as Resend delivery events are separate. Those arrive at `/webhooks/resend` and update message state; product events use `event.emit`.
 

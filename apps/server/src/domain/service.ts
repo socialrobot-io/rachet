@@ -5,7 +5,7 @@ import { WorkflowNotFoundError } from '@temporalio/common';
 import type { ReflowAuth } from '../auth.js';
 import type { Database } from '../db/index.js';
 import {
-  auditEvents, contacts, enrollments, memberships, outbox, profiles, sendIntents,
+  auditEvents, contacts, enrollmentEvents, enrollments, memberships, outbox, profiles, sendIntents,
   sequences, sequenceVersions, templates, templateVersions, webhookEvents, workspaces,
 } from '../db/schema.js';
 import type { OperationContext, Principal, WorkflowDefinition } from '@reflow/contracts';
@@ -23,6 +23,22 @@ import { cancelEnrollment, enrollmentEvent, pauseEnrollment, resumeEnrollment } 
 
 function hash(value: unknown): string {
   return createHash('sha256').update(JSON.stringify(value)).digest('hex');
+}
+
+function stableJson(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(stableJson).join(',')}]`;
+  if (value && typeof value === 'object') {
+    return `{${Object.entries(value as Record<string, unknown>)
+      .filter(([, entry]) => entry !== undefined)
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([key, entry]) => `${JSON.stringify(key)}:${stableJson(entry)}`)
+      .join(',')}}`;
+  }
+  return JSON.stringify(value) ?? 'null';
+}
+
+function stableHash(value: unknown): string {
+  return createHash('sha256').update(stableJson(value)).digest('hex');
 }
 
 export class ReflowService {
@@ -507,32 +523,26 @@ export class ReflowService {
     }>>();
     if (enrollmentIds.length > 0) {
       const emits = await this.db.select({
-        enrollmentId: auditEvents.targetId,
-        details: auditEvents.details,
-        createdAt: auditEvents.createdAt,
+        enrollmentId: enrollmentEvents.enrollmentId,
+        eventType: enrollmentEvents.eventType,
+        eventId: enrollmentEvents.eventId,
+        data: enrollmentEvents.data,
+        deliveredAt: enrollmentEvents.deliveredAt,
       })
-        .from(auditEvents)
+        .from(enrollmentEvents)
         .where(and(
-          eq(auditEvents.workspaceId, workspaceId),
-          eq(auditEvents.action, 'event.emit'),
-          eq(auditEvents.targetType, 'enrollment'),
-          inArray(auditEvents.targetId, enrollmentIds),
+          eq(enrollmentEvents.workspaceId, workspaceId),
+          inArray(enrollmentEvents.enrollmentId, enrollmentIds),
         ))
-        .orderBy(asc(auditEvents.createdAt));
+        .orderBy(asc(enrollmentEvents.createdAt));
       for (const emit of emits) {
-        if (!emit.enrollmentId) continue;
-        const eventType = typeof emit.details.eventType === 'string' ? emit.details.eventType : null;
-        const eventId = typeof emit.details.eventId === 'string' ? emit.details.eventId : null;
-        if (!eventType || !eventId) continue;
+        if (!emit.deliveredAt) continue;
         const list = receivedByEnrollment.get(emit.enrollmentId) ?? [];
-        if (list.some((existing) => existing.eventId === eventId)) continue;
         list.push({
-          eventType,
-          eventId,
-          receivedAt: emit.createdAt.toISOString(),
-          data: typeof emit.details.data === 'object' && emit.details.data !== null
-            ? emit.details.data as Record<string, unknown>
-            : {},
+          eventType: emit.eventType,
+          eventId: emit.eventId,
+          receivedAt: emit.deliveredAt.toISOString(),
+          data: emit.data,
         });
         receivedByEnrollment.set(emit.enrollmentId, list);
       }
@@ -588,15 +598,91 @@ export class ReflowService {
     this.workspace(context, input.workspaceId, 'operate');
     const [row] = await this.db.select().from(enrollments).where(and(eq(enrollments.id, input.enrollmentId), eq(enrollments.workspaceId, input.workspaceId))).limit(1);
     if (!row) throw new ReflowError('NOT_FOUND', 'Enrollment not found', 404);
-    await this.withEnrollmentExecution(row, (handle) =>
-      handle.signal(enrollmentEvent, input.eventType, input.eventId, input.data),
-    );
-    await this.audit(context, 'event.emit', input.workspaceId, 'enrollment', row.id, {
-      eventType: input.eventType,
-      eventId: input.eventId,
-      data: input.data,
+    const payloadHash = stableHash({ eventType: input.eventType, data: input.data });
+    const [existing] = await this.db.select().from(enrollmentEvents).where(and(
+      eq(enrollmentEvents.enrollmentId, row.id),
+      eq(enrollmentEvents.eventId, input.eventId),
+    )).limit(1);
+    if (existing) {
+      const existingHash = stableHash({ eventType: existing.eventType, data: existing.data });
+      if (existingHash !== payloadHash) {
+        throw new ReflowError('IDEMPOTENCY_CONFLICT', 'Event ID was already used with a different event type or payload', 409);
+      }
+      return {
+        accepted: false,
+        eventId: input.eventId,
+        duplicate: true,
+        delivery: existing.deliveredAt ? 'delivered' : 'queued',
+      };
+    }
+    if (!['pending_start', 'running', 'waiting', 'paused', 'needs_attention'].includes(row.state)) {
+      throw new ReflowError('ENROLLMENT_NOT_RUNNING', `Enrollment ${row.id} is ${row.state} and cannot accept events.`, 409);
+    }
+
+    const created = await this.db.transaction(async (tx) => {
+      const [receipt] = await tx.insert(enrollmentEvents).values({
+        workspaceId: input.workspaceId,
+        enrollmentId: row.id,
+        eventId: input.eventId,
+        eventType: input.eventType,
+        data: input.data,
+        payloadHash,
+      }).onConflictDoNothing().returning();
+      if (!receipt) return null;
+      await tx.insert(outbox).values({
+        kind: 'enrollment.event',
+        aggregateId: receipt.id,
+        payload: { enrollmentEventId: receipt.id },
+      });
+      await tx.insert(auditEvents).values({
+        workspaceId: input.workspaceId,
+        actorId: context.principal.userId,
+        action: 'event.emit',
+        targetType: 'enrollment',
+        targetId: row.id,
+        details: { eventType: input.eventType, eventId: input.eventId, data: input.data },
+      });
+      return receipt;
     });
-    return { accepted: true, eventId: input.eventId };
+
+    const [receipt] = created ? [created] : await this.db.select().from(enrollmentEvents).where(and(
+      eq(enrollmentEvents.enrollmentId, row.id),
+      eq(enrollmentEvents.eventId, input.eventId),
+    )).limit(1);
+    if (!receipt) throw new Error('Event receipt disappeared after insert conflict');
+    const existingHash = stableHash({ eventType: receipt.eventType, data: receipt.data });
+    if (existingHash !== payloadHash) {
+      throw new ReflowError('IDEMPOTENCY_CONFLICT', 'Event ID was already used with a different event type or payload', 409);
+    }
+
+    let deliveredAt = receipt.deliveredAt;
+    if (!deliveredAt) {
+      try {
+        await this.withEnrollmentExecution(row, (handle) =>
+          handle.signal(enrollmentEvent, input.eventType, input.eventId, input.data),
+        );
+        const deliveryTime = new Date();
+        deliveredAt = deliveryTime;
+        await this.db.transaction(async (tx) => {
+          await tx.update(enrollmentEvents).set({ deliveredAt: deliveryTime, updatedAt: deliveryTime }).where(eq(enrollmentEvents.id, receipt.id));
+          await tx.update(outbox).set({ completedAt: deliveryTime, claimedUntil: null, lastError: null }).where(and(
+            eq(outbox.kind, 'enrollment.event'),
+            eq(outbox.aggregateId, receipt.id),
+          ));
+        });
+      } catch (error) {
+        if (error instanceof ReflowError && error.code === 'ENROLLMENT_NOT_RUNNING') throw error;
+        // The receipt and outbox job are durable. The dispatcher will retry a
+        // transient Temporal failure, and the workflow deduplicates by eventId.
+      }
+    }
+
+    return {
+      accepted: created !== null,
+      eventId: input.eventId,
+      duplicate: created === null,
+      delivery: deliveredAt ? 'delivered' : 'queued',
+    };
   }
 
   async messageList(context: OperationContext, workspaceId: string) {

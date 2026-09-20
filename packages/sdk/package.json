@@ -1,0 +1,21 @@
+{
+  "name": "@socialrobot-io/reflow-sdk",
+  "version": "0.1.0",
+  "description": "Browser-compatible SDK for triggering Reflow workflows",
+  "license": "AGPL-3.0-only",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": { ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" } },
+  "files": ["dist", "README.md", "LICENSE"],
+  "keywords": ["workflow", "automation", "journey", "reflow"],
+  "homepage": "https://github.com/socialrobot-io/reflow#readme",
+  "repository": { "type": "git", "url": "git+https://github.com/socialrobot-io/reflow.git", "directory": "packages/sdk" },
+  "bugs": { "url": "https://github.com/socialrobot-io/reflow/issues" },
+  "publishConfig": { "access": "public" },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "pack:check": "pnpm pack --dry-run"
+  }
+}

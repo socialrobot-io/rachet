@@ -209,6 +209,7 @@ apps/dashboard       React operations and OAuth UI
 apps/server          Hono, Better Auth, Temporal, Resend
 packages/contracts   shared operation and journey schemas
 packages/cli         @socialrobot-io/reflow
+packages/sdk         @socialrobot-io/reflow-sdk for server actions and UI backends
 ```
 
 Run the complete release gate with:
@@ -216,6 +217,8 @@ Run the complete release gate with:
 ```sh
 make check
 ```
+
+Product UIs can trigger a published workflow with `@socialrobot-io/reflow-sdk`. Create a user-bound API key with the `send` scope, configure `REFLOW_URL`, `REFLOW_WORKSPACE_ID`, and `REFLOW_API_KEY` in the UI server/action environment, then call `reflow.trigger(...)`. The SDK upserts the contact and starts an idempotent enrollment. Keep the API key server-side; browser bundles must call your own backend endpoint.
 
 It runs repository validation, linting, typechecks, backend and dashboard tests, Temporal replay checks, all builds, Compose validation, and an npm package dry run.
 

@@ -20,7 +20,7 @@ async function runWithWorker(
   definition: WorkflowDefinition,
   activities: {
     recordEnrollmentState?: (enrollmentId: string, state: string, stepId: string) => Promise<void>;
-    executeAction?: () => Promise<ActionOutcome>;
+    executeAction?: (input: { node: { id: string }; eventData: Record<string, { eventId: string; data: Record<string, unknown> }> }) => Promise<ActionOutcome>;
     evaluateCondition?: () => Promise<boolean>;
   } = {},
 ) {
@@ -36,9 +36,9 @@ async function runWithWorker(
         states.push({ state, stepId });
         await activities.recordEnrollmentState?.(_id, state, stepId);
       },
-      executeAction: async (input: { node: { id: string } }) => {
+      executeAction: async (input: { node: { id: string }; eventData: Record<string, { eventId: string; data: Record<string, unknown> }> }) => {
         actions.push(input.node.id);
-        return activities.executeAction ? activities.executeAction() : 'succeeded';
+        return activities.executeAction ? activities.executeAction(input) : 'succeeded';
       },
       evaluateCondition: async () => (activities.evaluateCondition ? activities.evaluateCondition() : true),
     },
@@ -206,6 +206,33 @@ describe('Temporal enrollment complex flows', () => {
       return handle.result();
     });
     expect(result).toBe('connected');
+  }, 30_000);
+
+  it('deduplicates repeated event IDs and replays the patched history', async () => {
+    const definition: WorkflowDefinition = {
+      schemaVersion: '1', description: 'Duplicate event', trigger: { type: 'event', eventType: 'social.posted' }, purpose: 'marketing', topic: 'test', entryNodeId: 'capture',
+      nodes: [
+        { id: 'capture', type: 'action', action: 'contact.update', input: { fields: { path: 'event.social.posted.data' } }, next: 'done', onError: 'fail' },
+        { id: 'done', type: 'end', reason: 'completed' },
+      ],
+    };
+    const observed: Array<Record<string, { eventId: string; data: Record<string, unknown> }>> = [];
+    const { worker, handle, states } = await runWithWorker(environment, definition, {
+      executeAction: async (input) => {
+        observed.push(input.eventData);
+        return 'succeeded';
+      },
+    });
+    const result = await worker.runUntil(async () => {
+      await expect.poll(() => states.some((row) => row.state === 'waiting')).toBe(true);
+      await handle.signal(enrollmentEvent, 'social.posted', 'evt-same', { plan: 'pro' });
+      await handle.signal(enrollmentEvent, 'social.posted', 'evt-same', { plan: 'wrong' });
+      return handle.result();
+    });
+    expect(result).toBe('completed');
+    expect(observed).toEqual([{ 'social.posted': { eventId: 'evt-same', data: { plan: 'pro' } } }]);
+    const history = await handle.fetchHistory();
+    await Worker.runReplayHistory({ workflowsPath }, history, handle.workflowId);
   }, 30_000);
 
   it('runs welcome → wait → nudge timeout path as one graph', async () => {

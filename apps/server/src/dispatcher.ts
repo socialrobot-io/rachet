@@ -1,10 +1,11 @@
 import { and, eq, isNull, lt, or } from 'drizzle-orm';
 import { loadConfig } from './config.js';
 import { createDatabase } from './db/index.js';
-import { enrollments, outbox, sequenceVersions } from './db/schema.js';
+import { enrollmentEvents, enrollments, outbox, sequenceVersions } from './db/schema.js';
 import { workflowDefinitionSchema } from '@reflow/contracts';
 import { createTemporalClient } from './temporal/client.js';
 import { enrollmentWorkflow } from './temporal/workflows.js';
+import { enrollmentEvent } from './temporal/shared.js';
 
 const config = loadConfig();
 const { db, pool } = createDatabase(config);
@@ -28,18 +29,35 @@ while (!stopping) {
   const [claimed] = await db.update(outbox).set({ claimedUntil, attempts: job.attempts + 1 }).where(and(eq(outbox.id, job.id), eq(outbox.attempts, job.attempts))).returning();
   if (!claimed) continue;
   try {
-    if (job.kind !== 'enrollment.start') throw new Error(`Unsupported outbox kind: ${job.kind}`);
-    const [row] = await db.select({ enrollment: enrollments, sequence: sequenceVersions }).from(enrollments)
-      .innerJoin(sequenceVersions, eq(sequenceVersions.id, enrollments.sequenceVersionId))
-      .where(eq(enrollments.id, job.aggregateId)).limit(1);
-    if (!row) throw new Error('Enrollment or sequence version missing');
-    const definition = workflowDefinitionSchema.parse(row.sequence.definition);
-    await temporal.workflow.start(enrollmentWorkflow, {
-      workflowId: row.enrollment.workflowId,
-      taskQueue: config.temporalTaskQueue,
-      args: [{ workspaceId: row.enrollment.workspaceId, enrollmentId: row.enrollment.id, definition }],
-      workflowIdConflictPolicy: 'USE_EXISTING',
-    });
+    if (job.kind === 'enrollment.start') {
+      const [row] = await db.select({ enrollment: enrollments, sequence: sequenceVersions }).from(enrollments)
+        .innerJoin(sequenceVersions, eq(sequenceVersions.id, enrollments.sequenceVersionId))
+        .where(eq(enrollments.id, job.aggregateId)).limit(1);
+      if (!row) throw new Error('Enrollment or sequence version missing');
+      const definition = workflowDefinitionSchema.parse(row.sequence.definition);
+      await temporal.workflow.start(enrollmentWorkflow, {
+        workflowId: row.enrollment.workflowId,
+        taskQueue: config.temporalTaskQueue,
+        args: [{ workspaceId: row.enrollment.workspaceId, enrollmentId: row.enrollment.id, definition }],
+        workflowIdConflictPolicy: 'USE_EXISTING',
+      });
+    } else if (job.kind === 'enrollment.event') {
+      const [row] = await db.select({ event: enrollmentEvents, enrollment: enrollments }).from(enrollmentEvents)
+        .innerJoin(enrollments, eq(enrollments.id, enrollmentEvents.enrollmentId))
+        .where(eq(enrollmentEvents.id, job.aggregateId)).limit(1);
+      if (!row) throw new Error('Enrollment event or enrollment missing');
+      if (!row.event.deliveredAt) {
+        await temporal.workflow.getHandle(row.enrollment.workflowId).signal(
+          enrollmentEvent,
+          row.event.eventType,
+          row.event.eventId,
+          row.event.data,
+        );
+        await db.update(enrollmentEvents).set({ deliveredAt: new Date(), updatedAt: new Date() }).where(eq(enrollmentEvents.id, row.event.id));
+      }
+    } else {
+      throw new Error(`Unsupported outbox kind: ${job.kind}`);
+    }
     await db.update(outbox).set({ completedAt: new Date(), claimedUntil: null, lastError: null }).where(eq(outbox.id, job.id));
   } catch (error) {
     const delay = Math.min(300_000, 1000 * 2 ** Math.min(job.attempts, 8));

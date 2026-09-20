@@ -159,7 +159,7 @@ export function createOperations(service: ReflowService): Record<string, Operati
       invoke: (context, input) => service.enrollmentControl(context, enrollmentControlSchema.parse(input), 'cancel'),
     },
     'event.emit': {
-      description: 'Emit an idempotently named domain event into an enrollment.', input: eventEmitSchema, readOnly: false,
+      description: 'Durably emit an idempotently named domain event into an enrollment. Returns whether it was newly accepted or an existing duplicate, and whether Temporal delivery is complete or queued.', input: eventEmitSchema, readOnly: false,
       requiredScope: 'reflow:send',
       invoke: (context, input) => service.eventEmit(context, eventEmitSchema.parse(input)),
     },

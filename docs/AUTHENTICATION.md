@@ -46,6 +46,8 @@ The dashboard's **Connected apps** page lists grants for the signed-in user and 
 
 Non-interactive systems use a scoped user-bound API key or an administrator-provisioned confidential OAuth client. Credentials belong in a secret manager or protected environment/file, never command arguments, prompts, or logs. Reflow intersects credential scopes with current workspace membership and role checks on every operation.
 
+The published `@socialrobot-io/reflow-sdk` uses the same `/v1/operations` contract for UI server actions. Give it a `send`-scoped API key and keep that key on the server; do not embed it in browser JavaScript. Add the UI origin to `TRUSTED_ORIGINS` when the UI calls Reflow directly from a browser, although a server-side action/proxy is recommended.
+
 See [Sending product events](EVENTS.md) for a complete scoped API-key and HTTP integration example.
 
 The stdio MCP bridge is a trusted, single-user host adapter. It refuses to start unless both `REFLOW_STDIO_TRUSTED_HOST=true` and `REFLOW_ACTOR_USER_ID` are set. Do not expose it through a shared service or remote transport; use authenticated HTTP MCP instead.

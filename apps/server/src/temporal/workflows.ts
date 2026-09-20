@@ -1,4 +1,4 @@
-import { condition, proxyActivities, setHandler, sleep } from '@temporalio/workflow';
+import { condition, patched, proxyActivities, setHandler, sleep } from '@temporalio/workflow';
 import type { FlowNode, WorkflowDefinition } from '@reflow/contracts';
 import type * as activities from './activities.js';
 import { cancelEnrollment, enrollmentEvent, enrollmentStatus, pauseEnrollment, resumeEnrollment, type EnrollmentWorkflowState } from './shared.js';
@@ -9,9 +9,20 @@ export type EnrollmentWorkflowInput = { workspaceId: string; enrollmentId: strin
 export async function enrollmentWorkflow(input: EnrollmentWorkflowInput): Promise<string> {
   const nodes = new Map(input.definition.nodes.map((node) => [node.id, node]));
   const events = new Map<string, { eventId: string; data: Record<string, unknown> }>();
+  const receivedEventIds = new Set<string>();
   let paused = false; let cancelled = false; let current = input.definition.entryNodeId;
   const state: EnrollmentWorkflowState = { state: 'running', currentStepId: current };
-  setHandler(enrollmentEvent, (eventType, eventId, data) => { events.set(eventType, { eventId, data }); });
+  setHandler(enrollmentEvent, (eventType, eventId, data) => {
+    // Keep histories created before this change on their original behavior,
+    // while making every newly handled event identity exactly-once within the
+    // workflow. Calling patched() in the handler lets an in-flight execution
+    // adopt the behavior on its next new signal without rewriting old signals.
+    if (patched('dedupe-enrollment-events-v1')) {
+      if (receivedEventIds.has(eventId)) return;
+      receivedEventIds.add(eventId);
+    }
+    events.set(eventType, { eventId, data });
+  });
   setHandler(pauseEnrollment, () => { paused = true; state.state = 'paused'; });
   setHandler(resumeEnrollment, () => { paused = false; state.state = 'running'; });
   setHandler(cancelEnrollment, () => { cancelled = true; });

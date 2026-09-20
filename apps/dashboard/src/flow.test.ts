@@ -74,4 +74,21 @@ describe('buildExecutionTrace received events', () => {
     const { eventsSeen } = buildExecutionTrace(definition, advanced, []);
     expect(eventsSeen).toEqual([{ type: 'social_post_created' }]);
   });
+
+  it('explains when an event arrived after a false branch was already taken', () => {
+    const advanced: Enrollment = {
+      ...enrollment,
+      currentStepId: 'end_nudge',
+      state: 'completed',
+      receivedEvents: [{
+        eventType: 'social_post_created',
+        eventId: 'post:late',
+        receivedAt: '2026-09-20T13:00:00.000Z',
+        data: {},
+      }],
+    };
+    const { items } = buildExecutionTrace(definition, advanced, []);
+    expect(items.find((item) => item.id === 'branch_has_post')?.detail)
+      .toBe('social_post_created? · No · matching event arrived after this decision');
+  });
 });

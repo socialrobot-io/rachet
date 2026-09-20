@@ -229,11 +229,20 @@ export function buildExecutionTrace(
         nodeType: node.type,
       });
     } else if (node.type === 'branch') {
+      const tookTrue = pathContains(nodes, node.onTrue, currentId);
+      const lateMatchingEvent = node.condition.op === 'event_received'
+        && typeof node.condition.eventType === 'string'
+        && receivedEvents.some((event) => event.eventType === node.condition.eventType);
+      const outcome = tookTrue
+        ? 'Yes'
+        : lateMatchingEvent
+          ? 'No · matching event arrived after this decision'
+          : 'No';
       items.push({
         id: node.id,
         status: 'past',
         title: 'Condition evaluated',
-        detail: nodeLabel(node),
+        detail: `${nodeLabel(node)} · ${outcome}`,
         nodeType: node.type,
       });
     } else if (node.type === 'delay') {

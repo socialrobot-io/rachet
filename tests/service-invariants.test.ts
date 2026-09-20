@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { eq } from 'drizzle-orm';
-import { contacts, enrollments, outbox, workspaces } from '../apps/server/src/db/schema.js';
+import { auditEvents, contacts, enrollmentEvents, enrollments, outbox, workspaces } from '../apps/server/src/db/schema.js';
 import type { WorkflowDefinition } from '../packages/contracts/src/index.js';
 import { ReflowError } from '../apps/server/src/domain/errors.js';
 import { adminContext, probeDbRuntime, roleContext, type DbRuntime } from './helpers/db-runtime.js';
@@ -199,6 +199,70 @@ describe.skipIf(!runtime)('service invariants (postgres)', () => {
 
     const enrollmentRows = await boot.db.select().from(enrollments).where(eq(enrollments.workspaceId, workspaceId));
     expect(enrollmentRows.filter((row) => row.idempotencyKey === key)).toHaveLength(1);
+  });
+
+  it('accepts each enrollment event identity once and rejects conflicting reuse', async () => {
+    const { published } = await publishHtmlTemplate(`event-${crypto.randomUUID().slice(0, 6)}`);
+    const workflow = await boot.service.workflowCreate(admin, {
+      workspaceId,
+      name: `event-wf-${crypto.randomUUID().slice(0, 6)}`,
+      intent: 'event idempotency',
+      definition: definitionPinning(published.id),
+    });
+    const version = await boot.service.workflowPublish(admin, {
+      workspaceId,
+      workflowId: workflow.id,
+      expectedRevision: workflow.revision,
+    });
+    if (!version) throw new Error('workflow publish failed');
+    const contact = await boot.service.contactUpsert(admin, {
+      workspaceId,
+      email: `event-${crypto.randomUUID().slice(0, 6)}@example.com`,
+      fields: {},
+    });
+    const enrollment = await boot.service.enrollmentCreate(admin, {
+      workspaceId,
+      workflowVersionId: version.id,
+      contactId: contact.id,
+      variables: {},
+      idempotencyKey: `event-enrollment-${crypto.randomUUID()}`,
+    });
+    if (!enrollment) throw new Error('enrollment create failed');
+
+    const eventId = `social_post_created:${crypto.randomUUID()}`;
+    const input = {
+      workspaceId,
+      enrollmentId: enrollment.id,
+      eventId,
+      eventType: 'social_post_created',
+      data: { plan: 'pro', nested: { enabled: true } },
+    };
+    await expect(boot.service.eventEmit(admin, input)).resolves.toMatchObject({
+      accepted: true,
+      duplicate: false,
+      delivery: 'delivered',
+    });
+    await expect(boot.service.eventEmit(admin, {
+      ...input,
+      data: { nested: { enabled: true }, plan: 'pro' },
+    })).resolves.toMatchObject({
+      accepted: false,
+      duplicate: true,
+      delivery: 'delivered',
+    });
+    await expect(boot.service.eventEmit(admin, { ...input, data: { plan: 'enterprise' } }))
+      .rejects.toMatchObject({ code: 'IDEMPOTENCY_CONFLICT' });
+
+    const receipts = await boot.db.select().from(enrollmentEvents).where(eq(enrollmentEvents.enrollmentId, enrollment.id));
+    expect(receipts).toHaveLength(1);
+    const receipt = receipts[0];
+    if (!receipt) throw new Error('event receipt missing');
+    expect(receipt.deliveredAt).not.toBeNull();
+    const jobs = await boot.db.select().from(outbox).where(eq(outbox.aggregateId, receipt.id));
+    expect(jobs).toHaveLength(1);
+    expect(jobs[0]?.completedAt).not.toBeNull();
+    const audits = await boot.db.select().from(auditEvents).where(eq(auditEvents.targetId, enrollment.id));
+    expect(audits.filter((event) => event.action === 'event.emit')).toHaveLength(1);
   });
 
   it('allows archive only after workflows stop pinning the template version', async () => {

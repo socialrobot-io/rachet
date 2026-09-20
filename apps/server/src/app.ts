@@ -43,6 +43,7 @@ export function createApp(dependencies: Dependencies) {
   const app = new Hono();
   app.use('*', secureHeaders());
   app.use('/api/*', cors({ origin: config.trustedOrigins, credentials: true, allowHeaders: ['authorization', 'content-type', 'x-api-key'] }));
+  app.use('/v1/*', cors({ origin: config.trustedOrigins, allowHeaders: ['authorization', 'content-type', 'x-api-key'] }));
 
   app.get('/health/live', (context) => context.json({ status: 'ok' }));
   app.get('/health/ready', async (context) => {
