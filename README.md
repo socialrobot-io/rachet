@@ -3,17 +3,22 @@
   <img src="docs/assets/reflow-banner.png" alt="Reflow: journeys that keep moving" width="100%" />
 </p>
 
-<h1 align="center">Reflow</h1>
+<h1 align="center">Build customer journeys by asking.</h1>
 
 <p align="center">
-  <strong>Open-source journey engine for agents</strong>
+  <strong>Reflow is the open-source journey engine for AI agents.</strong>
   <br />
-  <em>Durable messaging journeys authored through MCP or the CLI, executed on Temporal, delivered by Resend</em>
+  <em>Describe what should happen. Your agent builds the workflow, tests every path, and Reflow runs it reliably for days, weeks, or months.</em>
 </p>
 
 <p align="center">
-  <a href="#quick-start"><img src="https://img.shields.io/badge/Quick_Start-168363?style=for-the-badge" alt="Quick Start" /></a>
-  <a href="LICENSE"><img src="https://img.shields.io/badge/License-AGPL_v3-blue?style=for-the-badge" alt="License: AGPL v3" /></a>
+  <a href="#quick-start"><img src="https://img.shields.io/badge/Get_started-168363?style=for-the-badge" alt="Get started" /></a>
+</p>
+
+<p align="center">
+  <a href="docs/AUTHENTICATION.md">MCP native</a> ·
+  <a href="docs/ARCHITECTURE.md">Powered by Temporal</a> ·
+  <a href="docs/DEPLOYMENT.md">Self-hostable</a>
 </p>
 
 <p align="center">
@@ -21,30 +26,28 @@
   <a href="https://www.npmjs.com/package/@socialrobot-io/reflow"><img src="https://img.shields.io/npm/v/%40socialrobot-io%2Freflow?logo=npm&label=npm" alt="npm version" /></a>
   <a href="https://www.npmjs.com/package/@socialrobot-io/reflow"><img src="https://img.shields.io/npm/dm/%40socialrobot-io%2Freflow?logo=npm&label=downloads" alt="npm downloads" /></a>
   <a href="package.json"><img src="https://img.shields.io/badge/Node.js-22%2B-339933?logo=nodedotjs&logoColor=white" alt="Node.js 22+" /></a>
-  <a href="docs/AUTHENTICATION.md"><img src="https://img.shields.io/badge/MCP-native-5A67D8" alt="MCP native" /></a>
-  <a href="docs/DEPLOYMENT.md"><img src="https://img.shields.io/badge/deploy-self--hosted-168363?logo=docker&logoColor=white" alt="Self-hosted" /></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-AGPL_v3-blue.svg" alt="License: AGPL v3" /></a>
 </p>
 
-## Features
+![Claude / Cursor chat connected over MCP: the agent creates a welcome template from the design system, builds the journey, validates both paths, and shows the graph](docs/assets/hero-composition.png)
 
-An agent creates a journey such as:
+<p align="center">
+  <sub>Your agent authors and validates. You decide what goes live.</sub>
+</p>
 
-```text
-new account → welcome email → wait for product.activated
-                              ├─ event received → finish
-                              └─ 24h timeout → reminder → finish
-```
+## From prompt to production
 
-Reflow publishes that graph as an immutable version and runs one durable enrollment per contact. Temporal keeps waits, branches, events, and retries alive across restarts.
+Tell your agent what should happen. Reflow handles the rest.
 
-| Feature | Description |
-| --- | --- |
-| Agent-native | Typed MCP tools with discoverable schemas and an equivalent CLI, sharing one operation contract and authorization rules |
-| Durable | Multi-day waits survive deploys and restarts, resuming at the correct step through Temporal |
-| Safe to retry | Immutable workflow and template versions, stable idempotency keys, suppressions, and a durable send ledger |
-| Human-controlled | Operators approve OAuth consent and can inspect or revoke connected clients from the dashboard |
-| Self-hosted | PostgreSQL, Temporal, the API, workers, dispatcher, and dashboard run in your infrastructure |
-| Multi-channel model | Resend sends email today; push, SMS, and webhook actions reuse the same journey model |
+No drag-and-drop builder. No translating product logic into a maze of automation blocks.
+
+Your agent can inspect your existing templates and workflows, build the journey, validate its graph, simulate every branch, and show you exactly what will happen before anything goes live.
+
+![From a sentence to an email template and a durable journey graph](docs/assets/prompt-to-production.png)
+
+| Agent authored | Built to keep running | You stay in control |
+| --- | --- | --- |
+| Create and modify journeys through MCP or the CLI. | Wait for hours or weeks. Survive deploys and restarts. Resume at exactly the right step. | Review journeys, inspect live enrollments and messages, and decide what gets published. |
 
 ## Quick Start
 
@@ -157,27 +160,7 @@ The operations console at [http://localhost:5173](http://localhost:5173) shows j
 
 ## Architecture
 
-```mermaid
-graph TD
-    A[Agent / product code / operator] --> M[MCP]
-    A --> C[CLI]
-    A --> H[HTTP]
-    A --> D[Dashboard]
-    M --> S[Shared operations<br/>and authorization]
-    C --> S
-    H --> S
-    D --> S
-    S --> P[(PostgreSQL)]
-    S --> T[Temporal]
-    T --> R[Resend<br/>email today]
-    T --> N[push / SMS / webhooks<br/>next]
-    style A fill:#409EFF,color:#fff
-    style S fill:#E6A23C,color:#fff
-    style P fill:#67C23A,color:#fff
-    style T fill:#67C23A,color:#fff
-    style R fill:#9B59B6,color:#fff
-    style N fill:#909399,color:#fff
-```
+![Reflow architecture: MCP, CLI, HTTP, and dashboard over shared operations and authorization, backed by PostgreSQL and Temporal, sending through Resend](docs/assets/architecture.png)
 
 | Concept | Meaning |
 | --- | --- |
