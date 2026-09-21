@@ -1,29 +1,21 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react';
 import { Link, Navigate, Outlet, useNavigate, useSearchParams } from 'react-router-dom';
-import { Cable, LogOut } from 'lucide-react';
-import { api, continueOAuth, getOAuthClient, getOAuthConsents, getSession, revokeOAuthConsent, signIn, signOut, submitOAuthConsent, ApiError } from '@/api';
-import type { OAuthClient, OAuthConsent, SessionUser, Workspace } from '@/types';
+import { Cable, Copy, KeyRound, LogOut, Trash2 } from 'lucide-react';
+import { api, authorizeRegistration, continueOAuth, getOAuthClient, getOAuthConsents, getSession, getSetupStatus, revokeOAuthConsent, sendMagicLink, signInWithGitHub, signOut, submitOAuthConsent, ApiError } from '@/api';
+import type { ApiCredential, CreatedApiCredential, OAuthClient, OAuthConsent, SessionUser, SetupStatus, Workspace } from '@/types';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import { Separator } from '@/components/ui/separator';
+import { normalizeOrganizationSlug, validEmail } from '@/registration-form';
 
 type AuthState = {
   user: SessionUser | null;
   loading: boolean;
   workspaces: Workspace[];
   workspaceId: string | null;
-  setWorkspaceId: (id: string) => void;
-  login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   refresh: () => Promise<void>;
 };
@@ -71,12 +63,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       loading,
       workspaces,
       workspaceId,
-      setWorkspaceId,
-      login: async (email, password) => {
-        await signIn(email, password);
-        setLoading(true);
-        await refresh();
-      },
       logout: async () => {
         const result = await signOut();
         setUser(null);
@@ -113,50 +99,31 @@ export function RequireAuth() {
 }
 
 export function AppShell() {
-  const { user, workspaces, workspaceId, setWorkspaceId, logout } = useAuth();
-  const navigate = useNavigate();
+  const { user, workspaces, workspaceId, logout } = useAuth();
   const [signingOut, setSigningOut] = useState(false);
   const [signOutError, setSignOutError] = useState<string | null>(null);
 
   return (
     <div className="min-h-dvh">
-      <header className="sticky top-0 z-20 border-b border-border/80 bg-background/85 backdrop-blur-md">
-        <div className="mx-auto flex h-14 w-full max-w-6xl items-center justify-between gap-4 px-4 sm:px-6">
-          <Link to="/" className="text-[1.05rem] font-semibold tracking-tight">
-            Reflow
-          </Link>
+      <header className="sticky top-0 z-20 border-b bg-background/90 backdrop-blur-md">
+        <div className="mx-auto flex min-h-16 w-full max-w-7xl flex-wrap items-center justify-between gap-x-6 gap-y-2 px-4 py-2 sm:px-6 lg:px-8">
+          <div className="flex items-center gap-8">
+            <Link to="/" className="text-xl font-bold tracking-[-0.055em]">Reflow</Link>
+            <nav aria-label="Primary navigation" className="hidden items-center gap-1 md:flex">
+              <Link to="/" className="rounded-full px-3 py-1.5 text-sm font-medium hover:bg-accent">Workflows</Link>
+              <Link to="/settings/integrations" className="rounded-full px-3 py-1.5 text-sm font-medium hover:bg-accent">Integrations</Link>
+              <Link to="/settings/connected-apps" className="rounded-full px-3 py-1.5 text-sm font-medium hover:bg-accent">Connected apps</Link>
+              <Link to="/settings/api-keys" className="rounded-full px-3 py-1.5 text-sm font-medium hover:bg-accent">API keys</Link>
+            </nav>
+          </div>
           <div className="flex items-center gap-2 sm:gap-3">
-            <Link to="/settings/connected-apps" className="hidden text-sm text-muted-foreground hover:text-foreground sm:inline-flex">
-              Connected apps
-            </Link>
-            {workspaces.length > 0 && (
-              <Select
-                value={workspaceId ?? undefined}
-                onValueChange={(value) => {
-                  if (!value) return;
-                  setWorkspaceId(value);
-                  navigate('/');
-                }}
-              >
-                <SelectTrigger className="h-8 w-[10.5rem] sm:w-44" aria-label="Workspace">
-                  <SelectValue placeholder="Workspace" />
-                </SelectTrigger>
-                <SelectContent>
-                  {workspaces.map((workspace) => (
-                    <SelectItem key={workspace.id} value={workspace.id}>
-                      {workspace.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
-            <Separator orientation="vertical" className="hidden h-5 sm:block" />
-            <span className="hidden max-w-[14rem] truncate text-sm text-muted-foreground sm:inline">
-              {user?.email}
+            <span className="hidden max-w-[12rem] truncate rounded-full bg-secondary px-3 py-1.5 text-xs font-semibold sm:inline">
+              {workspaces.find((workspace) => workspace.id === workspaceId)?.name}
             </span>
+            <span className="hidden max-w-[14rem] truncate text-xs text-muted-foreground lg:inline">{user?.email}</span>
             <Button
               type="button"
-              variant="outline"
+              variant="ghost"
               size="sm"
               disabled={signingOut}
               onClick={() => {
@@ -169,9 +136,15 @@ export function AppShell() {
               }}
             >
               <LogOut data-icon="inline-start" />
-              {signingOut ? 'Signing out…' : 'Sign out'}
+              <span className="sr-only sm:not-sr-only">{signingOut ? 'Signing out…' : 'Sign out'}</span>
             </Button>
           </div>
+          <nav aria-label="Mobile navigation" className="flex w-full items-center gap-1 overflow-x-auto pb-1 md:hidden">
+            <Link to="/" className="shrink-0 rounded-full px-3 py-1.5 text-sm font-medium hover:bg-accent">Workflows</Link>
+            <Link to="/settings/integrations" className="shrink-0 rounded-full px-3 py-1.5 text-sm font-medium hover:bg-accent">Integrations</Link>
+            <Link to="/settings/connected-apps" className="shrink-0 rounded-full px-3 py-1.5 text-sm font-medium hover:bg-accent">Apps</Link>
+            <Link to="/settings/api-keys" className="shrink-0 rounded-full px-3 py-1.5 text-sm font-medium hover:bg-accent">API keys</Link>
+          </nav>
         </div>
       </header>
       {signOutError && (
@@ -187,11 +160,17 @@ export function AppShell() {
 }
 
 export function LoginPage() {
-  const { user, loading, login } = useAuth();
+  const { user, loading, workspaceId, workspaces } = useAuth();
+  const [status, setStatus] = useState<SetupStatus | null>(null);
   const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [name, setName] = useState('');
+  const [organizationName, setOrganizationName] = useState('');
+  const [organizationSlug, setOrganizationSlug] = useState('');
+  const [setupSecret, setSetupSecret] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
+  const [sent, setSent] = useState(false);
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const oauthQuery = searchParams.get('oauth_query')
@@ -199,17 +178,94 @@ export function LoginPage() {
 
   const finishLogin = useCallback(async () => {
     if (oauthQuery) {
+      const role = workspaces.find((workspace) => workspace.id === workspaceId)?.role;
+      if (workspaceId && (role === 'owner' || role === 'admin')) {
+        const connection = await api.resendConnection(workspaceId);
+        if (!connection.onboardingComplete) {
+          navigate(`/onboarding/integrations?oauth_query=${encodeURIComponent(oauthQuery)}`, { replace: true });
+          return;
+        }
+      }
       window.location.assign(await continueOAuth(oauthQuery));
       return;
     }
     navigate('/', { replace: true });
-  }, [navigate, oauthQuery]);
+  }, [navigate, oauthQuery, workspaceId, workspaces]);
 
   useEffect(() => {
-    if (!loading && user) void finishLogin();
+    if (!loading && user) void finishLogin().catch((reason: unknown) => {
+      setError(reason instanceof Error ? reason.message : 'Could not finish sign-in');
+    });
   }, [loading, user, finishLogin]);
 
-  if (loading) {
+  useEffect(() => {
+    void getSetupStatus().then(setStatus).catch((reason: unknown) => {
+      setError(reason instanceof Error ? reason.message : 'Could not load registration status');
+    });
+  }, []);
+
+  const callbackURL = `/auth/login${oauthQuery ? `?oauth_query=${encodeURIComponent(oauthQuery)}` : ''}`;
+
+  const begin = async (method: 'magic-link' | 'github') => {
+    if (!status) return;
+    if ((method === 'magic-link' && !status.methods.magicLink) || (method === 'github' && !status.methods.github)) return;
+    const nextFieldErrors: Record<string, string> = {};
+    if (status.requiresSetup && !name.trim()) nextFieldErrors.name = 'Enter your name.';
+    if (status.requiresSetup && !organizationName.trim()) nextFieldErrors.organizationName = 'Enter an organization name.';
+    if (status.requiresSetup && !setupSecret) nextFieldErrors.setupSecret = 'Enter the setup secret.';
+    if (method === 'magic-link' && !validEmail(email)) nextFieldErrors.email = 'Enter a valid email address.';
+    if (Object.keys(nextFieldErrors).length > 0) {
+      setFieldErrors(nextFieldErrors);
+      setError(null);
+      return;
+    }
+    setSubmitting(true);
+    setError(null);
+    setFieldErrors({});
+    try {
+      const shouldAuthorizeRegistration = method === 'magic-link' || status.requiresSetup || status.registrationEnabled;
+      const registration = shouldAuthorizeRegistration
+        ? await authorizeRegistration({
+            ...(method === 'magic-link' ? { email: email.trim() } : {}),
+            name: name.trim() || (method === 'magic-link' ? email.split('@')[0] : 'GitHub user') || 'Reflow user',
+            organizationName: organizationName.trim() || 'My organization',
+            ...(organizationSlug.trim() ? { organizationSlug: organizationSlug.trim() } : {}),
+            method,
+            ...(status.requiresSetup ? { setupSecret } : {}),
+          })
+        : {};
+      if (method === 'magic-link') {
+        await sendMagicLink(email.trim(), name.trim(), callbackURL);
+        setSent(true);
+      } else {
+        window.location.assign(await signInWithGitHub(callbackURL, registration.intentId));
+      }
+    } catch (reason) {
+      if (reason instanceof ApiError && reason.fieldErrors) {
+        setFieldErrors(Object.fromEntries(
+          Object.entries(reason.fieldErrors).flatMap(([field, messages]) => (
+            messages[0] ? [[field, messages[0]]] : []
+          )),
+        ));
+        setError(null);
+      } else {
+        setError(reason instanceof ApiError ? reason.message : 'Sign-in failed');
+      }
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const submit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const submitter = (event.nativeEvent as SubmitEvent).submitter;
+    const method = submitter instanceof HTMLButtonElement && submitter.value === 'github'
+      ? 'github'
+      : 'magic-link';
+    void begin(method);
+  };
+
+  if (loading || (!status && !error)) {
     return (
       <div className="flex min-h-dvh items-center justify-center font-mono text-sm text-muted-foreground">
         Loading…
@@ -220,57 +276,94 @@ export function LoginPage() {
   return (
     <div className="flex min-h-dvh items-center justify-center p-6">
       <Card className="w-full max-w-md border-border/80 shadow-[0_1px_0_rgb(0_0_0/0.03),0_18px_40px_rgb(15_25_35/0.06)]">
-        <CardHeader className="space-y-1.5">
+        <CardHeader className="flex flex-col gap-1.5">
           <CardTitle className="text-2xl tracking-tight">Reflow</CardTitle>
           <CardDescription>
-            Sign in to the workflow operations console with your email and password.
+            {status?.requiresSetup
+              ? 'Create the first administrator and the deployment’s organization.'
+              : 'Sign in securely with a magic link or GitHub.'}
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <form
-            className="space-y-4"
-            onSubmit={(event) => {
-              event.preventDefault();
-              setSubmitting(true);
-              setError(null);
-              void login(email, password)
-                .then(finishLogin)
-                .catch((err: unknown) => {
-                  setError(err instanceof ApiError ? err.message : 'Sign-in failed');
-                })
-                .finally(() => setSubmitting(false));
-            }}
-          >
+          <form className="flex flex-col gap-4" noValidate onSubmit={submit}>
             {error && (
               <Alert variant="destructive">
                 <AlertDescription>{error}</AlertDescription>
               </Alert>
             )}
-            <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
-                type="email"
-                autoComplete="username"
-                value={email}
-                onChange={(event) => setEmail(event.target.value)}
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
-              <Input
-                id="password"
-                type="password"
-                autoComplete="current-password"
-                value={password}
-                onChange={(event) => setPassword(event.target.value)}
-                required
-              />
-            </div>
-            <Button type="submit" className="w-full" disabled={submitting}>
-              {submitting ? 'Signing in…' : 'Sign in'}
-            </Button>
+            {sent && (
+              <Alert>
+                <AlertDescription>If the address is eligible, a single-use sign-in link is on its way. It expires in 10 minutes.</AlertDescription>
+              </Alert>
+            )}
+            <FieldGroup>
+              {status?.requiresSetup && (
+                <>
+                  <Field data-invalid={Boolean(fieldErrors.name)}>
+                    <FieldLabel htmlFor="name">Your name</FieldLabel>
+                    <Input id="name" autoComplete="name" value={name} aria-invalid={Boolean(fieldErrors.name)} onChange={(event) => { setName(event.target.value); setFieldErrors((current) => ({ ...current, name: '' })); }} />
+                    <FieldError>{fieldErrors.name}</FieldError>
+                  </Field>
+                  <Field data-invalid={Boolean(fieldErrors.organizationName)}>
+                    <FieldLabel htmlFor="organization">Organization name</FieldLabel>
+                    <Input id="organization" value={organizationName} aria-invalid={Boolean(fieldErrors.organizationName)} onChange={(event) => { setOrganizationName(event.target.value); setFieldErrors((current) => ({ ...current, organizationName: '' })); }} />
+                    <FieldError>{fieldErrors.organizationName}</FieldError>
+                  </Field>
+                  <Field data-invalid={Boolean(fieldErrors.organizationSlug)}>
+                    <FieldLabel htmlFor="organization-slug">Organization slug <span className="text-muted-foreground">(optional)</span></FieldLabel>
+                    <Input
+                      id="organization-slug"
+                      placeholder="acme"
+                      value={organizationSlug}
+                      aria-invalid={Boolean(fieldErrors.organizationSlug)}
+                      onChange={(event) => {
+                        setOrganizationSlug(normalizeOrganizationSlug(event.target.value));
+                        setFieldErrors((current) => ({ ...current, organizationSlug: '' }));
+                      }}
+                    />
+                    <FieldDescription>Lowercase letters, numbers, and hyphens. Dots become hyphens.</FieldDescription>
+                    <FieldError>{fieldErrors.organizationSlug}</FieldError>
+                  </Field>
+                  <Field data-invalid={Boolean(fieldErrors.setupSecret)}>
+                    <FieldLabel htmlFor="setup-secret">Setup secret</FieldLabel>
+                    <Input id="setup-secret" type="password" autoComplete="off" value={setupSecret} aria-invalid={Boolean(fieldErrors.setupSecret)} onChange={(event) => { setSetupSecret(event.target.value); setFieldErrors((current) => ({ ...current, setupSecret: '' })); }} />
+                    <FieldError>{fieldErrors.setupSecret}</FieldError>
+                  </Field>
+                </>
+              )}
+              {status?.methods.magicLink && (
+                <Field data-invalid={Boolean(fieldErrors.email)}>
+                  <FieldLabel htmlFor="email">Email</FieldLabel>
+                  <Input
+                    id="email"
+                    type="email"
+                    autoComplete="email"
+                    value={email}
+                    aria-invalid={Boolean(fieldErrors.email)}
+                    onChange={(event) => { setEmail(event.target.value); setFieldErrors((current) => ({ ...current, email: '' })); }}
+                  />
+                  {status.methods.github && <FieldDescription>Only required when continuing with a magic link.</FieldDescription>}
+                  <FieldError>{fieldErrors.email}</FieldError>
+                </Field>
+              )}
+            </FieldGroup>
+            {status?.methods.magicLink && (
+              <Button type="submit" name="method" value="magic-link" className="w-full" disabled={submitting || sent}>
+                <KeyRound data-icon="inline-start" />
+                {submitting ? 'Sending…' : sent ? 'Link sent' : 'Continue with magic link'}
+              </Button>
+            )}
+            {status?.methods.github && (
+              <Button type="submit" name="method" value="github" variant="outline" className="w-full" disabled={submitting}>
+                Continue with GitHub
+              </Button>
+            )}
+            {status && !status.methods.magicLink && !status.methods.github && !status.magicLinkConfigurationWarning && (
+              <Alert variant="destructive"><AlertDescription>No sign-in method is configured. Ask the deployment operator to configure auth email or GitHub.</AlertDescription></Alert>
+            )}
+            {status?.magicLinkConfigurationWarning && (
+              <Alert variant="destructive"><AlertDescription>{status.magicLinkConfigurationWarning}</AlertDescription></Alert>
+            )}
           </form>
         </CardContent>
       </Card>
@@ -390,6 +483,123 @@ export function ConnectedAppsPage() {
                   <p className="mt-1 text-xs text-muted-foreground">{consent.scopes.join(' · ')}</p>
                 </div>
                 <Button type="button" variant="outline" onClick={() => void revokeOAuthConsent(consent.id).then(refresh)}>Revoke</Button>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+const CREDENTIAL_SCOPES = ['read', 'write', 'send'] as const;
+
+function formatDate(value: string | null): string {
+  if (!value) return 'never';
+  return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value));
+}
+
+export function ApiKeysPage() {
+  const { workspaceId } = useAuth();
+  const [items, setItems] = useState<ApiCredential[]>([]);
+  const [name, setName] = useState('SDK key');
+  const [scopes, setScopes] = useState<string[]>(['read']);
+  const [expiresInDays, setExpiresInDays] = useState(90);
+  const [created, setCreated] = useState<CreatedApiCredential | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const refresh = useCallback(async () => {
+    if (!workspaceId) return;
+    setLoading(true);
+    try {
+      setItems(await api.credentials(workspaceId));
+      setError(null);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Could not load API keys');
+    } finally {
+      setLoading(false);
+    }
+  }, [workspaceId]);
+
+  useEffect(() => { void refresh(); }, [refresh]);
+
+  const create = async () => {
+    if (!workspaceId || scopes.length === 0) return;
+    setSubmitting(true);
+    setError(null);
+    try {
+      setCreated(await api.createCredential(workspaceId, name, scopes, expiresInDays * 24 * 60 * 60));
+      await refresh();
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Could not create API key');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="mx-auto w-full max-w-4xl px-4 py-10 sm:px-6">
+      <div className="mb-6">
+        <h1 className="text-2xl font-semibold tracking-tight">API keys</h1>
+        <p className="mt-1 text-sm text-muted-foreground">Create scoped credentials for the SDK. Keys are fixed to this organization.</p>
+      </div>
+      {error && <Alert variant="destructive" className="mb-4"><AlertDescription>{error}</AlertDescription></Alert>}
+      {created && (
+        <Alert className="mb-6">
+          <AlertDescription className="space-y-3">
+            <p><strong>Copy this key now.</strong> It cannot be shown again.</p>
+            <div className="flex gap-2">
+              <Input readOnly value={created.key} className="font-mono" aria-label="New API key" />
+              <Button type="button" variant="outline" aria-label="Copy API key" onClick={() => void navigator.clipboard.writeText(created.key)}><Copy /></Button>
+            </div>
+            <Button type="button" variant="ghost" size="sm" onClick={() => setCreated(null)}>I saved it</Button>
+          </AlertDescription>
+        </Alert>
+      )}
+      <Card className="mb-6">
+        <CardHeader>
+          <CardTitle>Create API key</CardTitle>
+          <CardDescription>Use the least privilege and shortest lifetime your integration needs.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-2"><Label htmlFor="key-name">Name</Label><Input id="key-name" value={name} onChange={(event) => setName(event.target.value)} maxLength={64} /></div>
+            <div className="space-y-2"><Label htmlFor="key-expiry">Expires in days</Label><Input id="key-expiry" type="number" min={1} max={365} value={expiresInDays} onChange={(event) => setExpiresInDays(Number(event.target.value))} /></div>
+          </div>
+          <fieldset className="space-y-2">
+            <legend className="text-sm font-medium">Scopes</legend>
+            <div className="flex flex-wrap gap-4">
+              {CREDENTIAL_SCOPES.map((scope) => (
+                <label key={scope} className="flex items-center gap-2 text-sm">
+                  <input type="checkbox" checked={scopes.includes(scope)} onChange={(event) => setScopes((current) => event.target.checked ? [...new Set([...current, scope])] : current.filter((value) => value !== scope))} />
+                  {scope}
+                </label>
+              ))}
+            </div>
+          </fieldset>
+          <Button type="button" disabled={submitting || !name.trim() || scopes.length === 0 || expiresInDays < 1 || expiresInDays > 365} onClick={() => void create()}>
+            <KeyRound data-icon="inline-start" />{submitting ? 'Creating…' : 'Create key'}
+          </Button>
+        </CardContent>
+      </Card>
+      {loading ? <p className="text-sm text-muted-foreground">Loading API keys…</p> : items.length === 0 ? (
+        <Card><CardContent className="py-10 text-sm text-muted-foreground">No API keys.</CardContent></Card>
+      ) : (
+        <div className="space-y-3">
+          {items.map((item) => (
+            <Card key={item.id}>
+              <CardContent className="flex items-start justify-between gap-4 py-5">
+                <div className="min-w-0">
+                  <p className="font-medium">{item.name ?? 'Unnamed key'}</p>
+                  <p className="mt-1 font-mono text-xs text-muted-foreground">{item.start ?? `${item.prefix ?? 'rf'}_••••`}…</p>
+                  <p className="mt-2 text-xs text-muted-foreground">{item.scopes.join(' · ')} · expires {formatDate(item.expiresAt)} · last used {formatDate(item.lastRequest)}</p>
+                </div>
+                <Button type="button" variant="outline" disabled={!item.enabled} onClick={() => {
+                  if (!workspaceId || !window.confirm(`Revoke ${item.name ?? 'this API key'}?`)) return;
+                  void api.revokeCredential(workspaceId, item.id).then(refresh).catch((reason: unknown) => setError(reason instanceof Error ? reason.message : 'Could not revoke API key'));
+                }}><Trash2 data-icon="inline-start" />Revoke</Button>
               </CardContent>
             </Card>
           ))}

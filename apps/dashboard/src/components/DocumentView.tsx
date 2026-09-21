@@ -488,7 +488,7 @@ function TriggerPill({ definition }: { definition: WorkflowDefinition }) {
     trigger.type === 'event'
       ? `On event · ${trigger.eventType}`
       : trigger.type === 'schedule'
-        ? `Scheduled · ${trigger.at}`
+        ? `Scheduled · ${trigger.at} (${trigger.timeZone})`
         : 'Manual trigger';
   return (
     <div className="inline-flex w-fit items-center gap-2 rounded-full border bg-card px-3.5 py-1.5 text-xs font-medium">
@@ -500,7 +500,7 @@ function TriggerPill({ definition }: { definition: WorkflowDefinition }) {
 
 function FallbackList({ definition }: { definition: WorkflowDefinition }) {
   return (
-    <div className="flex flex-col gap-2">
+    <div className="reflow-document flex w-full flex-col gap-2 rounded-2xl border border-foreground/8 px-4 py-4 sm:px-5 sm:py-5">
       <p className="text-sm text-muted-foreground">
         This workflow cannot be displayed as a document; showing its definition order instead.
       </p>
@@ -542,7 +542,7 @@ export function DocumentView({
   if (!tree) return <FallbackList definition={definition} />;
   const paint: Paint = { path, counts, activeStepId, onSelectStep, onPreviewEmail };
   return (
-    <div className="flex w-full max-w-2xl flex-col py-1">
+    <div className="reflow-document flex w-full flex-col rounded-2xl border border-foreground/8 px-4 py-4 sm:px-5 sm:py-5">
       <TriggerPill definition={definition} />
       <Rail />
       <Sequence blocks={tree} paint={paint} />

@@ -4,6 +4,7 @@ export type FrozenMessage = {
   subject: string;
   html: string;
   text: string;
+  tags?: Array<{ name: string; value: string }>;
 };
 
 export type SendOutcome =

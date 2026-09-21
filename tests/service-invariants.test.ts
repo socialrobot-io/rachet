@@ -99,6 +99,26 @@ describe.skipIf(!runtime)('service invariants (postgres)', () => {
     }, 'pause')).rejects.toMatchObject({ code: 'FORBIDDEN' });
   });
 
+  it('denies cross-organization reads and writes before accessing tenant rows', async () => {
+    const [foreignWorkspace] = await boot.db.insert(workspaces).values({
+      name: 'Foreign access test', slug: `access-${crypto.randomUUID().slice(0, 8)}`,
+    }).returning();
+    if (!foreignWorkspace) throw new Error('workspace create failed');
+    try {
+      const member = roleContext(workspaceId, 'owner');
+      await expect(boot.service.contactList(member, foreignWorkspace.id)).rejects.toMatchObject({ code: 'FORBIDDEN' });
+      await expect(boot.service.templateList(member, foreignWorkspace.id)).rejects.toMatchObject({ code: 'FORBIDDEN' });
+      await expect(boot.service.workflowList(member, foreignWorkspace.id)).rejects.toMatchObject({ code: 'FORBIDDEN' });
+      await expect(boot.service.enrollmentList(member, foreignWorkspace.id)).rejects.toMatchObject({ code: 'FORBIDDEN' });
+      await expect(boot.service.messageList(member, foreignWorkspace.id)).rejects.toMatchObject({ code: 'FORBIDDEN' });
+      await expect(boot.service.webhookEventList(member)).rejects.toMatchObject({ code: 'FORBIDDEN' });
+      await expect(boot.service.contactUpsert(member, { workspaceId: foreignWorkspace.id, email: 'cross@example.com', fields: {} }))
+        .rejects.toMatchObject({ code: 'FORBIDDEN' });
+    } finally {
+      await boot.db.delete(workspaces).where(eq(workspaces.id, foreignWorkspace.id));
+    }
+  });
+
   it('upserts contacts by emailKey and preserves identity across case', async () => {
     const first = await boot.service.contactUpsert(admin, {
       workspaceId,
@@ -197,8 +217,52 @@ describe.skipIf(!runtime)('service invariants (postgres)', () => {
       idempotencyKey: key,
     })).rejects.toMatchObject({ code: 'IDEMPOTENCY_CONFLICT' });
 
+    await expect(boot.service.enrollmentCreate(admin, {
+      workspaceId,
+      workflowVersionId: version.id,
+      contactId: contact.id,
+      variables: { plan: 'free' },
+      idempotencyKey: key,
+    })).rejects.toMatchObject({ code: 'IDEMPOTENCY_CONFLICT' });
+
     const enrollmentRows = await boot.db.select().from(enrollments).where(eq(enrollments.workspaceId, workspaceId));
     expect(enrollmentRows.filter((row) => row.idempotencyKey === key)).toHaveLength(1);
+  });
+
+  it('rejects a contact from another organization at both service and database boundaries', async () => {
+    const [foreignWorkspace] = await boot.db.insert(workspaces).values({
+      name: 'Foreign organization', slug: `foreign-${crypto.randomUUID().slice(0, 8)}`,
+    }).returning();
+    if (!foreignWorkspace) throw new Error('workspace create failed');
+    try {
+      const foreignContact = await boot.service.contactUpsert(admin, {
+        workspaceId: foreignWorkspace.id,
+        email: `foreign-${crypto.randomUUID().slice(0, 6)}@example.com`,
+        fields: {},
+      });
+      const { published } = await publishHtmlTemplate(`tenant-${crypto.randomUUID().slice(0, 6)}`);
+      const workflow = await boot.service.workflowCreate(admin, {
+        workspaceId,
+        name: `tenant-wf-${crypto.randomUUID().slice(0, 6)}`,
+        intent: 'tenant isolation test',
+        definition: definitionPinning(published.id),
+      });
+      const version = await boot.service.workflowPublish(admin, {
+        workspaceId, workflowId: workflow.id, expectedRevision: workflow.revision,
+      });
+      if (!version) throw new Error('workflow publish failed');
+      await expect(boot.service.enrollmentCreate(admin, {
+        workspaceId, workflowVersionId: version.id, contactId: foreignContact.id,
+        variables: {}, idempotencyKey: `cross-${crypto.randomUUID()}`,
+      })).rejects.toMatchObject({ code: 'NOT_FOUND' });
+      const id = crypto.randomUUID();
+      await expect(boot.db.insert(enrollments).values({
+        id, workspaceId, sequenceVersionId: version.id, contactId: foreignContact.id,
+        workflowId: `test/${id}`, idempotencyKey: `cross-db-${id}`,
+      })).rejects.toMatchObject({ cause: { code: '23503' } });
+    } finally {
+      await boot.db.delete(workspaces).where(eq(workspaces.id, foreignWorkspace.id));
+    }
   });
 
   it('accepts each enrollment event identity once and rejects conflicting reuse', async () => {

@@ -1,0 +1,5 @@
+# Conservative self-hosted configuration. Do not enable the development-only
+# forceSearchAttributesCacheRefreshOnRead override in production.
+limit.maxIDLength:
+  - value: 255
+    constraints: {}

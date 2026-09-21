@@ -7,8 +7,8 @@ Every product operation is defined once in `apps/server/src/operations.ts` and e
 | Operation | Effect |
 | --- | --- |
 | `system.capabilities`, `auth.whoami`, `workspace.list` | Discover runtime, actions, current access, and available workspaces |
-| `account.create` | Deployment administrator creates an account and optional workspace membership |
-| `credential.create`, `credential.revoke` | Create a user-bound machine API key, returning its secret once, or revoke it. Secret-returning creation is HTTP/CLI only and is excluded from MCP/model-visible catalogs. |
+| `account.create` | Deployment administrator authorizes a passwordless registration invitation |
+| `credential.create`, `credential.list`, `credential.revoke` | Create, inspect, or revoke an organization-bound SDK key. The secret is returned once; creation is HTTP/CLI only and excluded from MCP/model-visible catalogs. |
 | `template.create`, `template.list`, `template.revise`, `template.publish`, `template.archive`, `template.render` | Manage HTML (preferred) or plain templates. CLI `reflow template push --allow-code-execution` renders reviewed local React Email code and **upserts by `--name`** (revise + publish). The server never executes TSX; it only interpolates `{{…}}` placeholders. |
 | `workflow.actions` | List the installed action registry |
 | `workflow.create`, `workflow.list`, `workflow.validate`, `workflow.simulate`, `workflow.publish` | Author, check, trace, persist, and version capability graphs |
@@ -23,6 +23,8 @@ MCP also serves `reflow://operations`, `reflow://workflow/schema`, and `reflow:/
 ## Workflow graph
 
 A workflow has one trigger, an entry node, purpose/topic metadata, and up to 100 nodes. Supported control nodes are `delay`, `wait_for_event`, `branch`, and `end`. An `action` references a namespaced installed capability and maps each input to either literal JSON or a path under `contact`, `variables`, or `event`.
+
+For a scheduled trigger, CLI and MCP both require `at` as ISO 8601 with an explicit offset (or `Z`) and `timeZone` as a matching IANA name: `{"type":"schedule","at":"2026-07-01T09:00:00+02:00","timeZone":"Europe/Amsterdam"}`. A time without an offset, a missing timezone, or an offset that disagrees with the named timezone is rejected. Ask the user which timezone they mean when they give a local time; suggest their own timezone, but do not silently guess. Contact `timezone` values also use IANA names. Delay and event timeout values are elapsed seconds; they are not local calendar schedules.
 
 Graphs reject duplicate IDs, missing targets, cycles, unreachable nodes, unknown actions, and missing required action inputs. `workflow.simulate` follows the graph using sample inputs, treats delays as immediate, chooses event or timeout routes from `receivedEvents`, resolves action inputs, and never executes side effects.
 
@@ -51,7 +53,7 @@ Send a product event with `reflow call event.emit --input '{...}'` or `--file ac
 
 `reflow tui --workspace UUID` provides an interactive workflow browser backed by `workflow.list`. Its workflow pane generates an SVG from the Mermaid definition and displays it through Kitty, iTerm2, or Sixel terminal graphics. It never substitutes character art. Press `o` to open the exact SVG when the terminal cannot display inline images. The equivalent noninteractive command is `reflow workflow show --workspace UUID --id UUID`, with `--format svg|mermaid|json`; SVG is the default. These are presentation clients over the shared operation contract, so they preserve CLI/MCP authorization and do not bypass the service layer.
 
-Set `REFLOW_URL` and either `REFLOW_TOKEN` or `REFLOW_API_KEY`. Login and registration read passwords from files. Registration succeeds only when `ALLOW_REGISTRATION=true`. Preserve idempotency and event IDs on retries. Publishing is side-effect free; enrollment and event emission affect live durable workflows, and an `email.send` node may submit external email.
+Set `REFLOW_URL` and either `REFLOW_TOKEN` or `REFLOW_API_KEY`. Human login uses the dashboard's magic-link or GitHub flow. Public registration succeeds only when `ALLOW_REGISTRATION=true`; administrator-created invitations remain explicit. Preserve idempotency and event IDs on retries.
 
 ## Planned extensions
 

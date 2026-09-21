@@ -1,4 +1,4 @@
-import { and, eq, isNull, lt, or } from 'drizzle-orm';
+import { and, eq, isNull, lt, or, sql } from 'drizzle-orm';
 import { loadConfig } from './config.js';
 import { createDatabase } from './db/index.js';
 import { enrollmentEvents, enrollments, outbox, sequenceVersions } from './db/schema.js';
@@ -11,10 +11,15 @@ const config = loadConfig();
 const { db, pool } = createDatabase(config);
 const temporal = await createTemporalClient(config);
 let stopping = false;
+let nextRateLimitCleanup = Date.now();
 process.once('SIGTERM', () => { stopping = true; });
 process.once('SIGINT', () => { stopping = true; });
 
 while (!stopping) {
+  if (Date.now() >= nextRateLimitCleanup) {
+    nextRateLimitCleanup = Date.now() + 60_000;
+    await db.execute(sql`DELETE FROM rate_limit_buckets WHERE reset_at < now() - interval '1 day'`);
+  }
   const now = new Date();
   const [job] = await db.select().from(outbox).where(and(
     isNull(outbox.completedAt),

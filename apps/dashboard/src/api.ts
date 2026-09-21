@@ -1,14 +1,17 @@
-import type { Enrollment, Message, OAuthClient, OAuthConsent, RenderedEmail, SessionUser, Workflow, Workspace } from './types';
+import type { ApiCredential, CreatedApiCredential, Enrollment, Message, OAuthClient, OAuthConsent, RenderedEmail, ResendConnectionStatus, SessionUser, SetupStatus, Workflow, Workspace } from './types';
+import { authClient } from './auth-client';
 
 export class ApiError extends Error {
   readonly status: number;
   readonly code?: string;
+  readonly fieldErrors?: Record<string, string[]>;
 
-  constructor(status: number, message: string, code?: string) {
+  constructor(status: number, message: string, code?: string, fieldErrors?: Record<string, string[]>) {
     super(message);
     this.name = 'ApiError';
     this.status = status;
     if (code !== undefined) this.code = code;
+    if (fieldErrors !== undefined) this.fieldErrors = fieldErrors;
   }
 }
 
@@ -36,6 +39,10 @@ function oauthRedirect(payload: { url?: string; redirect_uri?: string }): string
   return target;
 }
 
+function authError(error: { status: number; message?: string; code?: string }, fallback: string): ApiError {
+  return new ApiError(error.status, error.message ?? fallback, error.code);
+}
+
 export async function callOperation<T>(operation: string, input: Record<string, unknown> = {}): Promise<T> {
   const response = await fetch(`/v1/operations/${operation}`, {
     method: 'POST',
@@ -59,52 +66,86 @@ export async function callOperation<T>(operation: string, input: Record<string, 
 }
 
 export async function getSession(): Promise<SessionUser | null> {
-  const response = await fetch('/api/auth/get-session', { credentials: 'include' });
-  if (!response.ok) return null;
-  const payload = (await parseJson(response)) as { user?: SessionUser } | null;
-  return payload?.user ?? null;
+  const { data, error } = await authClient.getSession();
+  if (error) return null;
+  return data?.user as SessionUser | undefined ?? null;
 }
 
-export async function signIn(email: string, password: string): Promise<SessionUser> {
-  const response = await fetch('/api/auth/sign-in/email', {
+export async function getSetupStatus(): Promise<SetupStatus> {
+  const response = await fetch('/api/setup/status', { credentials: 'include', cache: 'no-store' });
+  if (!response.ok) throw new ApiError(response.status, 'Could not load setup status');
+  return await response.json() as SetupStatus;
+}
+
+export async function authorizeRegistration(input: {
+  email?: string;
+  name: string;
+  organizationName: string;
+  organizationSlug?: string;
+  method: 'magic-link' | 'github';
+  setupSecret?: string;
+}): Promise<{ intentId?: string }> {
+  const response = await fetch('/api/registration/intent', {
     method: 'POST',
     credentials: 'include',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ email, password }),
+    body: JSON.stringify(input),
   });
   const payload = await parseJson(response);
   if (!response.ok) {
     const record = typeof payload === 'object' && payload !== null ? (payload as Record<string, unknown>) : {};
+    const rawFieldErrors = record.fieldErrors && typeof record.fieldErrors === 'object'
+      ? record.fieldErrors as Record<string, unknown>
+      : undefined;
+    const fieldErrors = rawFieldErrors
+      ? Object.fromEntries(Object.entries(rawFieldErrors).flatMap(([field, messages]) => (
+          Array.isArray(messages) && messages.every((message) => typeof message === 'string')
+            ? [[field, messages as string[]]]
+            : []
+        )))
+      : undefined;
     throw new ApiError(
       response.status,
-      typeof record.message === 'string' ? record.message : 'Sign-in failed',
+      typeof record.message === 'string' ? record.message : 'Registration request failed',
+      typeof record.code === 'string' ? record.code : undefined,
+      fieldErrors,
     );
   }
-  const user = (payload as { user?: SessionUser }).user;
-  if (!user) throw new ApiError(500, 'Sign-in succeeded without a user');
-  return user;
+  const record = typeof payload === 'object' && payload !== null ? payload as Record<string, unknown> : {};
+  return typeof record.intentId === 'string' ? { intentId: record.intentId } : {};
+}
+
+export async function sendMagicLink(email: string, name: string, callbackURL: string): Promise<void> {
+  const { error } = await authClient.signIn.magicLink({
+    email,
+    name,
+    callbackURL,
+    errorCallbackURL: callbackURL,
+    newUserCallbackURL: callbackURL,
+  });
+  if (error) throw authError(error, 'Could not send the magic link');
+}
+
+export async function signInWithGitHub(callbackURL: string, registrationIntentId?: string): Promise<string> {
+  const { data, error } = await authClient.signIn.social({
+    provider: 'github',
+    callbackURL,
+    errorCallbackURL: callbackURL,
+    newUserCallbackURL: callbackURL,
+    disableRedirect: true,
+    requestSignUp: registrationIntentId !== undefined,
+    ...(registrationIntentId ? { additionalData: { registrationIntentId } } : {}),
+  });
+  if (error) throw authError(error, 'Could not start GitHub sign-in');
+  if (!data?.url) throw new ApiError(500, 'GitHub sign-in did not return a redirect');
+  return data.url;
 }
 
 export async function signOut(): Promise<{ url?: string; redirect?: boolean }> {
-  const response = await fetch('/api/auth/sign-out', {
-    method: 'POST',
-    credentials: 'include',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({}),
-  });
-  const payload = await parseJson(response);
-  if (!response.ok) {
-    const record = typeof payload === 'object' && payload !== null ? payload as Record<string, unknown> : {};
-    throw new ApiError(
-      response.status,
-      typeof record.message === 'string' ? record.message : 'Sign-out failed',
-    );
-  }
-  const result = typeof payload === 'object' && payload !== null
-    ? payload as { success?: boolean; url?: string; redirect?: boolean }
-    : {};
-  if (result.success !== true) throw new ApiError(500, 'Sign-out failed');
-  return result;
+  const { data, error } = await authClient.signOut();
+  if (error) throw authError(error, 'Sign-out failed');
+  if (data?.success !== true) throw new ApiError(500, 'Sign-out failed');
+  return data;
 }
 
 export async function continueOAuth(oauthQuery: string): Promise<string> {
@@ -131,7 +172,24 @@ export async function revokeOAuthConsent(id: string): Promise<void> {
   if (!response.ok) throw new ApiError(response.status, 'Could not revoke the connected app');
 }
 
+async function integrationRequest<T>(path: string, init?: RequestInit): Promise<T> {
+  const response = await fetch(`/api/integrations/${path}`, { credentials: 'include', cache: 'no-store', ...init });
+  const payload = await parseJson(response);
+  if (!response.ok) {
+    const record = typeof payload === 'object' && payload !== null ? payload as Record<string, unknown> : {};
+    throw new ApiError(response.status, typeof record.message === 'string' ? record.message : 'Integration request failed');
+  }
+  return payload as T;
+}
+
 export const api = {
+  resendConnection: (workspaceId: string) => integrationRequest<ResendConnectionStatus>(`resend?workspaceId=${encodeURIComponent(workspaceId)}`),
+  saveResendConnection: (input: { workspaceId: string; from: string; apiKey: string; webhookSecret: string }) =>
+    integrationRequest<{ configured: true }>('resend', jsonPost(input)),
+  skipResendOnboarding: (workspaceId: string) =>
+    integrationRequest<{ onboardingComplete: true }>('resend/skip', jsonPost({ workspaceId })),
+  testResendConnection: (workspaceId: string) =>
+    integrationRequest<{ accepted: true }>('resend/test', jsonPost({ workspaceId })),
   workspaces: () => callOperation<Workspace[]>('workspace.list'),
   workflows: (workspaceId: string) => callOperation<Workflow[]>('workflow.list', { workspaceId }),
   enrollments: (workspaceId: string) => callOperation<Enrollment[]>('enrollment.list', { workspaceId }),
@@ -144,4 +202,9 @@ export const api = {
     callOperation('enrollment.cancel', { workspaceId, enrollmentId }),
   renderTemplate: (workspaceId: string, templateVersionId: string, props: Record<string, unknown>) =>
     callOperation<RenderedEmail>('template.render', { workspaceId, templateVersionId, props }),
+  credentials: (workspaceId: string) => callOperation<ApiCredential[]>('credential.list', { workspaceId }),
+  createCredential: (workspaceId: string, name: string, scopes: string[], expiresInSeconds: number) =>
+    callOperation<CreatedApiCredential>('credential.create', { workspaceId, name, scopes, expiresInSeconds }),
+  revokeCredential: (workspaceId: string, keyId: string) =>
+    callOperation<{ success: boolean }>('credential.revoke', { workspaceId, keyId }),
 };

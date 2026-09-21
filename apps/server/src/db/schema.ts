@@ -11,6 +11,7 @@ import {
   uniqueIndex,
   uuid,
 } from 'drizzle-orm/pg-core';
+import { sql } from 'drizzle-orm';
 
 const timestamps = {
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
@@ -35,15 +36,52 @@ export const workspaces = pgTable('workspaces', {
   name: text('name').notNull(),
   slug: text('slug').notNull().unique(),
   sendingEnabled: boolean('sending_enabled').notNull().default(false),
+  onboardingCompletedAt: timestamp('onboarding_completed_at', { withTimezone: true }),
   ...timestamps,
 });
+
+export const resendConnections = pgTable('resend_connections', {
+  workspaceId: uuid('workspace_id').primaryKey().references(() => workspaces.id, { onDelete: 'cascade' }),
+  apiKeyEncrypted: text('api_key_encrypted').notNull(),
+  apiKeyFingerprint: text('api_key_fingerprint').notNull().unique(),
+  webhookSecretEncrypted: text('webhook_secret_encrypted').notNull(),
+  webhookSecretFingerprint: text('webhook_secret_fingerprint').notNull().unique(),
+  fromAddress: text('from_address').notNull(),
+  version: integer('version').notNull().default(1),
+  lastTestAcceptedAt: timestamp('last_test_accepted_at', { withTimezone: true }),
+  ...timestamps,
+});
+
+export const rateLimitBuckets = pgTable('rate_limit_buckets', {
+  key: text('key').primaryKey(),
+  count: integer('count').notNull(),
+  resetAt: timestamp('reset_at', { withTimezone: true }).notNull(),
+}, (table) => [index('rate_limit_buckets_reset_idx').on(table.resetAt)]);
 
 export const profiles = pgTable('profiles', {
   userId: text('user_id').primaryKey(),
   deploymentAdmin: boolean('deployment_admin').notNull().default(false),
   disabled: boolean('disabled').notNull().default(false),
+  defaultWorkspaceId: uuid('default_workspace_id').references(() => workspaces.id, { onDelete: 'restrict' }),
   ...timestamps,
 });
+
+export const registrationIntents = pgTable('registration_intents', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  emailKey: text('email_key').notNull(),
+  name: text('name').notNull(),
+  organizationName: text('organization_name').notNull(),
+  organizationSlug: text('organization_slug'),
+  method: text('method').$type<'magic-link' | 'github' | 'host-setup'>().notNull(),
+  kind: text('kind').$type<'bootstrap' | 'public' | 'invite'>().notNull(),
+  createdBy: text('created_by'),
+  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  consumedAt: timestamp('consumed_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  uniqueIndex('registration_intents_active_email_unique').on(table.emailKey).where(sql`${table.consumedAt} is null`),
+  index('registration_intents_expiry_idx').on(table.expiresAt),
+]);
 
 export const memberships = pgTable('memberships', {
   workspaceId: uuid('workspace_id').notNull().references(() => workspaces.id, { onDelete: 'cascade' }),
@@ -172,6 +210,8 @@ export const sendIntents = pgTable('send_intents', {
   state: sendState('state').notNull().default('prepared'),
   idempotencyKey: text('idempotency_key').notNull().unique(),
   payloadHash: text('payload_hash').notNull(),
+  connectionVersion: integer('connection_version'),
+  fromAddress: text('from_address'),
   recipient: text('recipient').notNull(),
   subject: text('subject').notNull(),
   html: text('html').notNull(),
@@ -185,6 +225,7 @@ export const sendIntents = pgTable('send_intents', {
 
 export const webhookEvents = pgTable('webhook_events', {
   id: uuid('id').primaryKey().defaultRandom(),
+  workspaceId: uuid('workspace_id').references(() => workspaces.id, { onDelete: 'cascade' }),
   provider: text('provider').notNull(),
   eventId: text('event_id').notNull(),
   eventType: text('event_type').notNull(),
@@ -193,7 +234,7 @@ export const webhookEvents = pgTable('webhook_events', {
   occurredAt: timestamp('occurred_at', { withTimezone: true }),
   processedAt: timestamp('processed_at', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-}, (table) => [uniqueIndex('webhook_event_unique').on(table.provider, table.eventId)]);
+}, (table) => [uniqueIndex('webhook_event_workspace_unique').on(table.workspaceId, table.provider, table.eventId)]);
 
 export const auditEvents = pgTable('audit_events', {
   id: uuid('id').primaryKey().defaultRandom(),

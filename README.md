@@ -74,9 +74,16 @@ pnpm install
 pnpm dev
 ```
 
-`pnpm dev` starts PostgreSQL and Temporal, applies migrations, creates the initial administrator when needed, and runs the API, worker, dispatcher, and dashboard. Open [http://localhost:5173](http://localhost:5173) and, on a fresh database, sign in as `admin@localhost` with the generated password stored in `.reflow/dev-admin-password`.
+`pnpm dev` starts PostgreSQL and Temporal, applies migrations, and runs the API, worker, dispatcher, and dashboard. Configure either `AUTH_RESEND_API_KEY` **and** `AUTH_EMAIL_FROM` (a sender on a domain verified in that separate authentication Resend account), or the GitHub client credentials in `.env.local`, then open [http://localhost:5173](http://localhost:5173). On a fresh database the page creates the first administrator. Development reads `REFLOW_SETUP_SECRET` from `.env.local` or `.env`; if it is missing or shorter than 32 characters, `pnpm dev` generates a strong replacement in `.env.local`. Use that value on the setup page, not an old code.
+
+After registration, the dashboard opens **Integrations**. The owner can choose Resend, while outbound Webhooks and Push are marked coming soon. The API key, verified sender, and webhook signing secret are managed in **Integrations → Resend**, not in deployment-wide workflow-delivery variables. Development also generates an integration encryption key in `.env.local` if needed.
+
+To preview the dashboard with realistic workflow definitions, run `pnpm demo:seed --list` to see local workspace slugs, then `pnpm demo:seed <workspace-slug>`. This idempotent, local-only command connects to the development database on `127.0.0.1:5433`, replaces the earlier placeholder fixtures, and adds three clearly labeled **draft** journeys, eight previewable email templates, and fake demo people at in-progress and completed steps. It never starts Temporal or queues email. Pass multiple slugs to seed each organization separately. It does not mark organization onboarding complete or connect Resend. See [Local demo journeys](docs/DEMO_JOURNEYS.md) for the product assumptions, event contracts, and complete paths.
+
+Registration remains disabled by default. To allow new accounts in development, set `ALLOW_REGISTRATION=true` in `.env.local` and restart `pnpm dev`; the development launcher passes this setting through to the server.
 
 Stop the application with `Ctrl+C`; stop its Docker services with `pnpm dev:infra:down`.
+If startup reports that port 5173 is already in use, another dashboard process is still running; stop that process and rerun `pnpm dev`. Development uses `tsx watch` rather than Node's native `--watch`, which avoids a known Node 24.18+ worker-thread conflict in the Temporal TypeScript SDK.
 
 ### 3. Log in with the CLI
 
@@ -182,17 +189,19 @@ Server variables, documented in [`.env.example`](.env.example):
 | `REFLOW_DOMAIN`, `PUBLIC_URL` | Public hostname and URL of the deployment |
 | `DATABASE_URL` | PostgreSQL connection string |
 | `BETTER_AUTH_SECRET` | Auth signing secret, at least 32 random characters |
+| `REFLOW_SETUP_SECRET` | High-entropy secret required by the one-time first-admin page |
 | `ALLOW_REGISTRATION` | Public registration, disabled by default |
 | `TRUSTED_ORIGINS` | Origins allowed to call the API |
 | `OAUTH_PUBLIC_REDIRECT_ORIGINS`, `OAUTH_PUBLIC_REDIRECT_SCHEMES` | Explicit callback allowlists for public MCP clients |
 | `TEMPORAL_ADDRESS`, `TEMPORAL_NAMESPACE`, `TEMPORAL_TASK_QUEUE` | Temporal connection and task routing |
-| `RESEND_API_KEY` / `RESEND_API_KEY_FILE`, `RESEND_WEBHOOK_SECRET` | Resend credential and signed delivery webhooks |
-| `REFLOW_FROM` | Verified sender identity |
+| `INTEGRATION_ENCRYPTION_KEY` | Base64-encoded 32-byte key for encrypting organization integrations; required in production and must be backed up |
+| `AUTH_RESEND_API_KEY`, `AUTH_EMAIL_FROM` | Separate Resend account/key and explicit verified sender used only for magic links; both are required to enable magic links |
+| `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET` | Optional GitHub sign-in provider |
 | `OAUTH_PROVIDER_ID`, `OAUTH_DISCOVERY_URL`, `OAUTH_CLIENT_ID`, `OAUTH_CLIENT_SECRET` | Optional human OAuth/OIDC provider |
 
 CLI and SDK environments use `REFLOW_URL` plus `REFLOW_TOKEN` or `REFLOW_API_KEY`; the SDK also reads `REFLOW_WORKSPACE_ID`.
 
-Validation and simulation work without Resend. Before a real enrollment can send email, create `secrets/resend_api_key` with mode `0600`, then add `RESEND_API_KEY_FILE=./secrets/resend_api_key` and `REFLOW_FROM` to `.env.local` and restart `pnpm dev`. Domain verification and safe test addresses are covered in [Resend setup](docs/RESEND.md).
+Validation and simulation work without Resend. Before a real enrollment can send email, connect the organization's Resend account in the dashboard and confirm a test send. Domain verification and webhook setup are covered in [Resend setup](docs/RESEND.md).
 
 ## API
 
@@ -201,8 +210,8 @@ Every operation is defined once and exposed three ways: HTTP `POST /v1/operation
 | Operations | Effect |
 | --- | --- |
 | `system.capabilities`, `auth.whoami`, `workspace.list` | Discover runtime, current access, and workspaces |
-| `account.create` | Deployment administrator creates an account and optional membership |
-| `credential.create`, `credential.revoke` | User-bound machine API keys; secret-returning creation is HTTP/CLI only |
+| `account.create` | Deployment administrator authorizes a passwordless account registration |
+| `credential.create`, `credential.list`, `credential.revoke` | Organization-bound SDK API keys; secrets are returned only at creation |
 | `template.create`, `template.list`, `template.revise`, `template.publish`, `template.archive`, `template.render` | Manage, render, and publish HTML or plain templates |
 | `workflow.actions` | List the installed action registry |
 | `workflow.create`, `workflow.list`, `workflow.validate`, `workflow.simulate`, `workflow.publish` | Author, check, trace, and version capability graphs |
@@ -245,6 +254,8 @@ tests/                # Repository validation suite
 | Workspace | Nx 23, Docker Compose, Caddy TLS |
 
 ## Deployment
+
+Before enabling public signups, review the [production readiness assessment](docs/PRODUCTION_READINESS.md).
 
 Point a hostname at a Linux server with Docker and ports 80/443 available, then run:
 

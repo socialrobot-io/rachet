@@ -52,14 +52,23 @@ export class ReflowService {
     const [profile] = await this.db.select().from(profiles).where(eq(profiles.userId, userId)).limit(1);
     if (profile?.disabled) throw new ReflowError('FORBIDDEN', 'Account is disabled', 403);
     const rows = await this.db.select({ workspaceId: memberships.workspaceId, role: memberships.role }).from(memberships).where(eq(memberships.userId, userId));
+    const activeRows = profile?.defaultWorkspaceId
+      ? rows.filter((row) => row.workspaceId === profile.defaultWorkspaceId)
+      : rows.slice(0, 1);
     const deploymentAdmin = profile?.deploymentAdmin ?? false;
-    const roles = new Set(rows.map((row) => row.role));
+    const roles = new Set(activeRows.map((row) => row.role));
     const scopes = [
-      ...(deploymentAdmin || rows.length > 0 ? ['reflow:read'] : []),
+      ...(deploymentAdmin || activeRows.length > 0 ? ['reflow:read'] : []),
       ...(deploymentAdmin || [...roles].some((role) => ['owner', 'admin', 'author', 'operator'].includes(role)) ? ['reflow:write'] : []),
       ...(deploymentAdmin || [...roles].some((role) => ['owner', 'admin', 'sender'].includes(role)) ? ['reflow:send'] : []),
     ];
-    return { userId, workspaceIds: rows.map((row) => row.workspaceId), workspaceRoles: Object.fromEntries(rows.map((row) => [row.workspaceId, row.role])), deploymentAdmin, scopes };
+    return {
+      userId,
+      workspaceIds: activeRows.map((row) => row.workspaceId),
+      workspaceRoles: Object.fromEntries(activeRows.map((row) => [row.workspaceId, row.role])),
+      deploymentAdmin,
+      scopes,
+    };
   }
 
   private workspace(context: OperationContext, workspaceId: string, permission: 'read' | 'author' | 'send' | 'operate' = 'read') {
@@ -91,33 +100,89 @@ export class ReflowService {
     });
   }
 
-  async accountCreate(context: OperationContext, input: { email: string; name: string; password: string; deploymentAdmin: boolean; workspaceId?: string | undefined; role: typeof memberships.$inferInsert.role }) {
+  async accountCreate(context: OperationContext, input: { email: string; name: string; method: 'magic-link' | 'github'; organizationName: string }) {
     if (!context.principal.deploymentAdmin) throw new ReflowError('FORBIDDEN', 'Deployment administrator required', 403);
-    const result = await this.auth.api.createUser({ body: { email: input.email, name: input.name, password: input.password, role: input.deploymentAdmin ? 'admin' : 'user' } });
-    await this.db.transaction(async (tx) => {
-      await tx.insert(profiles).values({ userId: result.user.id, deploymentAdmin: input.deploymentAdmin }).onConflictDoUpdate({ target: profiles.userId, set: { deploymentAdmin: input.deploymentAdmin } });
-      if (input.workspaceId) await tx.insert(memberships).values({ workspaceId: input.workspaceId, userId: result.user.id, role: input.role }).onConflictDoNothing();
-      await tx.insert(auditEvents).values({ actorId: context.principal.userId, action: 'account.create', targetType: 'account', targetId: result.user.id });
+    const normalizedEmail = input.email.trim().toLowerCase();
+    const existing = await this.db.execute(sql`select id from "user" where lower(trim(email)) = ${normalizedEmail} limit 1`);
+    if (existing.rowCount) throw new ReflowError('ACCOUNT_EXISTS', 'An account with this email already exists', 409);
+    await this.db.execute(sql`delete from registration_intents where consumed_at is null and expires_at <= now()`);
+    await this.db.execute(sql`
+      insert into registration_intents (
+        email_key, name, organization_name, method, kind, created_by, expires_at
+      ) values (
+        ${normalizedEmail}, ${input.name}, ${input.organizationName}, ${input.method}, 'invite',
+        ${context.principal.userId}, now() + interval '7 days'
+      )
+      on conflict (email_key) where consumed_at is null do update set
+        name = excluded.name,
+        organization_name = excluded.organization_name,
+        method = excluded.method,
+        kind = excluded.kind,
+        created_by = excluded.created_by,
+        expires_at = excluded.expires_at
+    `);
+    await this.audit(context, 'account.invite', null, 'account_email', normalizedEmail, { method: input.method });
+    return { email: normalizedEmail, method: input.method, expiresInSeconds: 7 * 24 * 60 * 60 };
+  }
+
+  async credentialCreate(context: OperationContext, input: { workspaceId: string; name: string; scopes: ('read' | 'write' | 'send')[]; expiresInSeconds: number }) {
+    this.workspace(context, input.workspaceId);
+    for (const scope of input.scopes) {
+      if (!context.principal.scopes.includes(`reflow:${scope}`)) {
+        throw new ReflowError('FORBIDDEN', `Cannot grant unavailable scope: ${scope}`, 403);
+      }
+    }
+    const result = await (this.auth.api as unknown as { createApiKey(args: { body: Record<string, unknown> }): Promise<Record<string, unknown>> }).createApiKey({
+      body: {
+        userId: context.principal.userId,
+        name: input.name,
+        prefix: 'rf',
+        permissions: { reflow: [...new Set(input.scopes)] },
+        metadata: { workspaceId: input.workspaceId },
+        expiresIn: input.expiresInSeconds,
+      },
     });
-    return { id: result.user.id, email: result.user.email, deploymentAdmin: input.deploymentAdmin };
-  }
-
-  async credentialCreate(context: OperationContext, input: { userId: string; name: string; scopes: ('read' | 'write' | 'send')[]; expiresInSeconds?: number | undefined }) {
-    if (!context.principal.deploymentAdmin) throw new ReflowError('FORBIDDEN', 'Deployment administrator required', 403);
-    const api = this.auth.api as unknown as { createApiKey(args: { body: { userId: string; name: string; permissions: Record<string, string[]>; expiresIn?: number } }): Promise<Record<string, unknown>> };
-    const base = { userId: input.userId, name: input.name, permissions: { reflow: input.scopes } };
-    const body = input.expiresInSeconds === undefined ? base : { ...base, expiresIn: input.expiresInSeconds };
-    const result = await api.createApiKey({ body });
-    await this.audit(context, 'credential.create', null, 'account', input.userId);
+    await this.audit(context, 'credential.create', input.workspaceId, 'account', context.principal.userId, { scopes: input.scopes });
     return result;
   }
 
-  async credentialRevoke(context: OperationContext, input: { keyId: string }) {
-    if (!context.principal.deploymentAdmin) throw new ReflowError('FORBIDDEN', 'Deployment administrator required', 403);
-    const api = this.auth.api as unknown as { deleteApiKey(args: { body: { keyId: string } }): Promise<Record<string, unknown>> };
-    const result = await api.deleteApiKey({ body: input });
-    await this.audit(context, 'credential.revoke', null, 'api_key', input.keyId);
-    return result;
+  async credentialList(context: OperationContext, input: { workspaceId: string }) {
+    this.workspace(context, input.workspaceId);
+    const result = await this.db.execute<{
+      id: string; name: string | null; start: string | null; prefix: string | null; enabled: boolean;
+      permissions: string | null; expiresAt: Date | null; createdAt: Date; updatedAt: Date; lastRequest: Date | null;
+    }>(sql`
+      select id, name, start, prefix, enabled, permissions,
+        "expiresAt" as "expiresAt", "createdAt" as "createdAt", "updatedAt" as "updatedAt", "lastRequest" as "lastRequest"
+      from apikey
+      where "referenceId" = ${context.principal.userId}
+        and coalesce(metadata, '{}')::jsonb ->> 'workspaceId' = ${input.workspaceId}
+      order by "createdAt" desc
+    `);
+    return result.rows.map((row) => ({
+      ...row,
+      scopes: (() => {
+        try {
+          const parsed = JSON.parse(row.permissions ?? '{}') as { reflow?: unknown };
+          return Array.isArray(parsed.reflow) ? parsed.reflow.filter((scope): scope is string => typeof scope === 'string') : [];
+        } catch { return []; }
+      })(),
+      permissions: undefined,
+    }));
+  }
+
+  async credentialRevoke(context: OperationContext, input: { workspaceId: string; keyId: string }) {
+    this.workspace(context, input.workspaceId);
+    const result = await this.db.execute<{ id: string }>(sql`
+      delete from apikey
+      where id = ${input.keyId}
+        and "referenceId" = ${context.principal.userId}
+        and coalesce(metadata, '{}')::jsonb ->> 'workspaceId' = ${input.workspaceId}
+      returning id
+    `);
+    if (!result.rows[0]) throw new ReflowError('NOT_FOUND', 'API key not found', 404);
+    await this.audit(context, 'credential.revoke', input.workspaceId, 'api_key', input.keyId);
+    return { success: true };
   }
 
   async templateCreate(context: OperationContext, input: {
@@ -389,6 +454,15 @@ export class ReflowService {
   }
 
   async workspaceList(context: OperationContext) {
+    const [profile] = await this.db.select({ defaultWorkspaceId: profiles.defaultWorkspaceId })
+      .from(profiles).where(eq(profiles.userId, context.principal.userId)).limit(1);
+    if (profile?.defaultWorkspaceId) {
+      if (!context.principal.deploymentAdmin && !context.principal.workspaceRoles[profile.defaultWorkspaceId]) return [];
+      const [workspace] = await this.db.select({ id: workspaces.id, name: workspaces.name, slug: workspaces.slug })
+        .from(workspaces).where(eq(workspaces.id, profile.defaultWorkspaceId)).limit(1);
+      if (!workspace) return [];
+      return [{ ...workspace, role: context.principal.workspaceRoles[workspace.id] ?? 'deployment_admin' }];
+    }
     if (context.principal.deploymentAdmin) {
       const rows = await this.db.select({ id: workspaces.id, name: workspaces.name, slug: workspaces.slug }).from(workspaces).orderBy(asc(workspaces.name));
       return rows.map((row) => ({ ...row, role: context.principal.workspaceRoles[row.id] ?? 'deployment_admin' }));
@@ -468,20 +542,43 @@ export class ReflowService {
 
   async enrollmentCreate(context: OperationContext, input: { workspaceId: string; workflowVersionId: string; contactId: string; variables: Record<string, unknown>; idempotencyKey: string }) {
     this.workspace(context, input.workspaceId, 'send');
+    const [contact, version] = await Promise.all([
+      this.db.select({ id: contacts.id }).from(contacts)
+        .where(and(eq(contacts.id, input.contactId), eq(contacts.workspaceId, input.workspaceId))).limit(1),
+      this.db.select({ id: sequenceVersions.id }).from(sequenceVersions)
+        .where(and(eq(sequenceVersions.id, input.workflowVersionId), eq(sequenceVersions.workspaceId, input.workspaceId))).limit(1),
+    ]);
+    if (!contact[0] || !version[0]) throw new ReflowError('NOT_FOUND', 'Contact or workflow version not found in this organization', 404);
     const id = crypto.randomUUID();
     const workflowId = `workspace/${input.workspaceId}/enrollment/${id}`;
     try {
-      const [created] = await this.db.transaction(async (tx) => {
+      const created = await this.db.transaction(async (tx) => {
+        // Serialize admission per workspace across API replicas. A single
+        // organization must not flood the shared Temporal queue.
+        await tx.execute(sql`SELECT id FROM workspaces WHERE id = ${input.workspaceId} FOR UPDATE`);
+        const [existing] = await tx.select().from(enrollments).where(and(eq(enrollments.workspaceId, input.workspaceId), eq(enrollments.idempotencyKey, input.idempotencyKey))).limit(1);
+        if (existing) {
+          if (existing.contactId !== input.contactId || existing.sequenceVersionId !== input.workflowVersionId || stableHash(existing.input) !== stableHash(input.variables)) {
+            throw new ReflowError('IDEMPOTENCY_CONFLICT', 'Idempotency key was used with different input', 409);
+          }
+          return existing;
+        }
+        const [recent] = await tx.select({ count: sql<number>`count(*)` }).from(enrollments)
+          .where(and(eq(enrollments.workspaceId, input.workspaceId), sql`${enrollments.createdAt} >= now() - interval '1 minute'`));
+        if (Number(recent?.count ?? 0) >= 100) throw new ReflowError('WORKSPACE_RATE_LIMIT', 'This organization can start at most 100 workflows per minute', 429, true);
+        const [active] = await tx.select({ count: sql<number>`count(*)` }).from(enrollments)
+          .where(and(eq(enrollments.workspaceId, input.workspaceId), inArray(enrollments.state, ['pending_start', 'running', 'waiting', 'paused', 'needs_attention'])));
+        if (Number(active?.count ?? 0) >= 1000) throw new ReflowError('WORKSPACE_CAPACITY', 'This organization has reached 1000 active workflows', 429, true);
         const rows = await tx.insert(enrollments).values({ id, workspaceId: input.workspaceId, sequenceVersionId: input.workflowVersionId, contactId: input.contactId, workflowId, input: input.variables, idempotencyKey: input.idempotencyKey }).returning();
         await tx.insert(outbox).values({ kind: 'enrollment.start', aggregateId: id, payload: { enrollmentId: id } });
         await tx.insert(auditEvents).values({ workspaceId: input.workspaceId, actorId: context.principal.userId, action: 'enrollment.create', targetType: 'enrollment', targetId: id });
-        return rows;
+        return rows[0];
       });
       return created;
     } catch (error) {
       if (!isUniqueViolation(error)) throw error;
       const [existing] = await this.db.select().from(enrollments).where(and(eq(enrollments.workspaceId, input.workspaceId), eq(enrollments.idempotencyKey, input.idempotencyKey))).limit(1);
-      if (!existing || existing.contactId !== input.contactId || existing.sequenceVersionId !== input.workflowVersionId) throw new ReflowError('IDEMPOTENCY_CONFLICT', 'Idempotency key was used with different input', 409);
+      if (!existing || existing.contactId !== input.contactId || existing.sequenceVersionId !== input.workflowVersionId || stableHash(existing.input) !== stableHash(input.variables)) throw new ReflowError('IDEMPOTENCY_CONFLICT', 'Idempotency key was used with different input', 409);
       return existing;
     }
   }

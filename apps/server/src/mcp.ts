@@ -113,6 +113,7 @@ export async function createMcpServer(operations: Record<string, Operation>, con
     'Call system_capabilities and read agentCookbook. Read reflow://workflow/actions and reflow://workflow/schema.',
     'Call template_list and workflow_list first; reuse existing artifacts. Check examples/welcome-nudge and examples/onboarding.workflow.json before inventing a similar graph.',
     'Use only installed capabilities. Explain any missing capability instead of inventing an action.',
+    'If the intent contains a clock time without a timezone, ask the user which IANA timezone they mean; offer "your own timezone" as the default. A schedule needs an explicit-offset ISO datetime and matching IANA timeZone. Confirm ambiguous DST times.',
     'Publish reviewed React Email via CLI `reflow template push ... --allow-code-execution` (upserts by --name). Avoid duplicate names / "v2" siblings. MCP template_create fails with TEMPLATE_NAME_EXISTS when the name is taken; then template_revise + template_publish.',
     'Each email.send node must pin input.templateVersionId.literal to a published template version id in this workspace.',
     'Call workflow_validate, then workflow_simulate twice: receivedEvents=[] and with the activation events the product will emit.',

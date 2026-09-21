@@ -38,11 +38,11 @@ reflow call event.emit --file activation-event.json
 
 ## Send from your application over HTTP
 
-Create a machine credential with the `send` scope as a deployment administrator. First run `reflow call auth.whoami` to obtain the target user's ID, then create the credential:
+Create a machine credential with the `send` scope from the dashboard's **API keys** page, or use the operation with your organization ID:
 
 ```sh
 reflow call credential.create --input '{
-  "userId": "USER_ID",
+  "workspaceId": "WORKSPACE_ID",
   "name": "product-events",
   "scopes": ["send"]
 }'
@@ -101,6 +101,6 @@ OAuth/MCP authorization must include `reflow:send`; API keys use the correspondi
 - A matching wait follows `onEvent`; if no matching event arrives before its deadline, it follows `onTimeout`.
 - A branch is evaluated once when execution reaches it. An event delivered after a false `event_received` branch does not rewind execution; the dashboard labels the chosen route and calls out the late event in History.
 - Events do not create enrollments and do not bypass send policy or suppression checks.
-- Provider webhooks such as Resend delivery events are separate. Those arrive at `/webhooks/resend` and update message state; product events use `event.emit`.
+- Provider webhooks such as Resend delivery events are separate. Those arrive at each organization's `/webhooks/resend/<organization-id>` endpoint and update only matching sends; product events use `event.emit`.
 
 See the runnable [welcome + nudge tutorial](../examples/welcome-nudge/) for a complete wait, event, and timeout journey.
