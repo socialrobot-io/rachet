@@ -97,9 +97,10 @@ export function ResendIntegrationPage({ onboarding = false }: { onboarding?: boo
   const [apiKey, setApiKey] = useState('');
   const [webhookSecret, setWebhookSecret] = useState('');
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
-  const [success, setSuccess] = useState<string | null>(null);
+  const [feedback, setFeedback] = useState<{ action: 'save' | 'test' | 'skip'; kind: 'error' | 'success'; message: string } | null>(null);
+  const [testAccepted, setTestAccepted] = useState(false);
   const role = workspaces.find((workspace) => workspace.id === workspaceId)?.role;
   const canManage = role === 'owner' || role === 'admin';
 
@@ -111,7 +112,7 @@ export function ResendIntegrationPage({ onboarding = false }: { onboarding?: boo
       setStatus(next);
       setFrom(next.from ?? '');
     }).catch((reason: unknown) => {
-      if (active) setError(reason instanceof Error ? reason.message : 'Could not load Resend settings');
+      if (active) setLoadError(reason instanceof Error ? reason.message : 'Could not load Resend settings');
     });
     return () => { active = false; };
   }, [workspaceId]);
@@ -120,24 +121,26 @@ export function ResendIntegrationPage({ onboarding = false }: { onboarding?: boo
     event.preventDefault();
     if (!workspaceId || !canManage) return;
     setSaving(true);
-    setError(null);
+    setFeedback(null);
     setFieldErrors({});
-    setSuccess(null);
     try {
       await api.saveResendConnection({ workspaceId, from: from.trim(), apiKey: apiKey.trim(), webhookSecret: webhookSecret.trim() });
       setApiKey('');
       setWebhookSecret('');
-      setStatus(await api.resendConnection(workspaceId));
-      setSuccess('Resend settings saved. Send a test email to enable workflow sending. The key and signing secret are now hidden.');
+      setTestAccepted(false);
+      try {
+        setStatus(await api.resendConnection(workspaceId));
+        setFeedback({ action: 'save', kind: 'success', message: 'Resend settings saved. Send a test email to enable workflow sending. The key and signing secret are now hidden.' });
+      } catch {
+        setFeedback({ action: 'save', kind: 'success', message: 'Resend settings were saved, but the connection status could not be refreshed. Reload this page before sending a test email.' });
+      }
     } catch (reason) {
       if (reason instanceof ApiError && reason.fieldErrors) {
         setFieldErrors(Object.fromEntries(Object.entries(reason.fieldErrors).flatMap(([field, messages]) => (
           messages[0] ? [[field, messages[0]]] : []
         ))));
-        setError('Check the highlighted fields and try again.');
-      } else {
-        setError(reason instanceof Error ? reason.message : 'Could not save Resend settings');
       }
+      setFeedback({ action: 'save', kind: 'error', message: reason instanceof Error ? reason.message : 'Could not save Resend settings' });
     } finally {
       setSaving(false);
     }
@@ -146,12 +149,12 @@ export function ResendIntegrationPage({ onboarding = false }: { onboarding?: boo
   async function skip() {
     if (!workspaceId) return;
     setSaving(true);
-    setError(null);
+    setFeedback(null);
     try {
       await api.skipResendOnboarding(workspaceId);
       navigate(completionTarget, { replace: true });
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'Could not continue');
+      setFeedback({ action: 'skip', kind: 'error', message: reason instanceof Error ? reason.message : 'Could not continue' });
     } finally {
       setSaving(false);
     }
@@ -160,15 +163,18 @@ export function ResendIntegrationPage({ onboarding = false }: { onboarding?: boo
   async function test() {
     if (!workspaceId) return;
     setSaving(true);
-    setError(null);
-    setSuccess(null);
+    setFeedback(null);
     try {
       await api.testResendConnection(workspaceId);
-      setStatus(await api.resendConnection(workspaceId));
-      if (onboarding) navigate(completionTarget, { replace: true });
-      else setSuccess(`Resend accepted a test email to ${user?.email ?? 'your address'}. Workflow sending is enabled; check the Resend dashboard and your inbox for delivery.`);
+      setTestAccepted(true);
+      try {
+        setStatus(await api.resendConnection(workspaceId));
+        setFeedback({ action: 'test', kind: 'success', message: `Resend accepted a test email to ${user?.email ?? 'your address'}. Workflow sending is enabled; check the Resend dashboard and your inbox for delivery.` });
+      } catch {
+        setFeedback({ action: 'test', kind: 'success', message: 'Resend accepted the test email, but the connection status could not be refreshed. Check the Resend dashboard and your inbox for delivery.' });
+      }
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'Test email was not accepted');
+      setFeedback({ action: 'test', kind: 'error', message: reason instanceof Error ? reason.message : 'Test email was not accepted' });
     } finally {
       setSaving(false);
     }
@@ -182,11 +188,14 @@ export function ResendIntegrationPage({ onboarding = false }: { onboarding?: boo
         <p className="mt-2 text-muted-foreground">Each organization uses its own Resend sending credentials and signed webhook. Only organization owners and admins can change this connection.</p>
       </div>
 
-      {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
-      {success && <Alert><AlertDescription>{success}</AlertDescription></Alert>}
+      {loadError && <Alert variant="destructive"><AlertDescription>{loadError}</AlertDescription></Alert>}
       {status?.configured && <Alert><AlertDescription>Configured with sender {status.from}. {status.lastTestAcceptedAt ? 'A test send was accepted.' : 'Workflow sending is disabled until a test send is accepted.'} Re-enter both secrets below to replace this connection.</AlertDescription></Alert>}
       {status?.lastTestAcceptedAt && <Alert><AlertDescription>Resend accepted a connection test on {new Date(status.lastTestAcceptedAt).toLocaleString()}. Check your inbox or Resend delivery logs to confirm delivery.</AlertDescription></Alert>}
-      {status?.configured && canManage && <Button type="button" variant="outline" disabled={saving} onClick={() => { void test(); }}>Send a test email to {user?.email}</Button>}
+      {status?.configured && canManage && <div className="flex flex-col gap-3">
+        <Button type="button" variant="outline" disabled={saving} onClick={() => { void test(); }}>Send a test email to {user?.email}</Button>
+        {feedback?.action === 'test' && <Alert variant={feedback.kind === 'error' ? 'destructive' : 'default'} role={feedback.kind === 'error' ? 'alert' : 'status'}><AlertDescription>{feedback.message}</AlertDescription></Alert>}
+        {onboarding && testAccepted && <Button type="button" onClick={() => navigate(completionTarget, { replace: true })}>Continue to dashboard</Button>}
+      </div>}
 
       <Card>
         <CardHeader>
@@ -231,15 +240,19 @@ export function ResendIntegrationPage({ onboarding = false }: { onboarding?: boo
                   <FieldError>{fieldErrors.webhookSecret}</FieldError>
                 </Field>
                 <Button type="submit" disabled={saving || !status}>{saving ? 'Saving…' : 'Save connection'}</Button>
+                {feedback?.action === 'save' && <Alert variant={feedback.kind === 'error' ? 'destructive' : 'default'} role={feedback.kind === 'error' ? 'alert' : 'status'}><AlertDescription>{feedback.message}</AlertDescription></Alert>}
               </FieldGroup>
             </form>
           ) : <Alert><AlertDescription>Ask an organization owner or admin to connect Resend.</AlertDescription></Alert>}
         </CardContent>
       </Card>
 
-      {onboarding && canManage && <div className="flex items-center justify-between gap-4">
-        <p className="text-sm text-muted-foreground">You can build and simulate workflows without sending email.</p>
-        <Button type="button" variant="outline" disabled={saving} onClick={() => { void skip(); }}>Skip for now</Button>
+      {onboarding && canManage && <div className="flex flex-col gap-3">
+        <div className="flex items-center justify-between gap-4">
+          <p className="text-sm text-muted-foreground">You can build and simulate workflows without sending email.</p>
+          <Button type="button" variant="outline" disabled={saving} onClick={() => { void skip(); }}>Skip for now</Button>
+        </div>
+        {feedback?.action === 'skip' && <Alert variant="destructive"><AlertDescription>{feedback.message}</AlertDescription></Alert>}
       </div>}
       <Button asChild variant="outline"><Link to={`${onboarding ? '/onboarding/integrations' : '/settings/integrations'}${oauthQuery ? `?oauth_query=${encodeURIComponent(oauthQuery)}` : ''}`}>Back to integrations</Link></Button>
     </main>
