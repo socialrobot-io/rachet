@@ -145,6 +145,10 @@ describe.skipIf(!runtime)('email.send activity invariants (postgres + fake provi
     expect(provider.sent).toHaveLength(1);
     expect(provider.sent[0]?.message.subject).toBe('Hello Ada');
     expect(provider.sent[0]?.message.html).toContain('Hello Ada');
+    expect(provider.sent[0]?.message.tags).toEqual([
+      { name: 'reflow_workspace', value: workspaceId },
+      { name: 'reflow_intent', value: expect.any(String) },
+    ]);
     expect(provider.sent[0]?.idempotencyKey).toBe(`enrollment/${enrollmentId}/welcome`);
 
     const intents = await boot.db.select().from(sendIntents).where(eq(sendIntents.enrollmentId, enrollmentId));

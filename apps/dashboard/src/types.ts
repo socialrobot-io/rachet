@@ -28,7 +28,7 @@ export type FlowNode =
 export type WorkflowDefinition = {
   schemaVersion: string;
   description: string;
-  trigger: { type: string; eventType?: string; at?: string };
+  trigger: { type: string; eventType?: string; at?: string; timeZone?: string };
   entryNodeId: string;
   purpose?: string;
   topic?: string;
@@ -40,6 +40,15 @@ export type Workspace = {
   name: string;
   slug: string;
   role: string;
+};
+
+export type ResendConnectionStatus = {
+  configured: boolean;
+  from: string | null;
+  updatedAt: string | null;
+  lastTestAcceptedAt: string | null;
+  onboardingComplete: boolean;
+  webhookUrl: string;
 };
 
 export type PublishedVersion = {
@@ -115,6 +124,28 @@ export type SessionUser = {
   email: string;
   name: string;
 };
+
+export type SetupStatus = {
+  requiresSetup: boolean;
+  registrationEnabled: boolean;
+  methods: { magicLink: boolean; github: boolean };
+  magicLinkConfigurationWarning?: string;
+};
+
+export type ApiCredential = {
+  id: string;
+  name: string | null;
+  start: string | null;
+  prefix: string | null;
+  enabled: boolean;
+  scopes: string[];
+  expiresAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  lastRequest: string | null;
+};
+
+export type CreatedApiCredential = ApiCredential & { key: string };
 
 export type OAuthClient = {
   client_id: string;

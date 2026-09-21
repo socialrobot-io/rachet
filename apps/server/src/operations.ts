@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import {
-  accountCreateSchema, credentialCreateSchema, credentialRevokeSchema, contactUpsertSchema, enrollmentControlSchema, enrollmentCreateSchema,
+  accountCreateSchema, credentialCreateSchema, credentialListSchema, credentialRevokeSchema, contactUpsertSchema, enrollmentControlSchema, enrollmentCreateSchema,
   eventEmitSchema, workflowCreateSchema, workflowPublishSchema, workflowSimulateSchema, workflowDefinitionSchema, templateCreateSchema,
   templateArchiveSchema, templatePublishSchema, templateReviseSchema, templateRenderSchema, workspaceIdSchema,
   type OperationContext,
@@ -41,6 +41,7 @@ export function createOperations(service: ReflowService): Record<string, Operati
         agentCookbook: {
           beforeAuthoring: [
             'Call template.list and workflow.list in the target workspace; reuse before inventing.',
+            'For a user-specified clock time without a timezone, ask which IANA timezone they mean; suggest "your own timezone". Never infer it from the host. Scheduled triggers require an offset datetime and matching IANA timeZone; confirm DST ambiguity.',
             'Check examples/ (welcome-nudge, onboarding.workflow.json) for graph patterns.',
             'After reviewing local TSX, prefer `reflow template push ... --allow-code-execution`; it upserts by --name (revise + publish).',
           ],
@@ -69,16 +70,20 @@ export function createOperations(service: ReflowService): Record<string, Operati
       invoke: (context) => service.workspaceList(context),
     },
     'account.create': {
-      description: 'Create an account as a deployment administrator.', input: accountCreateSchema, readOnly: false,
+      description: 'Authorize a passwordless account registration as a deployment administrator.', input: accountCreateSchema, readOnly: false,
       invoke: (context, input) => service.accountCreate(context, accountCreateSchema.parse(input)),
     },
     'credential.create': {
-      description: 'Create a user-bound machine API key as a deployment administrator. The secret is returned once.', input: credentialCreateSchema, readOnly: false,
+      description: 'Create an organization-bound SDK API key for the authenticated user. The secret is returned once.', input: credentialCreateSchema, readOnly: false,
       exposeToMcp: false,
       invoke: (context, input) => service.credentialCreate(context, credentialCreateSchema.parse(input)),
     },
+    'credential.list': {
+      description: 'List the authenticated user’s SDK API keys without returning secrets.', input: credentialListSchema, readOnly: true,
+      invoke: (context, input) => service.credentialList(context, credentialListSchema.parse(input)),
+    },
     'credential.revoke': {
-      description: 'Revoke a machine API key as a deployment administrator.', input: credentialRevokeSchema, readOnly: false,
+      description: 'Revoke one of the authenticated user’s organization-bound SDK API keys.', input: credentialRevokeSchema, readOnly: false,
       invoke: (context, input) => service.credentialRevoke(context, credentialRevokeSchema.parse(input)),
     },
     'template.create': {

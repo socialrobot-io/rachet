@@ -17,15 +17,15 @@
     },
     "dev": {
       "executor": "nx:run-commands",
-      "options": { "command": "node --env-file=.env --env-file-if-exists=.env.local --import tsx --watch apps/server/src/server.ts" }
+      "options": { "command": "node --env-file=.env --env-file-if-exists=.env.local node_modules/tsx/dist/cli.mjs watch apps/server/src/server.ts" }
     },
     "dev-worker": {
       "executor": "nx:run-commands",
-      "options": { "command": "node --env-file=.env --env-file-if-exists=.env.local --import tsx --watch apps/server/src/worker.ts" }
+      "options": { "command": "node --env-file=.env --env-file-if-exists=.env.local node_modules/tsx/dist/cli.mjs watch apps/server/src/worker.ts" }
     },
     "dev-dispatcher": {
       "executor": "nx:run-commands",
-      "options": { "command": "node --env-file=.env --env-file-if-exists=.env.local --import tsx --watch apps/server/src/dispatcher.ts" }
+      "options": { "command": "node --env-file=.env --env-file-if-exists=.env.local node_modules/tsx/dist/cli.mjs watch apps/server/src/dispatcher.ts" }
     },
     "migrate-db": {
       "executor": "nx:run-commands",

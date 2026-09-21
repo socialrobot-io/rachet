@@ -1,0 +1,25 @@
+# Public-production readiness assessment
+
+Status: **not ready for unrestricted public signups** (2026-09-21). Passing repository checks is necessary, but it is not a security certification or proof of live provider delivery.
+
+## Controls now present
+
+- Registration is default-disabled, first-admin setup requires a deployment secret, and normal sign-in uses Better Auth magic links or GitHub. Authentication email uses a separate Resend credential from workflow email.
+- Each new user receives a default organization. Server operations authorize workspace membership and roles; API keys are workspace-bound. Cross-workspace contact, workflow-version, enrollment, template-version, and send-intent references have both service checks and composite database constraints.
+- Resend connections are workspace-owned. API keys and webhook signing secrets are encrypted at rest with AES-256-GCM and workspace/purpose associated data; secret values are not returned by the integration status API. Identical credentials cannot be reused in a second workspace. Connecting or rotating a sender disables workflow sending until a test email is accepted. New email sends carry organization and pre-created send-intent tags, so signed early webhooks can be correlated before the send response is saved. Uncorrelated critical events from older, untagged sends receive a retryable response rather than being silently dropped. Cross-organization webhook and authorization tests run against PostgreSQL.
+- Custom registration and Resend-connection endpoints use database-backed rate limits; webhook bodies are capped at 256 KiB. Organization enrollment admission is serialized and capped at 100 new starts per minute and 1000 active enrollments.
+- A dry-run-first, transactional integration-key rotation command re-encrypts saved connection secrets and fingerprints. It has a database-backed test, but an operator must still perform and verify a production rotation.
+- Production Compose runs the persistent `temporalio/server` image with separate schema bootstrap and PostgreSQL history/visibility stores, not the Temporal CLI dev server. The worker uses a prebuilt workflow bundle. The production dynamic configuration no longer includes the development-only cache-refresh flag.
+- Schedule inputs use an explicit-offset ISO datetime and matching IANA timezone; contact timezones use IANA names. CLI and MCP share the same validated operation contracts. Delays are elapsed seconds.
+
+## Launch blockers
+
+1. **Hard tenant/provider isolation:** The application still uses one database credential without PostgreSQL row-level security. Composite foreign keys and negative authorization tests are useful but cannot prevent a future unscoped SQL read. Resend sending-only keys cannot prove two organizations use separate provider accounts; distinct keys and webhook secrets from one Resend account could still receive overlapping provider events. Add a stronger database boundary and provider-account verification before promising hard isolation.
+2. **Live delivery and recovery proof:** Exercise signup, GitHub and magic-link login, onboarding, a real verified Resend domain, early/duplicate/unordered webhook outcomes, bounce/complaint, credential rotation, backup restore, and incident recovery in staging. The unit/integration suite does not send a real email or prove a deployed ingress behaves correctly. Obtain an external security review and load test.
+3. **Fairness, abuse, and availability at public scale:** The limits above protect a private pilot, but there is no per-IP abuse control or per-organization daily send budget. The single shared Temporal task queue has no enabled tenant fairness; Temporal 1.29's preview fairness toggle is unsafe to enable on a queue with backlog. The Compose cluster is one host and one Temporal server, with no HA or internal mTLS. Upgrade and roll out fairness with a tested migration plan, or use an isolated/scaled production cluster or Temporal Cloud; add alerts on queue backlog, send volume, rate limits, and webhook failures.
+4. **Secret lifecycle operations:** The rotation tool exists, but a production dry run, backup/restore drill, and actual rotation verification remain operator tasks. Losing the old key before successful rotation makes stored connections unreadable. Resend API-key revocation and signing-secret rotation also need a documented and rehearsed process.
+5. **Calendar-time delivery:** Current schedules are one-off absolute instants, and `delay`/`wait_for_event` are elapsed durations. Workspace-local sending windows, business days, recurring schedules, and per-contact DST fallback described in the PRD are not implemented. Do not advertise those features until they are designed and tested.
+
+## Release gate
+
+Keep `ALLOW_REGISTRATION=false` for an internet-facing deployment until the blockers above are resolved and tested. A controlled private pilot can use invitation/allowlisted access with explicit send-volume limits and monitoring, but it should not be presented as a production-ready public SaaS.

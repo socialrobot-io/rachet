@@ -57,42 +57,45 @@
 }
 
 :root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.2 0.01 255);
+  --background: oklch(0.985 0.012 93);
+  --foreground: oklch(0.22 0.035 30);
   --card: oklch(1 0 0);
-  --card-foreground: oklch(0.2 0.01 255);
+  --card-foreground: oklch(0.22 0.035 30);
   --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.2 0.01 255);
-  --primary: oklch(0.22 0.01 255);
-  --primary-foreground: oklch(0.99 0 0);
-  --secondary: oklch(0.965 0.005 255);
-  --secondary-foreground: oklch(0.28 0.01 255);
-  --muted: oklch(0.965 0.005 255);
-  --muted-foreground: oklch(0.5 0.015 255);
-  --accent: oklch(0.965 0.005 255);
-  --accent-foreground: oklch(0.28 0.01 255);
+  --popover-foreground: oklch(0.22 0.035 30);
+  --primary: oklch(0.26 0.05 24);
+  --primary-foreground: oklch(0.99 0.015 93);
+  --secondary: oklch(0.95 0.045 94);
+  --secondary-foreground: oklch(0.26 0.05 24);
+  --muted: oklch(0.96 0.018 91);
+  --muted-foreground: oklch(0.48 0.025 35);
+  --accent: oklch(0.94 0.06 345);
+  --accent-foreground: oklch(0.26 0.05 24);
   --destructive: oklch(0.55 0.2 25);
   --success: oklch(0.55 0.14 155);
   --success-foreground: oklch(0.99 0 0);
   --warning: oklch(0.7 0.14 70);
   --warning-foreground: oklch(0.28 0.04 70);
-  --border: oklch(0.91 0.005 255);
-  --input: oklch(0.91 0.005 255);
-  --ring: oklch(0.55 0.02 255);
-  --chart-1: oklch(0.55 0.14 155);
-  --chart-2: oklch(0.55 0.08 230);
-  --chart-3: oklch(0.7 0.14 70);
-  --chart-4: oklch(0.5 0.015 255);
-  --chart-5: oklch(0.35 0.015 255);
-  --radius: 0.75rem;
-  --sidebar: oklch(0.985 0.002 255);
-  --sidebar-foreground: oklch(0.2 0.01 255);
-  --sidebar-primary: oklch(0.22 0.01 255);
-  --sidebar-primary-foreground: oklch(0.99 0 0);
-  --sidebar-accent: oklch(0.965 0.005 255);
-  --sidebar-accent-foreground: oklch(0.28 0.01 255);
-  --sidebar-border: oklch(0.91 0.005 255);
-  --sidebar-ring: oklch(0.55 0.02 255);
+  --border: oklch(0.88 0.025 75);
+  --input: oklch(0.88 0.025 75);
+  --ring: oklch(0.7 0.17 85);
+  --chart-1: oklch(0.78 0.14 85);
+  --chart-2: oklch(0.76 0.16 345);
+  --chart-3: oklch(0.72 0.12 165);
+  --chart-4: oklch(0.69 0.12 245);
+  --chart-5: oklch(0.65 0.13 35);
+  --radius: 1rem;
+  --sidebar: oklch(0.985 0.012 93);
+  --sidebar-foreground: oklch(0.22 0.035 30);
+  --sidebar-primary: oklch(0.26 0.05 24);
+  --sidebar-primary-foreground: oklch(0.99 0.015 93);
+  --sidebar-accent: oklch(0.94 0.06 345);
+  --sidebar-accent-foreground: oklch(0.26 0.05 24);
+  --sidebar-border: oklch(0.88 0.025 75);
+  --sidebar-ring: oklch(0.7 0.17 85);
+  --sunny: oklch(0.91 0.15 92);
+  --candy: oklch(0.89 0.095 345);
+  --mint: oklch(0.9 0.075 160);
 }
 
 @layer base {
@@ -108,10 +111,40 @@
 
   body {
     @apply m-0 min-h-dvh bg-background text-foreground;
+    position: relative;
+    isolation: isolate;
+  }
+
+  /* Grid lives on a fixed layer so we can vignette the edges without affecting content. */
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    background-image:
+      linear-gradient(to right, oklch(0.79 0.026 75 / 0.055) 1px, transparent 1px),
+      linear-gradient(to bottom, oklch(0.79 0.026 75 / 0.055) 1px, transparent 1px);
+    background-size: 40px 40px;
+    background-position: center;
+    mask-image: radial-gradient(
+      ellipse 115% 95% at 50% 38%,
+      #000 0%,
+      #000 38%,
+      rgb(0 0 0 / 0.45) 62%,
+      transparent 100%
+    );
+    -webkit-mask-image: radial-gradient(
+      ellipse 115% 95% at 50% 38%,
+      #000 0%,
+      #000 38%,
+      rgb(0 0 0 / 0.45) 62%,
+      transparent 100%
+    );
   }
 
   #root {
-    @apply min-h-dvh;
+    @apply relative z-[1] min-h-dvh;
   }
 
   button:active:not(:disabled),
@@ -128,4 +161,41 @@
       transform: none;
     }
   }
+}
+
+@layer components {
+  .reflow-panel {
+    box-shadow: 0 6px 0 oklch(0.26 0.05 24 / 0.075), 0 14px 32px oklch(0.26 0.05 24 / 0.045);
+  }
+
+  /* Opaque reading surface: workflow trees should not sit on the grid. */
+  .reflow-document {
+    position: relative;
+    isolation: isolate;
+    background: var(--card);
+    box-shadow:
+      0 0 0 1px oklch(0.88 0.025 75 / 0.65),
+      0 1px 0 oklch(0.26 0.05 24 / 0.04),
+      0 22px 48px oklch(0.26 0.05 24 / 0.06);
+  }
+
+  .reflow-document::before {
+    content: "";
+    position: absolute;
+    inset: -1.75rem;
+    z-index: -1;
+    pointer-events: none;
+    border-radius: calc(var(--radius-2xl) + 1.75rem);
+    background: radial-gradient(
+      ellipse 100% 88% at 50% 42%,
+      oklch(1 0 0 / 0.98) 0%,
+      oklch(0.985 0.012 93 / 0.92) 55%,
+      oklch(0.985 0.012 93 / 0) 100%
+    );
+    filter: blur(14px);
+  }
+
+  .reflow-workflow-card:nth-child(3n + 1) .reflow-card-art { background: var(--candy); }
+  .reflow-workflow-card:nth-child(3n + 2) .reflow-card-art { background: var(--mint); }
+  .reflow-workflow-card:nth-child(3n) .reflow-card-art { background: var(--sunny); }
 }

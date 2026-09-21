@@ -41,7 +41,7 @@ function parseWorkflows(value: unknown): Workflow[] {
 
 function triggerLabel(definition: WorkflowDefinition): string {
   if (definition.trigger.type === 'event') return `Event · ${definition.trigger.eventType}`;
-  if (definition.trigger.type === 'schedule') return `Schedule · ${definition.trigger.at}`;
+  if (definition.trigger.type === 'schedule') return `Schedule · ${definition.trigger.at} (${definition.trigger.timeZone})`;
   return 'Manual trigger';
 }
 

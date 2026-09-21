@@ -1,0 +1,15 @@
+# Local demo journeys
+
+The dashboard fixtures model a **team collaboration app**. They are examples of product logic, not claims about events Reflow already receives from that app. Run `pnpm demo:seed --list`, then `pnpm demo:seed <workspace-slug>` against the local development database. The command replaces the three old placeholder fixtures only when they are still marked as demo data and have no real runs or send work. It creates three **draft** workflows, eight previewable email templates, and a set of fake demo people (contacts plus enrollments at realistic steps, including completed onboarding paths) per selected workspace. Those people are visual fixtures only: the seed never starts Temporal, queues outbox work, or creates send intents.
+
+| Journey | Enrollment point and events the app must emit | Decision and end paths |
+| --- | --- | --- |
+| From signup to a shared project | The app enrolls once after account creation. Emit `project.created` and `teammate.invited` to that enrollment using stable event IDs. | Send a welcome note. If there is no project after 48 hours, send one setup-help note and wait five more days. After a project, allow five days for a teammate invite; send one collaboration tip if it does not happen. End as shared, solo, or not activated. |
+| Seven-day trial to paid | Enroll once when a trial starts. Emit `workspace.active` and `subscription.activated`. | On day three, stop if already paid; otherwise choose a progress recap or activation-help email based on `workspace.active`. Wait three days for payment, send one day-six notice if still unpaid, then wait one final day. End converted or expired. |
+| Thoughtful re-engagement | The app determines 14 days of inactivity and enrolls once, supplying `contact.hasUnfinishedWork` at enrollment. Emit `session.started` if the user returns. | Choose exactly one email: resume unfinished work or suggest a fresh start. Wait seven days. End returned or stop without more messages. |
+
+All durations are elapsed seconds, so none depends on an unstated timezone or local clock time. The workflows use a manual trigger intentionally: the application must decide who qualifies and call `enrollment.create` with a stable idempotency key. Product events then go to that specific enrollment through `event.emit`; Reflow does not automatically enroll users just because an analytics event exists. Validate consent, suppression, verified sender, and unsubscribe handling before adapting or publishing any marketing journey. The demo templates contain no real destinations and these drafts must not be used as production campaigns unchanged.
+
+## Demo people
+
+`pnpm demo:seed` also inserts fake contacts and enrollments so the dashboard overview and workflow detail pages show people in progress and completed. Each person is marked with `fields.demo` / `input.demo`, sits on a pinned draft sequence version, and may include delivered product events for path painting. Re-running the seed replaces only those demo enrollments when the journeys have no real runs, send intents, or outbox work.

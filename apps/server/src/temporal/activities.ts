@@ -6,15 +6,16 @@ import { resolveActionInput, resolveValue } from '../domain/action-catalog.js';
 import type { FlowCondition, FlowNode } from '@reflow/contracts';
 import { renderEmail } from '../domain/render.js';
 import { createDatabase, type Database } from '../db/index.js';
-import { contacts, enrollments, sendIntents, suppressions, templateVersions } from '../db/schema.js';
+import { contacts, enrollments, resendConnections, sendIntents, suppressions, templateVersions, workspaces } from '../db/schema.js';
 import type { EmailProvider } from '../providers/email-provider.js';
 import { ResendProvider } from '../providers/resend.js';
+import { decryptIntegrationSecret } from '../integrations/secret.js';
 
 let runtime: { config: Config; db: Database; provider?: EmailProvider | undefined } | undefined;
 
 export function configureActivities(config: Config, overrides?: { db?: Database; provider?: EmailProvider }) {
   const db = overrides?.db ?? createDatabase(config).db;
-  const provider = overrides?.provider ?? (config.resendApiKey ? new ResendProvider(config.resendApiKey, config.resendWebhookSecret) : undefined);
+  const provider = overrides?.provider;
   runtime = { config, db, provider };
 }
 
@@ -30,7 +31,7 @@ function getRuntime() {
 async function executionContext(workspaceId: string, enrollmentId: string, eventData: Record<string, unknown>) {
   const { db } = getRuntime();
   const [row] = await db.select({ contact: contacts, enrollment: enrollments }).from(enrollments)
-    .innerJoin(contacts, eq(enrollments.contactId, contacts.id))
+    .innerJoin(contacts, and(eq(enrollments.contactId, contacts.id), eq(enrollments.workspaceId, contacts.workspaceId)))
     .where(and(eq(enrollments.id, enrollmentId), eq(enrollments.workspaceId, workspaceId))).limit(1);
   if (!row) throw ApplicationFailure.nonRetryable('Enrollment data not found', 'ValidationError');
   return { row, values: { contact: { id: row.contact.id, email: row.contact.email, timezone: row.contact.timezone, ...row.contact.fields }, variables: row.enrollment.input, event: eventData } };
@@ -47,15 +48,29 @@ export async function executeAction(input: { workspaceId: string; enrollmentId: 
   if (input.node.action === 'contact.update') {
     const fields = resolved.fields;
     if (typeof fields !== 'object' || fields === null || Array.isArray(fields)) throw ApplicationFailure.nonRetryable('contact.update fields must resolve to an object', 'ValidationError');
-    await getRuntime().db.update(contacts).set({ fields: { ...context.row.contact.fields, ...(fields as Record<string, unknown>) }, updatedAt: new Date() }).where(eq(contacts.id, context.row.contact.id));
+    await getRuntime().db.update(contacts).set({ fields: { ...context.row.contact.fields, ...(fields as Record<string, unknown>) }, updatedAt: new Date() })
+      .where(and(eq(contacts.id, context.row.contact.id), eq(contacts.workspaceId, input.workspaceId)));
     return 'succeeded';
   }
   throw ApplicationFailure.nonRetryable(`Unknown action: ${input.node.action}`, 'ValidationError');
 }
 
 async function sendEmail(input: { workspaceId: string; enrollmentId: string; node: Extract<FlowNode, { type: 'action' }> }, resolved: Record<string, unknown>, row: { contact: typeof contacts.$inferSelect; enrollment: typeof enrollments.$inferSelect }): Promise<'succeeded' | 'needs_attention'> {
-  const { config, db, provider } = getRuntime();
-  if (!provider) throw ApplicationFailure.nonRetryable('No email provider is configured', 'ValidationError');
+  const { config, db, provider: overrideProvider } = getRuntime();
+  const [workspace] = await db.select({ sendingEnabled: workspaces.sendingEnabled }).from(workspaces)
+    .where(eq(workspaces.id, input.workspaceId)).limit(1);
+  if (!workspace?.sendingEnabled) throw ApplicationFailure.nonRetryable('Sending is disabled for this organization', 'ValidationError');
+  const [connection] = overrideProvider ? [] : await db.select().from(resendConnections)
+    .where(eq(resendConnections.workspaceId, input.workspaceId)).limit(1);
+  let provider = overrideProvider;
+  if (!provider) {
+    if (!connection) throw ApplicationFailure.nonRetryable('Connect Resend before sending', 'ValidationError');
+    provider = new ResendProvider(
+      decryptIntegrationSecret(config, input.workspaceId, 'resend-api-key', connection.apiKeyEncrypted), undefined,
+    );
+  }
+  const fromAddress = connection?.fromAddress ?? config.from;
+  const connectionVersion = connection?.version ?? null;
   if (typeof resolved.templateVersionId !== 'string') throw ApplicationFailure.nonRetryable('templateVersionId must resolve to a UUID', 'ValidationError');
   const [template] = await db.select().from(templateVersions).where(and(eq(templateVersions.id, resolved.templateVersionId), eq(templateVersions.workspaceId, input.workspaceId))).limit(1);
   if (!template) throw ApplicationFailure.nonRetryable('Template version not found', 'ValidationError');
@@ -65,17 +80,25 @@ async function sendEmail(input: { workspaceId: string; enrollmentId: string; nod
   const rendered = await renderEmail(template, { contact: { email: row.contact.email, ...row.contact.fields }, variables: row.enrollment.input, ...extraProps });
   const payloadHash = createHash('sha256').update(JSON.stringify(rendered)).digest('hex');
   const idempotencyKey = `enrollment/${input.enrollmentId}/${input.node.id}`;
-  await db.insert(sendIntents).values({ workspaceId: input.workspaceId, enrollmentId: input.enrollmentId, stepId: input.node.id, idempotencyKey, payloadHash, recipient: row.contact.email, subject: rendered.subject, html: rendered.html, plainText: rendered.plainText }).onConflictDoNothing();
+  await db.insert(sendIntents).values({ workspaceId: input.workspaceId, enrollmentId: input.enrollmentId, stepId: input.node.id, idempotencyKey, payloadHash, connectionVersion, fromAddress, recipient: row.contact.email, subject: rendered.subject, html: rendered.html, plainText: rendered.plainText }).onConflictDoNothing();
   const [intent] = await db.select().from(sendIntents).where(eq(sendIntents.idempotencyKey, idempotencyKey)).limit(1);
   if (!intent) throw new Error('Send intent disappeared');
   if (intent.payloadHash !== payloadHash) throw ApplicationFailure.nonRetryable('Send payload changed', 'ValidationError');
   if (intent.state === 'accepted') return 'succeeded';
+  if (intent.connectionVersion !== connectionVersion || intent.fromAddress !== fromAddress) {
+    await db.update(sendIntents).set({ state: 'unknown', errorCode: 'connection_changed', updatedAt: new Date() }).where(eq(sendIntents.id, intent.id));
+    return 'needs_attention';
+  }
   if (intent.firstAttemptAt && Date.now() - intent.firstAttemptAt.getTime() >= 23 * 60 * 60 * 1000) {
     await db.update(sendIntents).set({ state: 'unknown', errorCode: 'idempotency_window_expired' }).where(eq(sendIntents.id, intent.id));
     return 'needs_attention';
   }
   await db.update(sendIntents).set({ state: 'dispatching', firstAttemptAt: intent.firstAttemptAt ?? new Date(), updatedAt: new Date() }).where(eq(sendIntents.id, intent.id));
-  const outcome = await provider.send({ from: config.from, to: intent.recipient, subject: intent.subject, html: intent.html, text: intent.plainText }, idempotencyKey);
+  const outcome = await provider.send({
+    from: intent.fromAddress ?? fromAddress, to: intent.recipient, subject: intent.subject,
+    html: intent.html, text: intent.plainText,
+    tags: [{ name: 'reflow_workspace', value: input.workspaceId }, { name: 'reflow_intent', value: intent.id }],
+  }, idempotencyKey);
   if (outcome.kind === 'accepted') {
     await db.update(sendIntents).set({ state: 'accepted', providerMessageId: outcome.messageId, acceptedAt: new Date(), updatedAt: new Date() }).where(eq(sendIntents.id, intent.id));
     return 'succeeded';

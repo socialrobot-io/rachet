@@ -1,9 +1,20 @@
 import { z } from 'zod';
 
 export const workspaceIdSchema = z.uuid();
-export const accountCreateSchema = z.object({ email: z.email(), name: z.string().min(1).max(120), password: z.string().min(12).max(200), deploymentAdmin: z.boolean().default(false), workspaceId: z.uuid().optional(), role: z.enum(['owner', 'admin', 'author', 'sender', 'operator', 'viewer']).default('viewer') });
-export const credentialCreateSchema = z.object({ userId: z.string().min(1), name: z.string().min(1).max(120), scopes: z.array(z.enum(['read', 'write', 'send'])).min(1).default(['read']), expiresInSeconds: z.number().int().min(60).max(365 * 24 * 60 * 60).optional() });
-export const credentialRevokeSchema = z.object({ keyId: z.string().min(1) });
+export const accountCreateSchema = z.object({
+  email: z.string().trim().email(),
+  name: z.string().trim().min(1).max(120),
+  method: z.enum(['magic-link', 'github']).default('magic-link'),
+  organizationName: z.string().trim().min(1).max(120).default('My organization'),
+});
+export const credentialListSchema = z.object({ workspaceId: workspaceIdSchema });
+export const credentialCreateSchema = z.object({
+  workspaceId: workspaceIdSchema,
+  name: z.string().trim().min(1).max(120),
+  scopes: z.array(z.enum(['read', 'write', 'send'])).min(1).max(3).default(['read']),
+  expiresInSeconds: z.number().int().min(60).max(365 * 24 * 60 * 60).default(90 * 24 * 60 * 60),
+});
+export const credentialRevokeSchema = z.object({ workspaceId: workspaceIdSchema, keyId: z.string().min(1) });
 export const templateCreateSchema = z.object({
   workspaceId: workspaceIdSchema,
   name: z.string().min(1).max(120),
@@ -48,10 +59,34 @@ export const templateReviseSchema = z.object({
 export const templateArchiveSchema = z.object({ workspaceId: workspaceIdSchema, templateId: z.uuid() });
 export const templateRenderSchema = z.object({ workspaceId: workspaceIdSchema, templateVersionId: z.uuid(), props: z.record(z.string(), z.unknown()).default({}) });
 
+export const timeZoneSchema = z.string().min(1).max(100).refine(
+  (value) => value === 'UTC' || Intl.supportedValuesOf('timeZone').includes(value),
+  'Use an IANA timezone such as Europe/Amsterdam or UTC',
+);
+
+const scheduledTriggerSchema = z.object({
+  type: z.literal('schedule'),
+  at: z.iso.datetime({ offset: true }),
+  timeZone: timeZoneSchema,
+}).superRefine(({ at, timeZone }, context) => {
+  // An explicit offset resolves ambiguous DST times; verify it actually belongs
+  // to the named timezone at this instant so the two fields cannot disagree.
+  const instant = new Date(at);
+  if (Number.isNaN(instant.getTime())) return;
+  if (timeZone !== 'UTC' && !Intl.supportedValuesOf('timeZone').includes(timeZone)) return;
+  const actual = new Intl.DateTimeFormat('en-US', { timeZone, timeZoneName: 'longOffset' })
+    .formatToParts(instant).find((part) => part.type === 'timeZoneName')?.value;
+  const supplied = at.match(/(Z|[+-]\d{2}:\d{2})$/)?.[1];
+  const expected = actual === 'GMT' ? 'Z' : actual?.replace('GMT', '');
+  if (supplied && expected && supplied !== expected && !(supplied === '+00:00' && expected === 'Z')) {
+    context.addIssue({ code: 'custom', path: ['at'], message: `Datetime offset does not match ${timeZone} at this instant` });
+  }
+});
+
 export const triggerSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('manual') }),
   z.object({ type: z.literal('event'), eventType: z.string().min(1).max(120) }),
-  z.object({ type: z.literal('schedule'), at: z.iso.datetime({ offset: true }) }),
+  scheduledTriggerSchema,
 ]);
 const literalValue = z.json();
 export const valueSourceSchema = z.union([
@@ -99,7 +134,7 @@ export type WorkflowDefinition = z.infer<typeof workflowDefinitionSchema>;
 export const workflowCreateSchema = z.object({ workspaceId: workspaceIdSchema, name: z.string().min(1).max(120), intent: z.string().min(1).max(5000), definition: workflowDefinitionSchema });
 export const workflowPublishSchema = z.object({ workspaceId: workspaceIdSchema, workflowId: z.uuid(), expectedRevision: z.number().int().positive() });
 export const workflowSimulateSchema = z.object({ workspaceId: workspaceIdSchema, definition: workflowDefinitionSchema, contact: z.record(z.string(), z.unknown()).default({}), variables: z.record(z.string(), z.unknown()).default({}), receivedEvents: z.array(z.string()).default([]) });
-export const contactUpsertSchema = z.object({ workspaceId: workspaceIdSchema, externalId: z.string().min(1).max(200).optional(), email: z.email(), timezone: z.string().max(100).optional(), fields: z.record(z.string(), z.unknown()).default({}) });
+export const contactUpsertSchema = z.object({ workspaceId: workspaceIdSchema, externalId: z.string().min(1).max(200).optional(), email: z.email(), timezone: timeZoneSchema.optional(), fields: z.record(z.string(), z.unknown()).default({}) });
 export const enrollmentCreateSchema = z.object({ workspaceId: workspaceIdSchema, workflowVersionId: z.uuid(), contactId: z.uuid(), variables: z.record(z.string(), z.unknown()).default({}), idempotencyKey: z.string().min(1).max(200) });
 export const enrollmentControlSchema = z.object({ workspaceId: workspaceIdSchema, enrollmentId: z.uuid() });
 export const eventEmitSchema = z.object({ workspaceId: workspaceIdSchema, enrollmentId: z.uuid(), eventId: z.string().min(1).max(200), eventType: z.string().min(1).max(120), data: z.record(z.string(), z.unknown()).default({}) });

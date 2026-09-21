@@ -1,12 +1,64 @@
 import { describe, expect, it } from 'vitest';
 import {
+  accountCreateSchema,
+  credentialCreateSchema,
+  contactUpsertSchema,
   templateCreateSchema,
   templateReviseSchema,
   valueSourceSchema,
   workflowDefinitionSchema,
+  triggerSchema,
 } from '../packages/contracts/src/index.js';
 
 const workspaceId = '00000000-0000-4000-8000-000000000001';
+
+describe('timezone-aware operation contracts shared by CLI and MCP', () => {
+  it('requires an offset and an IANA timezone for scheduled workflows', () => {
+    const valid = { type: 'schedule', at: '2026-10-25T02:30:00+02:00', timeZone: 'Europe/Amsterdam' };
+    expect(triggerSchema.safeParse(valid).success).toBe(true);
+    expect(triggerSchema.safeParse({ ...valid, at: '2026-10-25T02:30:00' }).success).toBe(false);
+    expect(triggerSchema.safeParse({ ...valid, timeZone: undefined }).success).toBe(false);
+    expect(triggerSchema.safeParse({ ...valid, timeZone: 'PST' }).success).toBe(false);
+    expect(triggerSchema.safeParse({ ...valid, at: '2026-10-25T02:30:00+03:00' }).success).toBe(false);
+  });
+
+  it('accepts either valid offset for a DST fold and rejects the wrong summer offset', () => {
+    expect(triggerSchema.safeParse({ type: 'schedule', at: '2026-10-25T02:30:00+01:00', timeZone: 'Europe/Amsterdam' }).success).toBe(true);
+    expect(triggerSchema.safeParse({ type: 'schedule', at: '2026-07-01T09:00:00+01:00', timeZone: 'Europe/Amsterdam' }).success).toBe(false);
+  });
+
+  it('validates contact timezones as IANA names', () => {
+    const contact = { workspaceId, email: 'contact@example.com', timezone: 'Europe/Amsterdam' };
+    expect(contactUpsertSchema.safeParse(contact).success).toBe(true);
+    expect(contactUpsertSchema.safeParse({ ...contact, timezone: 'UTC+2' }).success).toBe(false);
+  });
+});
+
+describe('passwordless account and API key schemas', () => {
+  it('does not accept passwords or arbitrary API-key owners', () => {
+    expect(accountCreateSchema.parse({
+      email: 'new@example.com',
+      name: 'New User',
+      password: 'this-field-is-not-part-of-the-contract',
+    })).not.toHaveProperty('password');
+    expect(credentialCreateSchema.parse({
+      workspaceId,
+      name: 'SDK',
+      scopes: ['read'],
+      userId: 'somebody-else',
+    })).not.toHaveProperty('userId');
+  });
+
+  it('limits API keys to known scopes and at most one year', () => {
+    expect(() => credentialCreateSchema.parse({ workspaceId, name: 'bad', scopes: ['admin'] })).toThrow();
+    expect(() => credentialCreateSchema.parse({
+      workspaceId,
+      name: 'too-long',
+      scopes: ['read'],
+      expiresInSeconds: 366 * 24 * 60 * 60,
+    })).toThrow();
+  });
+});
 
 describe('templateCreateSchema', () => {
   it('accepts html templates with html + plain body', () => {

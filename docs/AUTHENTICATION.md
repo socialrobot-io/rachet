@@ -4,19 +4,15 @@ Reflow uses Better Auth 1.7.4 for browser sessions, OAuth 2.1 authorization, API
 
 ## Initial administrator
 
-Initial setup is a trusted deployment-host command, not a public route:
+When the database contains no users, `/auth/login` becomes the one-time administrator registration page. It requires `REFLOW_SETUP_SECRET`, plus the administrator name, email, and organization name. The secret is compared without exposing it in URLs or logs. Database locking and constraints ensure concurrent attempts can create only one deployment administrator. The user, profile, immutable default organization, owner membership, and initialization marker are provisioned in the same database transaction.
 
-```sh
-pnpm setup -- --email admin@example.com --name Admin --password-file /run/secrets/reflow_admin_password
-```
-
-It takes a PostgreSQL advisory lock, creates one deployment administrator and one initial workspace, and records an initialization marker. It cannot be used to reset an existing deployment. Keep the password file outside the repository and remove it after setup.
-
-Later accounts are created with the authenticated `account.create` operation. `ALLOW_REGISTRATION=false` is the default. When registration is explicitly enabled, a new verified non-admin user gets a new isolated workspace as owner; registration never joins an existing tenant and its workspace starts with sending disabled.
+Later account invitations are authorized with the authenticated `account.create` operation. `ALLOW_REGISTRATION=false` is the default. When registration is explicitly enabled, a new verified non-admin user gets a new isolated organization as owner. The current product exposes exactly that default organization and has no create/switch organization flow.
 
 ## Dashboard sessions
 
-The same-origin dashboard signs in at `/auth/login` with Better Auth's email/password flow. In production, email verification is required and verification mail uses the separately configured Resend credential. Cookies remain HTTP-only, SameSite, and secure on HTTPS deployments. CSRF and origin checks remain enabled, trusted origins are explicit, OAuth tokens stored for an upstream identity provider are encrypted, and authentication endpoints are rate limited in database-backed storage.
+The same-origin dashboard signs in at `/auth/login` using a single-use magic link or GitHub. Password authentication is disabled. Magic links expire after 10 minutes, are stored hashed, and require both `AUTH_RESEND_API_KEY` and an explicit `AUTH_EMAIL_FROM` sender on a domain verified in that authentication Resend account. This deployment-level authentication account must be separate from every organization's workflow-delivery account. No placeholder sender is used; the login page hides magic links and shows a configuration warning if the key is set without a sender. Unknown or unauthorized addresses receive the same generic response and no email. GitHub never asks for an email before OAuth: an authorized registration intent is carried in Better Auth's server-owned OAuth state and bound to the provider's verified email during the callback.
+
+Cookies remain HTTP-only, SameSite, and secure on HTTPS deployments. CSRF and origin checks remain enabled, trusted origins are explicit, OAuth tokens are encrypted at rest, and authentication endpoints are rate limited in database-backed storage.
 
 An optional upstream OAuth/OIDC provider can be configured with `OAUTH_PROVIDER_ID`, `OAUTH_DISCOVERY_URL`, `OAUTH_CLIENT_ID`, and `OAUTH_CLIENT_SECRET` (or its file variant). Reflow-issued access tokens—not upstream provider tokens—authorize Reflow operations.
 
@@ -40,11 +36,13 @@ HTTP MCP is an OAuth protected resource at `/mcp`. Reflow publishes protected-re
 
 Unauthenticated dynamic registration is limited to public clients (`token_endpoint_auth_method=none`) and rejects client credentials. Redirects are limited to loopback HTTP, native schemes explicitly listed in `OAUTH_PUBLIC_REDIRECT_SCHEMES` (default: `cursor`), and exact HTTPS origins listed in `OAUTH_PUBLIC_REDIRECT_ORIGINS`. Every dynamically registered client requires consent; there is no consent bypass.
 
-The dashboard's **Connected apps** page lists grants for the signed-in user and revokes them. Revocation removes the consent so the client must authorize again. The one-time secret returned by `credential.create` is deliberately excluded from the MCP tool catalog and its resource listing, preventing an agent transcript from becoming credential storage.
+The dashboard's **Connected apps** page lists grants for the signed-in user and revokes them. The **API keys** page creates, lists, and revokes SDK credentials. A key is shown once, stored hashed, limited to the user's immutable organization and selected scopes, and never returned by list operations. Secret-returning `credential.create` is excluded from the MCP tool catalog and its resource listing.
+
+After first sign-in, an organization owner is directed to **Integrations**, where they can choose Resend (Webhooks and Push are marked coming soon). They can skip setup to build and simulate, but cannot send workflow email until an owner or admin saves that organization's sender, API key, and webhook signing secret and Resend accepts a test email. These integration secrets are encrypted with `INTEGRATION_ENCRYPTION_KEY`; they are managed only through authenticated browser endpoints and are never returned by status, CLI, or MCP operations. The Integrations page remains available for rotation.
 
 ## Machine access and stdio
 
-Non-interactive systems use a scoped user-bound API key or an administrator-provisioned confidential OAuth client. Credentials belong in a secret manager or protected environment/file, never command arguments, prompts, or logs. Reflow intersects credential scopes with current workspace membership and role checks on every operation.
+Non-interactive systems use a scoped organization-bound API key or an administrator-provisioned confidential OAuth client. Credentials belong in a secret manager or protected environment/file, never command arguments, prompts, or logs. Reflow intersects credential scopes with current organization membership and role checks on every operation.
 
 The published `@socialrobot-io/reflow-sdk` uses the same `/v1/operations` contract for UI server actions. Give it a `send`-scoped API key and keep that key on the server; do not embed it in browser JavaScript. Add the UI origin to `TRUSTED_ORIGINS` when the UI calls Reflow directly from a browser, although a server-side action/proxy is recommended.
 
@@ -67,6 +65,8 @@ OAuth and API-key scopes can only narrow that set. Each operation also checks th
 
 - Use HTTPS for `PUBLIC_URL` and every trusted origin in production.
 - Keep `BETTER_AUTH_SECRET` high-entropy and at least 32 characters.
+- Keep `REFLOW_SETUP_SECRET` high-entropy and at least 32 characters; rotate or remove access to it after initialization.
+- Use a dedicated Resend account/key for `AUTH_RESEND_API_KEY`; do not reuse workflow delivery credentials. Set `AUTH_EMAIL_FROM` to a sender on a domain verified in that account.
 - Leave `ALLOW_REGISTRATION=false` unless public account creation is intentional.
 - Keep `OAUTH_PUBLIC_REDIRECT_ORIGINS` empty unless a known web MCP client requires an HTTPS callback. Cursor currently requires the exact `https://www.cursor.com` origin.
 - Keep `OAUTH_PUBLIC_REDIRECT_SCHEMES` limited to installed native MCP clients that own those URI schemes.

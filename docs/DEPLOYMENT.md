@@ -8,17 +8,17 @@ On a Linux server with Docker Engine, Docker Compose, public DNS, and ports 80/4
 ./scripts/deploy.sh reflow.example.com admin@example.com
 ```
 
-The script generates secrets under `.reflow/`, builds and starts the complete stack, enables Caddy TLS, runs migrations, and performs idempotent first-admin setup. Re-run the same command to deploy an update. After the first successful login, move or securely delete `.reflow/production-admin-password`.
+The script generates secrets under `.reflow/`, builds and starts the complete stack, enables Caddy TLS, and runs migrations. Re-run the same command to deploy an update. Configure magic-link or GitHub credentials in `.reflow/production.env`, then open the dashboard and use its one-time first-admin page with the generated `REFLOW_SETUP_SECRET`.
 
 The sections below cover manual deployments, external ingress, Coolify, backups, and production customization.
 
 ## Prerequisites
 
-Use a Linux host with Docker Engine and the Compose plugin, public DNS for `REFLOW_DOMAIN`, and an HTTPS ingress in front of `app:3000`. SMTP delivery also requires a verified Resend domain and a configured Resend webhook pointing to `https://REFLOW_DOMAIN/webhooks/resend`.
+Use a Linux host with Docker Engine and the Compose plugin, public DNS for `REFLOW_DOMAIN`, and an HTTPS ingress in front of `app:3000`. Workflow email requires each organization to connect its own verified Resend account and webhook at the organization-specific URL shown during onboarding.
 
 For local development without a public domain, use `compose.dev.yaml` and the host process workflow in [README.md](../README.md). Do not use `compose.yaml` on a laptop unless you have real DNS and a working HTTPS front door. Configure Resend using the [Resend setup guide](RESEND.md).
 
-Copy `.env.example` to `.env.local` and set `REFLOW_DOMAIN`, `DATABASE_URL`, `POSTGRES_PASSWORD`, `TEMPORAL_POSTGRES_PASSWORD`, `BETTER_AUTH_SECRET`, `REFLOW_FROM`, and optional OIDC/Resend settings. Quote values containing spaces or shell punctuation, for example `REFLOW_FROM="Example App <no-reply@mail.example.com>"`. Keep `.env.local` mode `0600` and never commit it. Compose interpolation uses these values when you run `docker compose --env-file .env.local ...`.
+Copy `.env.example` to `.env.local` and set `REFLOW_DOMAIN`, `DATABASE_URL`, `POSTGRES_PASSWORD`, `TEMPORAL_POSTGRES_PASSWORD`, `BETTER_AUTH_SECRET`, `REFLOW_SETUP_SECRET`, `INTEGRATION_ENCRYPTION_KEY`, and either the authentication Resend or GitHub settings. Generate the integration key with `openssl rand -base64 32` and back it up; it must be identical in the app and worker. Magic links require both `AUTH_RESEND_API_KEY` and `AUTH_EMAIL_FROM`; the sender domain must be verified in that separate authentication Resend account. Quote values containing spaces or shell punctuation. Keep `.env.local` mode `0600` and never commit it.
 
 Start and inspect the deployment:
 
@@ -29,16 +29,7 @@ docker compose ps
 docker compose --env-file .env.local logs migrate temporal-schema temporal-namespace
 ```
 
-Create the one-time deployment administrator after migrations finish:
-
-```sh
-docker compose --env-file .env.local run --rm \
-  app node dist/apps/server/setup.js \
-  --email admin@example.com --name Admin \
-  --password-file /path/to/admin_password
-```
-
-Setup is guarded by a PostgreSQL advisory lock and an initialization marker. A second run fails without creating another deployment administrator. Keep the one-time admin password outside the repository and remove it after setup.
+After migrations finish, open `https://REFLOW_DOMAIN/auth/login`. The setup page appears only while there are no users and requires `REFLOW_SETUP_SECRET`. Setup is guarded by database locking and an initialization marker; a concurrent or later attempt cannot create another deployment administrator.
 
 ## Ingress
 
@@ -61,11 +52,24 @@ When the `caddy` profile is enabled, also set `ACME_EMAIL`, point DNS at the hos
 
 Reflow PostgreSQL and Temporal PostgreSQL use named volumes and are isolated from the public network. Application containers use read-only root filesystems, a non-root user, and `no-new-privileges`. When the `caddy` profile is enabled, only Caddy publishes host ports and obtains or renews TLS certificates.
 
-Back up both PostgreSQL databases and, if you use the `caddy` profile, Caddy data. Test restore procedures regularly. Before upgrades, read release notes for Better Auth, Temporal server and SDK, PostgreSQL, Resend SDK, and (if used) Caddy. Build a new immutable Reflow image, run migrations, then recreate app, worker, and dispatcher. Published workflow definitions and the prebundled Temporal workflow interpreter remain compatible within schema version `1`; introduce a new schema version for incompatible graph changes.
+Back up both PostgreSQL databases, the integration encryption key, and, if you use the `caddy` profile, Caddy data. Test restore procedures regularly. Before upgrades, read release notes for Better Auth, Temporal server and SDK, PostgreSQL, Resend SDK, and (if used) Caddy. Build a new immutable Reflow image, run migrations, then recreate app, worker, and dispatcher. Published workflow definitions and the prebundled Temporal workflow interpreter remain compatible within schema version `1`; introduce a new schema version for incompatible graph changes.
 
-Monitor `/health/ready`, container restarts, Temporal task-queue backlog, outbox attempts, `needs_attention` enrollments, unknown send intents, and unprocessed webhook events. Rotate Better Auth, database, OAuth, and provider credentials through `.env.local` or Coolify secret variables. Rotating a Resend webhook secret requires coordinated endpoint configuration.
+Monitor `/health/ready`, container restarts, Temporal task-queue backlog, outbox attempts, `needs_attention` enrollments, unknown send intents, and unprocessed webhook events. Rotate Better Auth, database, and OAuth credentials through `.env.local` or Coolify secret variables. Organization admins rotate Resend credentials in the dashboard; review in-flight sends first. Rotating the integration encryption key requires re-encrypting every stored connection, not merely changing the environment variable.
+
+The Compose stack runs the self-hosted `temporalio/server` binary with a persistent PostgreSQL history/visibility store and a separate schema migration container. The Reflow worker loads a prebuilt workflow bundle; it does **not** use `temporal server start-dev` or bundle workflows at startup. Production Compose uses `production-sql.yaml`, without the development-only cache-refresh override. This is production-mode software, but the one-host, one-Temporal-server layout is **not highly available** and its internal Temporal frontend has no mTLS. Keep the Compose network private; use Temporal Cloud or an appropriately secured, redundant cluster for stronger availability and isolation. Do not enable Temporal 1.29's preview fairness dynamic switch on a queue with existing backlog; that rollout can strand queued tasks. Reflow currently limits admission to 100 new and 1000 active enrollments per organization instead.
 
 Single-host Compose is suitable when the host, database volumes, backups, and restore targets meet the deployment's availability objective. Multi-host failover requires an external highly available PostgreSQL service, multiple Reflow workers and API replicas, and a production Temporal cluster or Temporal Cloud.
+
+### Rotate the integration encryption key
+
+Do not change `INTEGRATION_ENCRYPTION_KEY` alone; that would make saved Resend connections unreadable. Back up the application database and the old key first. Stop the `app`, `worker`, and `dispatcher` containers so nothing can save or use connections during rotation. Put `DATABASE_URL`, `OLD_INTEGRATION_ENCRYPTION_KEY`, and a newly generated `NEW_INTEGRATION_ENCRYPTION_KEY` in a local, mode-`0600` `.env` file that is not committed. From a trusted host with database access and the repository dependencies installed, run:
+
+```sh
+node --env-file=.env.rotation --import tsx scripts/rotate-integration-key.ts
+node --env-file=.env.rotation --import tsx scripts/rotate-integration-key.ts --apply
+```
+
+The first command decrypts every saved connection and rolls back, verifying the old key without changing data. `--apply` re-encrypts all connections and fingerprints in a single database transaction. After it succeeds, set `INTEGRATION_ENCRYPTION_KEY` to the new value in the deployment `.env` file and restart the stack. Keep the backup and old key until a connection test and webhook have succeeded; do not paste keys into logs or support tickets. The script does not rotate the Resend API keys themselves.
 
 ## Coolify
 
@@ -77,17 +81,20 @@ Coolify can deploy the checked-in `compose.yaml` directly. Leave the `caddy` pro
 | `DATABASE_URL` | `postgresql://reflow:PASSWORD@postgres:5432/reflow` |
 | `TEMPORAL_POSTGRES_PASSWORD` | random Temporal database password |
 | `BETTER_AUTH_SECRET` | `openssl rand -base64 32` output |
-| `RESEND_API_KEY` | Resend API key (optional for simulation) |
-| `RESEND_WEBHOOK_SECRET` | Resend signing secret (optional without webhooks) |
+| `REFLOW_SETUP_SECRET` | separate `openssl rand -base64 32` output |
+| `INTEGRATION_ENCRYPTION_KEY` | separate `openssl rand -base64 32` output; back up securely |
+| `AUTH_RESEND_API_KEY` | magic-link key from a Resend account separate from workflow delivery |
+| `AUTH_EMAIL_FROM` | explicit sender on a domain verified in the authentication Resend account; required for magic links |
+| `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET` | GitHub OAuth app credentials (alternative or additional sign-in) |
 | `OAUTH_CLIENT_SECRET` | OIDC client secret, or leave empty when OIDC is disabled |
 | `OAUTH_PUBLIC_REDIRECT_ORIGINS` | comma-separated exact HTTPS origins for reviewed web clients; empty by default |
 | `OAUTH_PUBLIC_REDIRECT_SCHEMES` | comma-separated installed native-client schemes; defaults to `cursor` |
 
-Set `REFLOW_DOMAIN`, `REFLOW_FROM`, `PUBLIC_URL`, and `TRUSTED_ORIGINS` to the same HTTPS hostname Coolify assigns, then deploy. `ACME_EMAIL` is not required unless you enable the `caddy` profile.
+Set `REFLOW_DOMAIN`, `PUBLIC_URL`, and `TRUSTED_ORIGINS` to the same HTTPS hostname Coolify assigns, then deploy. `ACME_EMAIL` is not required unless you enable the `caddy` profile.
 
 Leave `OAUTH_PUBLIC_REDIRECT_ORIGINS` empty for CLI and loopback MCP clients. Cursor's current MCP OAuth flow uses `https://www.cursor.com`; add that exact origin when enabling Cursor against a deployment. `OAUTH_PUBLIC_REDIRECT_SCHEMES` defaults to `cursor`; keep it to the comma-separated native clients installed in your environment. Add only exact HTTPS origins for web MCP clients you have reviewed. Operators authorize clients in the dashboard and can revoke grants from **Connected apps**.
 
-After the stack is healthy, run the one-time setup command from the Coolify server or an attached shell with a temporary password file outside the repository. Configure Resend's webhook URL as `https://<your-domain>/webhooks/resend` and verify `/health/ready` before signing in. Coolify should monitor the `app` health check; separately alert on worker/dispatcher restarts, Temporal backlog, and database volume backups.
+After the stack is healthy, verify `/health/ready`, open the dashboard, and complete the one-time setup page. The onboarding screen provides the exact per-organization Resend webhook URL. Coolify should monitor the `app` health check; separately alert on worker/dispatcher restarts, Temporal backlog, and database volume backups.
 
 ### Temporal schema troubleshooting
 

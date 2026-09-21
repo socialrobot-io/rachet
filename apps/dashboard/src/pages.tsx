@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
-import { Pause, Play, XCircle } from 'lucide-react';
+import { ArrowUpRight, CircleCheck, Layers3, Pause, Play, UsersRound, XCircle } from 'lucide-react';
 import { api, ApiError } from '@/api';
 import { useAuth } from '@/auth';
 import {
@@ -16,7 +16,6 @@ import { EmailPreviewSheet, type EmailPreview } from '@/components/EmailPreviewS
 import { renderWithSamples, templateVersionIdOf } from '@/email-preview';
 import {
   buildExecutionTrace,
-  compactPreview,
   computeEnrollmentPath,
   contactDisplayName,
   countsByStep,
@@ -27,6 +26,7 @@ import {
 } from '@/flow';
 import type { Enrollment, Message, Workflow } from '@/types';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -36,16 +36,8 @@ import {
   BreadcrumbSeparator,
 } from '@/components/ui/breadcrumb';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
 
 function useWorkspaceData() {
   const { workspaceId } = useAuth();
@@ -93,7 +85,7 @@ function useWorkspaceData() {
 }
 
 function PageFrame({ children }: { children: ReactNode }) {
-  return <div className="mx-auto w-full max-w-6xl px-4 py-10 sm:px-6 lg:px-8">{children}</div>;
+  return <div className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6 lg:px-8 lg:py-12">{children}</div>;
 }
 
 export function WorkflowsPage() {
@@ -127,28 +119,26 @@ export function WorkflowsPage() {
     );
   }
 
+  const drafts = rows.filter(({ workflow }) => workflow.state === 'draft').length;
+  const active = rows.reduce((sum, row) => sum + row.active, 0);
+
   return (
     <PageFrame>
-      <div className="flex flex-col gap-6">
-        <div className="flex flex-col gap-3">
-          <Breadcrumb>
-            <BreadcrumbList>
-              <BreadcrumbItem>
-                <BreadcrumbPage>{workspace?.name ?? 'Workspace'}</BreadcrumbPage>
-              </BreadcrumbItem>
-              <BreadcrumbSeparator />
-              <BreadcrumbItem>
-                <BreadcrumbPage>Workflows</BreadcrumbPage>
-              </BreadcrumbItem>
-            </BreadcrumbList>
-          </Breadcrumb>
-          <div className="flex flex-col gap-1.5">
-            <h1 className="text-2xl font-semibold tracking-tight">Workflows</h1>
-            <p className="text-sm text-muted-foreground">
-              Published workflows and their live enrollments. Open one to see where people are.
-            </p>
+      <div className="flex flex-col gap-8">
+        <div className="flex flex-wrap items-end justify-between gap-4">
+          <div>
+            <p className="font-mono text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">{workspace?.name ?? 'Workspace'}</p>
+            <h1 className="mt-2 text-4xl font-bold tracking-[-0.055em]">Workflows</h1>
+            <p className="mt-2 text-sm text-muted-foreground">Your journeys, from first draft to live enrollment.</p>
           </div>
+          <Button asChild variant="outline"><Link to="/settings/integrations">Integrations <ArrowUpRight data-icon="inline-end" /></Link></Button>
         </div>
+
+        <section aria-label="Workspace overview" className="grid gap-3 sm:grid-cols-3">
+          <Card className="reflow-panel"><CardHeader><CardDescription className="flex items-center gap-2"><Layers3 className="size-4" /> Workflows</CardDescription><CardTitle className="text-3xl font-bold tabular-nums">{rows.length}</CardTitle></CardHeader></Card>
+          <Card className="reflow-panel"><CardHeader><CardDescription className="flex items-center gap-2"><CircleCheck className="size-4" /> Ready to review</CardDescription><CardTitle className="text-3xl font-bold tabular-nums">{drafts}</CardTitle></CardHeader></Card>
+          <Card className="reflow-panel"><CardHeader><CardDescription className="flex items-center gap-2"><UsersRound className="size-4" /> People in progress</CardDescription><CardTitle className="text-3xl font-bold tabular-nums">{active}</CardTitle></CardHeader></Card>
+        </section>
 
         {error && (
           <Alert variant="destructive">
@@ -156,48 +146,38 @@ export function WorkflowsPage() {
           </Alert>
         )}
 
-        {rows.length === 0 ? (
-          <Card className="border-dashed shadow-none">
-            <CardContent className="py-10 text-sm text-muted-foreground">
-              No workflows in this workspace yet.
-            </CardContent>
-          </Card>
-        ) : (
-          <Card className="overflow-hidden py-0 shadow-none">
-            <Table>
-              <TableHeader>
-                <TableRow className="hover:bg-transparent">
-                  <TableHead>Name</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Active now</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {rows.map(({ workflow, active }) => (
-                  <TableRow key={workflow.id}>
-                    <TableCell className="align-top">
-                      <Link
-                        to={`/workflows/${workflow.id}`}
-                        className="font-medium tracking-tight underline-offset-4 hover:underline"
-                      >
-                        {workflow.name}
-                      </Link>
-                      <p className="mt-1 font-mono text-xs leading-relaxed text-muted-foreground">
-                        {compactPreview(workflow.definition)}
-                      </p>
-                    </TableCell>
-                    <TableCell className="align-top">
-                      <StatusBadge value={workflow.state} />
-                    </TableCell>
-                    <TableCell className="align-top text-right font-mono tabular-nums">
-                      {active.toLocaleString()}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </Card>
-        )}
+        <section className="flex flex-col gap-5">
+          <div className="flex flex-wrap items-end justify-between gap-3">
+            <div>
+              <p className="font-mono text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">The work in motion</p>
+              <h2 className="mt-1 text-2xl font-bold tracking-[-0.045em]">All journeys</h2>
+              <p className="mt-1 text-sm text-muted-foreground">Open a card to explore its steps and outcomes.</p>
+            </div>
+            <span className="rounded-full bg-accent px-3 py-1 font-mono text-xs font-medium">{rows.length} total</span>
+          </div>
+          {rows.length === 0 ? (
+            <Card className="reflow-panel border-dashed"><CardHeader><CardTitle>No workflows yet</CardTitle><CardDescription>Create your first workflow through the CLI or MCP, then it will appear here.</CardDescription></CardHeader></Card>
+          ) : (
+            <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+              {rows.map(({ workflow, active, completed }, index) => (
+                <Card key={workflow.id} className="reflow-workflow-card reflow-panel group relative h-full min-h-[21rem] transition-transform duration-200 hover:-translate-y-1">
+                  <CardHeader className="gap-4">
+                    <div className="reflow-card-art relative flex h-28 items-start justify-between overflow-hidden rounded-xl p-4">
+                      <span className="relative z-10 rounded-full bg-card/80 px-3 py-1 font-mono text-[0.65rem] font-semibold uppercase tracking-wide">{workflow.definition.topic?.replaceAll('_', ' ') || 'Workflow'}</span>
+                      <span className="absolute -bottom-10 right-2 text-[8rem] font-bold leading-none tracking-[-0.13em] text-foreground/10" aria-hidden="true">{String(index + 1).padStart(2, '0')}</span>
+                    </div>
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0"><CardTitle className="text-xl font-semibold tracking-tight"><Link to={`/workflows/${workflow.id}`} className="after:absolute after:inset-0 focus-visible:outline-ring">{workflow.name}</Link></CardTitle><CardDescription className="mt-2 line-clamp-3">{workflow.definition.description || 'A thoughtful journey for your audience.'}</CardDescription></div>
+                      <ArrowUpRight className="size-5 shrink-0 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" aria-hidden="true" />
+                    </div>
+                  </CardHeader>
+                  <CardFooter className="mt-auto justify-between gap-2"><StatusBadge value={workflow.state} /><span className="font-mono text-xs text-muted-foreground">{active} active · {completed} done</span></CardFooter>
+                </Card>
+              ))}
+            </div>
+          )}
+        </section>
+
       </div>
     </PageFrame>
   );
@@ -300,7 +280,7 @@ export function WorkflowDetailPage() {
           </Alert>
         )}
 
-        <section className="flex flex-col gap-3">
+        <section className="flex flex-col gap-4">
           <div className="flex flex-col gap-1">
             <h2 className="text-base font-semibold tracking-tight">Definition</h2>
             <p className="text-sm text-muted-foreground">
@@ -309,13 +289,15 @@ export function WorkflowDetailPage() {
               below.
             </p>
           </div>
-          <DocumentView
-            definition={definition}
-            counts={counts}
-            activeStepId={stepFilter}
-            onSelectStep={(nodeId) => setSearchParams({ step: nodeId })}
-            onPreviewEmail={(nodeId) => void openEmailPreview(nodeId)}
-          />
+          <div className="max-w-3xl py-1">
+            <DocumentView
+              definition={definition}
+              counts={counts}
+              activeStepId={stepFilter}
+              onSelectStep={(nodeId) => setSearchParams({ step: nodeId })}
+              onPreviewEmail={(nodeId) => void openEmailPreview(nodeId)}
+            />
+          </div>
           {stepFilter && (
             <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
               <span>
@@ -357,6 +339,7 @@ export function EnrollmentDetailPage() {
   const { enrollmentId } = useParams();
   const { workspaceId, enrollments, messages, error, loading, setEnrollments } = useWorkspaceData();
   const enrollment = enrollments.find((row) => row.id === enrollmentId);
+  const isDemoEnrollment = enrollment?.input.demo === true;
   const [busy, setBusy] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [preview, setPreview] = useState<EmailPreview | null>(null);
@@ -493,7 +476,7 @@ export function EnrollmentDetailPage() {
                 </BreadcrumbItem>
               </BreadcrumbList>
             </Breadcrumb>
-            <div className="flex flex-wrap gap-2">
+            {!isDemoEnrollment && <div className="flex flex-wrap gap-2">
               {enrollment.state === 'paused' ? (
                 <Button
                   type="button"
@@ -527,13 +510,14 @@ export function EnrollmentDetailPage() {
                 <XCircle data-icon="inline-start" />
                 {busy === 'cancel' ? 'Cancelling…' : 'Cancel enrollment'}
               </Button>
-            </div>
+            </div>}
           </div>
 
           <div className="flex flex-col gap-1.5">
             <div className="flex flex-wrap items-center gap-2.5">
               <h1 className="text-2xl font-semibold tracking-tight">{enrollment.contactEmail}</h1>
               <StatusBadge value={enrollment.state} />
+              {isDemoEnrollment && <Badge variant="secondary">Sample data</Badge>}
             </div>
             <p className="text-sm text-muted-foreground">
               {enrollment.workflowName} · enrolled {formatWhen(enrollment.createdAt)}
@@ -548,6 +532,12 @@ export function EnrollmentDetailPage() {
           </Alert>
         )}
 
+        {isDemoEnrollment && (
+          <Alert>
+            <AlertDescription>This is a visual demo enrollment. No Temporal execution or email delivery exists; controls are unavailable.</AlertDescription>
+          </Alert>
+        )}
+
         <div className="grid gap-10 lg:grid-cols-[minmax(0,1fr)_15rem] xl:gap-14">
           <div className="flex min-w-0 flex-col gap-10">
             <section className="flex flex-col gap-4">
@@ -555,14 +545,16 @@ export function EnrollmentDetailPage() {
                 <h2 className="text-base font-semibold tracking-tight">Execution</h2>
                 <p className="text-sm text-muted-foreground">
                   Where this enrollment sits in the workflow. Routes it did not take are dimmed.
-                  Click an email to see what was sent.
+                  {isDemoEnrollment ? ' Click an email to preview its template.' : ' Click an email to see what was sent.'}
                 </p>
               </div>
-              <DocumentView
-                definition={enrollment.definition}
-                path={path}
-                onPreviewEmail={(nodeId) => void openEmailPreview(nodeId)}
-              />
+              <div className="max-w-3xl py-1">
+                <DocumentView
+                  definition={enrollment.definition}
+                  path={path}
+                  onPreviewEmail={(nodeId) => void openEmailPreview(nodeId)}
+                />
+              </div>
             </section>
 
             <section className="flex flex-col gap-4">

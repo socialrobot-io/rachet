@@ -1,21 +1,26 @@
 import { serve } from '@hono/node-server';
 import { serveStatic } from '@hono/node-server/serve-static';
 import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js';
-import { and, eq, sql } from 'drizzle-orm';
+import { and, eq, isNull, sql } from 'drizzle-orm';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { secureHeaders } from 'hono/secure-headers';
+import { ZodError } from 'zod';
+import { z } from 'zod';
 import type { Config } from './config.js';
 import type { ReflowAuth } from './auth.js';
 import type { Database } from './db/index.js';
-import { sendIntents, suppressions, webhookEvents } from './db/schema.js';
+import { resendConnections, sendIntents, suppressions, webhookEvents, workspaces } from './db/schema.js';
 import type { ReflowService } from './domain/service.js';
 import { ReflowError, errorPayload } from './domain/errors.js';
 import { createMcpServer } from './mcp.js';
 import { authorizeOperation, type Operation } from './operations.js';
 import { ResendProvider } from './providers/resend.js';
+import { decryptIntegrationSecret, encryptIntegrationSecret, fingerprintIntegrationSecret } from './integrations/secret.js';
+import { authorizeRegistrationIntent, registrationIntentSchema, registrationStatus } from './registration.js';
+import { consumeRateLimit } from './security/rate-limit.js';
 import {
   inferNativeApplicationType,
   needsMcpPublicClientRegistration,
@@ -45,10 +50,208 @@ export function createApp(dependencies: Dependencies) {
   app.use('/api/*', cors({ origin: config.trustedOrigins, credentials: true, allowHeaders: ['authorization', 'content-type', 'x-api-key'] }));
   app.use('/v1/*', cors({ origin: config.trustedOrigins, allowHeaders: ['authorization', 'content-type', 'x-api-key'] }));
 
+  const workspaceIdInput = z.uuid();
+  const senderInput = z.string().trim().min(3).max(254).refine((value) => {
+    const bracketed = value.match(/^[^<>]+\s<([^<>\s]+)>$/);
+    return z.email().safeParse(bracketed ? bracketed[1] : value).success;
+  }, 'Enter an email address or Name <email@verified-domain>');
+  const connectionInput = z.object({
+    workspaceId: workspaceIdInput,
+    from: senderInput,
+    apiKey: z.string().trim().regex(/^re_[A-Za-z0-9_-]{8,200}$/, 'Enter a Resend API key'),
+    webhookSecret: z.string().trim().regex(/^whsec_[A-Za-z0-9_-]{8,200}$/, 'Enter a Resend webhook signing secret'),
+  });
+  async function integrationMember(request: Request, workspaceId: string, admin: boolean) {
+    const session = await auth.api.getSession({ headers: request.headers });
+    if (!session) throw new ReflowError('UNAUTHENTICATED', 'Authentication required', 401);
+    const principal = await service.principalFor(session.user.id);
+    const role = principal.workspaceRoles[workspaceId];
+    if (!role || (admin && role !== 'owner' && role !== 'admin')) {
+      throw new ReflowError('FORBIDDEN', 'Organization access denied', 403);
+    }
+    return principal;
+  }
+  function sameOriginWrite(request: Request) {
+    const origin = request.headers.get('origin');
+    return !!origin && config.trustedOrigins.includes(origin);
+  }
+  async function limitedText(request: Request, maxBytes: number) {
+    const reader = request.body?.getReader();
+    if (!reader) return '';
+    const chunks: Uint8Array[] = [];
+    let size = 0;
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      size += value.byteLength;
+      if (size > maxBytes) {
+        await reader.cancel();
+        throw new ReflowError('VALIDATION_FAILED', 'Request body is too large', 413);
+      }
+      chunks.push(value);
+    }
+    return new TextDecoder('utf-8', { fatal: true }).decode(Buffer.concat(chunks));
+  }
+  function integrationError(error: unknown) {
+    if (error instanceof ReflowError) return { status: error.status, body: errorPayload(error) };
+    if (error instanceof ZodError) return { status: 422, body: { code: 'VALIDATION_FAILED', message: 'Check the integration fields', fieldErrors: z.flattenError(error).fieldErrors } };
+    if (error instanceof SyntaxError) return { status: 400, body: { code: 'INVALID_JSON', message: 'Invalid JSON request' } };
+    if (error instanceof Error && 'code' in error && error.code === '23505') {
+      return { status: 409, body: { code: 'CONNECTION_CONFLICT', message: 'A Resend credential is already connected to another organization' } };
+    }
+    console.error('Integration request failed', error instanceof Error ? error.name : 'unknown');
+    return { status: 500, body: { code: 'INTERNAL', message: 'Integration request failed' } };
+  }
+  app.get('/api/integrations/resend', async (context) => {
+    try {
+      const workspaceId = workspaceIdInput.parse(context.req.query('workspaceId'));
+      await integrationMember(context.req.raw, workspaceId, false);
+      const [connection] = await db.select({ fromAddress: resendConnections.fromAddress, updatedAt: resendConnections.updatedAt, lastTestAcceptedAt: resendConnections.lastTestAcceptedAt })
+        .from(resendConnections).where(eq(resendConnections.workspaceId, workspaceId)).limit(1);
+      const [workspace] = await db.select({ onboardingCompletedAt: workspaces.onboardingCompletedAt })
+        .from(workspaces).where(eq(workspaces.id, workspaceId)).limit(1);
+      context.header('Cache-Control', 'no-store');
+      return context.json({
+        configured: !!connection,
+        from: connection?.fromAddress ?? null,
+        updatedAt: connection?.updatedAt ?? null,
+        lastTestAcceptedAt: connection?.lastTestAcceptedAt ?? null,
+        onboardingComplete: !!workspace?.onboardingCompletedAt,
+        webhookUrl: `${config.publicUrl}/webhooks/resend/${workspaceId}`,
+      });
+    } catch (error) {
+      const { status, body } = integrationError(error);
+      return context.json(body, status as 400);
+    }
+  });
+  app.post('/api/integrations/resend', async (context) => {
+    try {
+      if (!sameOriginWrite(context.req.raw)) throw new ReflowError('FORBIDDEN', 'Invalid request origin', 403);
+      const raw = await limitedText(context.req.raw, 4096);
+      const input = connectionInput.parse(JSON.parse(raw));
+      const principal = await integrationMember(context.req.raw, input.workspaceId, true);
+      await consumeRateLimit(db, config, 'resend-connection-save', input.workspaceId, 20, 3600);
+      if (!config.integrationEncryptionKey) throw new ReflowError('NOT_CONFIGURED', 'Integration encryption is not configured on this deployment', 503);
+      if (input.apiKey === config.authResendApiKey || input.apiKey === config.resendApiKey) {
+        throw new ReflowError('VALIDATION_FAILED', 'Use a dedicated Resend key for this organization', 422);
+      }
+      const apiKeyEncrypted = encryptIntegrationSecret(config, input.workspaceId, 'resend-api-key', input.apiKey);
+      const webhookSecretEncrypted = encryptIntegrationSecret(config, input.workspaceId, 'resend-webhook-secret', input.webhookSecret);
+      const apiKeyFingerprint = fingerprintIntegrationSecret(config, 'resend-api-key', input.apiKey);
+      const webhookSecretFingerprint = fingerprintIntegrationSecret(config, 'resend-webhook-secret', input.webhookSecret);
+      await db.transaction(async (transaction) => {
+        await transaction.insert(resendConnections).values({
+          workspaceId: input.workspaceId, apiKeyEncrypted, apiKeyFingerprint, webhookSecretEncrypted, webhookSecretFingerprint, fromAddress: input.from,
+        }).onConflictDoUpdate({ target: resendConnections.workspaceId, set: {
+          apiKeyEncrypted, apiKeyFingerprint, webhookSecretEncrypted, webhookSecretFingerprint, fromAddress: input.from,
+          version: sql`${resendConnections.version} + 1`, lastTestAcceptedAt: null, updatedAt: new Date(),
+        } });
+        await transaction.update(workspaces).set({ sendingEnabled: false, updatedAt: new Date() })
+          .where(eq(workspaces.id, input.workspaceId));
+      });
+      console.info('Resend connection configured', { workspaceId: input.workspaceId, actorId: principal.userId });
+      return context.json({ configured: true });
+    } catch (error) {
+      const { status, body } = integrationError(error);
+      return context.json(body, status as 400);
+    }
+  });
+  app.post('/api/integrations/resend/skip', async (context) => {
+    try {
+      if (!sameOriginWrite(context.req.raw)) throw new ReflowError('FORBIDDEN', 'Invalid request origin', 403);
+      const raw = await limitedText(context.req.raw, 256);
+      const workspaceId = workspaceIdInput.parse((JSON.parse(raw) as { workspaceId?: unknown }).workspaceId);
+      await integrationMember(context.req.raw, workspaceId, true);
+      await consumeRateLimit(db, config, 'resend-connection-test', workspaceId, 5, 3600);
+      await db.update(workspaces).set({ onboardingCompletedAt: new Date(), updatedAt: new Date() }).where(eq(workspaces.id, workspaceId));
+      return context.json({ onboardingComplete: true });
+    } catch (error) {
+      const { status, body } = integrationError(error);
+      return context.json(body, status as 400);
+    }
+  });
+  app.post('/api/integrations/resend/test', async (context) => {
+    try {
+      if (!sameOriginWrite(context.req.raw)) throw new ReflowError('FORBIDDEN', 'Invalid request origin', 403);
+      const raw = await limitedText(context.req.raw, 256);
+      const workspaceId = workspaceIdInput.parse((JSON.parse(raw) as { workspaceId?: unknown }).workspaceId);
+      await integrationMember(context.req.raw, workspaceId, true);
+      const session = await auth.api.getSession({ headers: context.req.raw.headers });
+      if (!session) throw new ReflowError('UNAUTHENTICATED', 'Authentication required', 401);
+      const [connection] = await db.select().from(resendConnections).where(eq(resendConnections.workspaceId, workspaceId)).limit(1);
+      if (!connection) throw new ReflowError('NOT_FOUND', 'Connect Resend first', 404);
+      const key = decryptIntegrationSecret(config, workspaceId, 'resend-api-key', connection.apiKeyEncrypted);
+      const outcome = await new ResendProvider(key, undefined).send({
+        from: connection.fromAddress,
+        to: session.user.email,
+        subject: 'Reflow Resend connection test',
+        html: '<p>Your organization’s Resend connection can send email.</p>',
+        text: 'Your organization’s Resend connection can send email.',
+        tags: [{ name: 'reflow_kind', value: 'connection_test' }],
+      }, `connection-test/${crypto.randomUUID()}`);
+      if (outcome.kind !== 'accepted') return context.json({ code: outcome.code, message: 'Resend did not accept the test email' }, 502);
+      await db.transaction(async (transaction) => {
+        const [tested] = await transaction.update(resendConnections).set({ lastTestAcceptedAt: new Date() })
+          .where(and(eq(resendConnections.workspaceId, workspaceId), eq(resendConnections.version, connection.version)))
+          .returning({ workspaceId: resendConnections.workspaceId });
+        if (!tested) throw new ReflowError('CONNECTION_CHANGED', 'Connection changed during the test; test it again', 409);
+        await transaction.update(workspaces).set({ onboardingCompletedAt: new Date(), sendingEnabled: true, updatedAt: new Date() })
+          .where(eq(workspaces.id, workspaceId));
+      });
+      return context.json({ accepted: true });
+    } catch (error) {
+      const { status, body } = integrationError(error);
+      return context.json(body, status as 400);
+    }
+  });
+
   app.get('/health/live', (context) => context.json({ status: 'ok' }));
   app.get('/health/ready', async (context) => {
     try { await db.execute('select 1'); return context.json({ status: 'ready' }); }
     catch { return context.json({ status: 'unavailable' }, 503); }
+  });
+  app.get('/api/setup/status', async (context) => {
+    const status = await registrationStatus(db, config);
+    context.header('Cache-Control', 'no-store');
+    return context.json(status);
+  });
+  app.post('/api/registration/intent', async (context) => {
+    try {
+      const raw = await limitedText(context.req.raw, 4096);
+      await consumeRateLimit(db, config, 'registration-intent-global', 'deployment', 60, 60);
+      const input = registrationIntentSchema.parse(JSON.parse(raw));
+      if (input.method === 'magic-link') {
+        await consumeRateLimit(db, config, 'registration-intent-email', input.email.trim().toLowerCase(), 5, 15 * 60);
+      }
+      const result = await authorizeRegistrationIntent(db, config, input);
+      context.header('Cache-Control', 'no-store');
+      return context.json(result);
+    } catch (error) {
+      if (error instanceof ReflowError) return context.json(errorPayload(error), error.status as 400);
+      if (error instanceof ZodError) {
+        const fieldErrors: Record<string, string[]> = {};
+        const messages: Record<string, string> = {
+          email: 'Enter a valid email address.',
+          name: 'Enter your name.',
+          organizationName: 'Enter an organization name.',
+          organizationSlug: 'Use lowercase letters, numbers, and hyphens only.',
+          setupSecret: 'Enter the setup secret.',
+        };
+        for (const issue of error.issues) {
+          const field = typeof issue.path[0] === 'string' ? issue.path[0] : 'form';
+          fieldErrors[field] ??= [];
+          fieldErrors[field].push(messages[field] ?? 'Check this value.');
+        }
+        return context.json({
+          code: 'VALIDATION_FAILED',
+          message: 'Check the highlighted fields and try again.',
+          fieldErrors,
+        }, 422);
+      }
+      const status = error instanceof Error && 'status' in error && error.status === 403 ? 403 : 422;
+      const message = error instanceof Error ? error.message : 'Registration request failed';
+      return context.json({ message }, status);
+    }
   });
   app.post('/api/auth/oauth2/register', async (context) => {
     const body = await context.req.json().catch(() => null) as DynamicClientRegistrationRequest | null;
@@ -99,11 +302,24 @@ export function createApp(dependencies: Dependencies) {
   async function operationContext(request: Request) {
     const rawApiKey = request.headers.get('x-api-key');
     if (rawApiKey) {
-      const api = auth.api as unknown as { verifyApiKey(args: { body: { key: string } }): Promise<{ valid: boolean; key: null | { referenceId: string; permissions: null | Record<string, string[]> } }> };
+      const api = auth.api as unknown as { verifyApiKey(args: { body: { key: string } }): Promise<{ valid: boolean; key: null | { referenceId: string; permissions: null | Record<string, string[]>; metadata?: unknown } }> };
       const verified = await api.verifyApiKey({ body: { key: rawApiKey } });
       if (!verified.valid || !verified.key) throw new ReflowError('UNAUTHENTICATED', 'Invalid API key', 401);
       const principal = await service.principalFor(verified.key.referenceId);
       principal.scopes = (verified.key.permissions?.reflow ?? []).map((scope) => `reflow:${scope}`);
+      const metadata = verified.key.metadata && typeof verified.key.metadata === 'object'
+        ? verified.key.metadata as Record<string, unknown>
+        : {};
+      const workspaceId = typeof metadata.workspaceId === 'string' ? metadata.workspaceId : undefined;
+      if (!workspaceId) throw new ReflowError('FORBIDDEN', 'API key has no organization binding', 403);
+      if (!principal.workspaceIds.includes(workspaceId)) {
+        throw new ReflowError('FORBIDDEN', 'API key organization access was revoked', 403);
+      }
+      principal.workspaceIds = [workspaceId];
+      principal.workspaceRoles = principal.workspaceRoles[workspaceId]
+        ? { [workspaceId]: principal.workspaceRoles[workspaceId] }
+        : {};
+      principal.deploymentAdmin = false;
       return await Promise.resolve({ principal, requestId: crypto.randomUUID() });
     }
     const session = await auth.api.getSession({ headers: request.headers });
@@ -184,25 +400,71 @@ export function createApp(dependencies: Dependencies) {
   app.get('/.well-known/openid-configuration', () => proxyAuthWellKnown('/.well-known/openid-configuration'));
   app.get('/.well-known/openid-configuration/api/auth', () => proxyAuthWellKnown('/.well-known/openid-configuration'));
 
-  app.post('/webhooks/resend', async (context) => {
-    if (!config.resendApiKey || !config.resendWebhookSecret) return context.text('Webhook not configured', 503);
-    const raw = await context.req.text();
+  app.post('/webhooks/resend/:workspaceId', async (context) => {
+    const workspaceId = workspaceIdInput.safeParse(context.req.param('workspaceId'));
+    if (!workspaceId.success || !config.integrationEncryptionKey) return context.text('Webhook not configured', 404);
+    const [connection] = await db.select().from(resendConnections)
+      .where(eq(resendConnections.workspaceId, workspaceId.data)).limit(1);
+    if (!connection) return context.text('Webhook not configured', 404);
+    let raw: string;
+    try { raw = await limitedText(context.req.raw, 256 * 1024); }
+    catch { return context.text('Webhook body too large', 413); }
     let event: Record<string, unknown>;
-    try { event = await new ResendProvider(config.resendApiKey, config.resendWebhookSecret).verifyWebhook(raw, context.req.raw.headers); }
+    try {
+      const apiKey = decryptIntegrationSecret(config, workspaceId.data, 'resend-api-key', connection.apiKeyEncrypted);
+      const secret = decryptIntegrationSecret(config, workspaceId.data, 'resend-webhook-secret', connection.webhookSecretEncrypted);
+      event = await new ResendProvider(apiKey, secret).verifyWebhook(raw, context.req.raw.headers);
+    }
     catch { return context.text('Invalid signature', 400); }
     const eventId = context.req.header('svix-id');
     const eventType = typeof event.type === 'string' ? event.type : 'unknown';
     const data = typeof event.data === 'object' && event.data !== null ? event.data as Record<string, unknown> : {};
     const providerMessageId = typeof data.email_id === 'string' ? data.email_id : null;
     if (!eventId) return context.text('Missing event ID', 400);
-    await db.insert(webhookEvents).values({ provider: 'resend', eventId, eventType, providerMessageId, payload: event, occurredAt: typeof event.created_at === 'string' ? new Date(event.created_at) : null }).onConflictDoNothing();
+    const tags = typeof data.tags === 'object' && data.tags !== null && !Array.isArray(data.tags)
+      ? data.tags as Record<string, unknown> : {};
+    if (tags.reflow_kind === 'connection_test') return context.json({ received: true });
+    if (typeof tags.reflow_workspace === 'string' && tags.reflow_workspace !== workspaceId.data) {
+      return context.json({ received: true });
+    }
+    const taggedIntentId = typeof tags.reflow_intent === 'string' && z.uuid().safeParse(tags.reflow_intent).success
+      ? tags.reflow_intent : null;
+    if (taggedIntentId && tags.reflow_workspace !== workspaceId.data) return context.json({ received: true });
+    const [intent] = taggedIntentId
+      ? await db.select().from(sendIntents).where(and(eq(sendIntents.id, taggedIntentId), eq(sendIntents.workspaceId, workspaceId.data))).limit(1)
+      : providerMessageId
+        ? await db.select().from(sendIntents).where(and(eq(sendIntents.workspaceId, workspaceId.data), eq(sendIntents.providerMessageId, providerMessageId))).limit(1)
+        : [];
+    // A tagged send intent exists before Resend responds, closing the race in
+    // which a bounce reaches us before providerMessageId is saved. Never apply
+    // an event merely because the webhook signature is valid for the account.
+    if (!intent) {
+      // Pre-tag legacy sends have no intent ID in the event. Retry critical
+      // outcomes until the send response can be correlated by provider ID;
+      // acknowledging here could permanently lose a bounce or complaint.
+      if (!taggedIntentId && !tags.reflow_workspace && providerMessageId &&
+        (eventType === 'email.bounced' || eventType === 'email.complained' || eventType === 'email.suppressed')) {
+        return context.text('Send correlation pending', 503);
+      }
+      return context.json({ received: true });
+    }
+    const recipients = Array.isArray(data.to) ? data.to : [];
+    if (!recipients.some((recipient) => typeof recipient === 'string' && recipient.toLowerCase() === intent.recipient.toLowerCase())) {
+      return context.json({ received: true });
+    }
+    if (providerMessageId && intent.providerMessageId && providerMessageId !== intent.providerMessageId) {
+      return context.json({ received: true });
+    }
+    if (providerMessageId && !intent.providerMessageId) {
+      await db.update(sendIntents).set({ providerMessageId }).where(and(eq(sendIntents.id, intent.id), eq(sendIntents.workspaceId, workspaceId.data), isNull(sendIntents.providerMessageId)));
+    }
+    await db.insert(webhookEvents).values({ workspaceId: workspaceId.data, provider: 'resend', eventId, eventType, providerMessageId, payload: event, occurredAt: typeof event.created_at === 'string' ? new Date(event.created_at) : null }).onConflictDoNothing();
     if (providerMessageId) {
-      const [intent] = await db.select().from(sendIntents).where(eq(sendIntents.providerMessageId, providerMessageId)).limit(1);
       if (intent && (eventType === 'email.bounced' || eventType === 'email.complained' || eventType === 'email.suppressed')) {
         await db.insert(suppressions).values({ workspaceId: intent.workspaceId, emailKey: intent.recipient.trim().toLowerCase(), reason: eventType, source: 'resend' }).onConflictDoUpdate({ target: [suppressions.workspaceId, suppressions.emailKey, suppressions.topic], set: { active: true, reason: eventType, updatedAt: new Date() } });
       }
     }
-    await db.update(webhookEvents).set({ processedAt: new Date() }).where(and(eq(webhookEvents.provider, 'resend'), eq(webhookEvents.eventId, eventId)));
+    await db.update(webhookEvents).set({ processedAt: new Date() }).where(and(eq(webhookEvents.workspaceId, workspaceId.data), eq(webhookEvents.provider, 'resend'), eq(webhookEvents.eventId, eventId)));
     return context.json({ received: true });
   });
 
