@@ -19,6 +19,17 @@ async function parseJson(response: Response): Promise<unknown> {
   return response.json().catch(() => ({ message: response.statusText }));
 }
 
+function readFieldErrors(record: Record<string, unknown>): Record<string, string[]> | undefined {
+  const raw = record.fieldErrors && typeof record.fieldErrors === 'object'
+    ? record.fieldErrors as Record<string, unknown>
+    : undefined;
+  return raw ? Object.fromEntries(Object.entries(raw).flatMap(([field, messages]) => (
+    Array.isArray(messages) && messages.every((message) => typeof message === 'string')
+      ? [[field, messages as string[]]]
+      : []
+  ))) : undefined;
+}
+
 async function authRequest<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`/api/auth${path}`, { credentials: 'include', ...init });
   const payload = await parseJson(response);
@@ -94,21 +105,11 @@ export async function authorizeRegistration(input: {
   const payload = await parseJson(response);
   if (!response.ok) {
     const record = typeof payload === 'object' && payload !== null ? (payload as Record<string, unknown>) : {};
-    const rawFieldErrors = record.fieldErrors && typeof record.fieldErrors === 'object'
-      ? record.fieldErrors as Record<string, unknown>
-      : undefined;
-    const fieldErrors = rawFieldErrors
-      ? Object.fromEntries(Object.entries(rawFieldErrors).flatMap(([field, messages]) => (
-          Array.isArray(messages) && messages.every((message) => typeof message === 'string')
-            ? [[field, messages as string[]]]
-            : []
-        )))
-      : undefined;
     throw new ApiError(
       response.status,
       typeof record.message === 'string' ? record.message : 'Registration request failed',
       typeof record.code === 'string' ? record.code : undefined,
-      fieldErrors,
+      readFieldErrors(record),
     );
   }
   const record = typeof payload === 'object' && payload !== null ? payload as Record<string, unknown> : {};
@@ -177,7 +178,12 @@ async function integrationRequest<T>(path: string, init?: RequestInit): Promise<
   const payload = await parseJson(response);
   if (!response.ok) {
     const record = typeof payload === 'object' && payload !== null ? payload as Record<string, unknown> : {};
-    throw new ApiError(response.status, typeof record.message === 'string' ? record.message : 'Integration request failed');
+    throw new ApiError(
+      response.status,
+      typeof record.message === 'string' ? record.message : 'Integration request failed',
+      typeof record.code === 'string' ? record.code : undefined,
+      readFieldErrors(record),
+    );
   }
   return payload as T;
 }

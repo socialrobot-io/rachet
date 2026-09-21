@@ -36,6 +36,14 @@ type Dependencies = {
   operations: Record<string, Operation>;
 };
 
+// Resend webhook signing secrets use base64. Accept its standard characters
+// (+, / and trailing =) as well as URL-safe variants without weakening the
+// required whsec_ prefix or allowing whitespace.
+export const resendWebhookSecretInput = z.string().trim().regex(
+  /^whsec_[A-Za-z0-9+/_-]{8,200}={0,2}$/,
+  'Enter a Resend webhook signing secret',
+);
+
 function mountDashboard(app: Hono, root: string) {
   if (!existsSync(join(root, 'index.html'))) return false;
   app.use('/*', serveStatic({ root }));
@@ -59,7 +67,7 @@ export function createApp(dependencies: Dependencies) {
     workspaceId: workspaceIdInput,
     from: senderInput,
     apiKey: z.string().trim().regex(/^re_[A-Za-z0-9_-]{8,200}$/, 'Enter a Resend API key'),
-    webhookSecret: z.string().trim().regex(/^whsec_[A-Za-z0-9_-]{8,200}$/, 'Enter a Resend webhook signing secret'),
+    webhookSecret: resendWebhookSecretInput,
   });
   async function integrationMember(request: Request, workspaceId: string, admin: boolean) {
     const session = await auth.api.getSession({ headers: request.headers });

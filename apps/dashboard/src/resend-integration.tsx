@@ -1,12 +1,12 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { Link, Navigate, Outlet, useNavigate, useSearchParams } from 'react-router-dom';
-import { api } from '@/api';
+import { api, ApiError } from '@/api';
 import { useAuth } from '@/auth';
 import type { ResendConnectionStatus } from '@/types';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Field, FieldDescription, FieldGroup, FieldLabel } from '@/components/ui/field';
+import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 
 export function RequireResendOnboarding() {
@@ -98,6 +98,7 @@ export function ResendIntegrationPage({ onboarding = false }: { onboarding?: boo
   const [webhookSecret, setWebhookSecret] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [success, setSuccess] = useState<string | null>(null);
   const role = workspaces.find((workspace) => workspace.id === workspaceId)?.role;
   const canManage = role === 'owner' || role === 'admin';
@@ -120,6 +121,7 @@ export function ResendIntegrationPage({ onboarding = false }: { onboarding?: boo
     if (!workspaceId || !canManage) return;
     setSaving(true);
     setError(null);
+    setFieldErrors({});
     setSuccess(null);
     try {
       await api.saveResendConnection({ workspaceId, from: from.trim(), apiKey: apiKey.trim(), webhookSecret: webhookSecret.trim() });
@@ -128,7 +130,14 @@ export function ResendIntegrationPage({ onboarding = false }: { onboarding?: boo
       setStatus(await api.resendConnection(workspaceId));
       setSuccess('Resend settings saved. Send a test email to enable workflow sending. The key and signing secret are now hidden.');
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'Could not save Resend settings');
+      if (reason instanceof ApiError && reason.fieldErrors) {
+        setFieldErrors(Object.fromEntries(Object.entries(reason.fieldErrors).flatMap(([field, messages]) => (
+          messages[0] ? [[field, messages[0]]] : []
+        ))));
+        setError('Check the highlighted fields and try again.');
+      } else {
+        setError(reason instanceof Error ? reason.message : 'Could not save Resend settings');
+      }
     } finally {
       setSaving(false);
     }
@@ -204,18 +213,22 @@ export function ResendIntegrationPage({ onboarding = false }: { onboarding?: boo
           {canManage ? (
             <form onSubmit={(event) => { void save(event); }}>
               <FieldGroup>
-                <Field>
+                <Field data-invalid={Boolean(fieldErrors.from)}>
                   <FieldLabel htmlFor="resend-from">From address</FieldLabel>
-                  <Input id="resend-from" type="text" autoComplete="off" required value={from} onChange={(event) => setFrom(event.target.value)} placeholder="Your team <hello@example.com>" />
+                  <Input id="resend-from" type="text" autoComplete="off" required value={from} aria-invalid={Boolean(fieldErrors.from)} onChange={(event) => { setFrom(event.target.value); setFieldErrors((current) => ({ ...current, from: '' })); }} placeholder="Your team <hello@example.com>" />
                   <FieldDescription>Recipients will see this sender. The domain must be verified in the same Resend account.</FieldDescription>
+                  <FieldError>{fieldErrors.from}</FieldError>
                 </Field>
-                <Field>
+                <Field data-invalid={Boolean(fieldErrors.apiKey)}>
                   <FieldLabel htmlFor="resend-key">Sending API key</FieldLabel>
-                  <Input id="resend-key" type="password" autoComplete="off" required value={apiKey} onChange={(event) => setApiKey(event.target.value)} placeholder="re_…" />
+                  <Input id="resend-key" type="password" autoComplete="off" required value={apiKey} aria-invalid={Boolean(fieldErrors.apiKey)} onChange={(event) => { setApiKey(event.target.value); setFieldErrors((current) => ({ ...current, apiKey: '' })); }} placeholder="re_…" />
+                  <FieldDescription>Use the sending API key from Resend, which starts with re_. This is not your Resend password.</FieldDescription>
+                  <FieldError>{fieldErrors.apiKey}</FieldError>
                 </Field>
-                <Field>
+                <Field data-invalid={Boolean(fieldErrors.webhookSecret)}>
                   <FieldLabel htmlFor="resend-secret">Webhook signing secret</FieldLabel>
-                  <Input id="resend-secret" type="password" autoComplete="off" required value={webhookSecret} onChange={(event) => setWebhookSecret(event.target.value)} placeholder="whsec_…" />
+                  <Input id="resend-secret" type="password" autoComplete="off" required value={webhookSecret} aria-invalid={Boolean(fieldErrors.webhookSecret)} onChange={(event) => { setWebhookSecret(event.target.value); setFieldErrors((current) => ({ ...current, webhookSecret: '' })); }} placeholder="whsec_…" />
+                  <FieldError>{fieldErrors.webhookSecret}</FieldError>
                 </Field>
                 <Button type="submit" disabled={saving || !status}>{saving ? 'Saving…' : 'Save connection'}</Button>
               </FieldGroup>
