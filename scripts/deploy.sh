@@ -8,7 +8,7 @@ if [[ -z "$domain" || -z "$admin_email" ]]; then
   exit 1
 fi
 if [[ "$domain" == http://* || "$domain" == https://* || "$domain" == */* ]]; then
-  echo "Domain must be a hostname such as reflow.example.com" >&2
+  echo "Domain must be a hostname such as rachet.example.com" >&2
   exit 1
 fi
 
@@ -45,6 +45,6 @@ fi
 docker compose --env-file "$env_file" --profile caddy up -d --build
 
 echo
-echo "Reflow is running at https://$domain"
+echo "Rachet is running at https://$domain"
 echo "Open the dashboard to create the first administrator."
 echo "The one-time setup secret and auth provider settings are in $env_file."

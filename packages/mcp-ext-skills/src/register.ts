@@ -171,7 +171,7 @@ export function registerFastMcpSkills(
 }
 
 /** Build SocialRobot-style MCP server instructions that point hosts at the first skill. */
-export function skillServerInstructions(skills: readonly LoadedSkill[], productLine = 'Reflow MCP'): string {
+export function skillServerInstructions(skills: readonly LoadedSkill[], productLine = 'Rachet MCP'): string {
   const first = skills[0];
   return [
     `${productLine} exposes product operations and Agent Skills as resources.`,

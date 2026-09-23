@@ -26,6 +26,11 @@ describe('production configuration', () => {
     expect(config.oauthPublicRedirectSchemes).toEqual(['cursor:']);
   });
 
+  it('accepts a Google Analytics measurement ID', () => {
+    expect(loadConfig({ ...base, GOOGLE_ANALYTICS_ID: 'G-X7CL1NYLSM' }).googleAnalyticsId).toBe('G-X7CL1NYLSM');
+    expect(() => loadConfig({ ...base, GOOGLE_ANALYTICS_ID: 'UA-123' })).toThrow(/GOOGLE_ANALYTICS_ID/);
+  });
+
   it('defaults registration off but accepts an explicit opt-in', () => {
     expect(loadConfig(base).allowRegistration).toBe(false);
     expect(loadConfig({ ...base, ALLOW_REGISTRATION: 'true' }).allowRegistration).toBe(true);

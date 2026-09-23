@@ -1,12 +1,12 @@
-# Reflow product requirements
+# Rachet product requirements
 
-Status: implementation baseline plus roadmap · Date: 2026-09-13 · Product: Reflow workflow automation
+Status: implementation baseline plus roadmap · Date: 2026-09-13 · Product: Rachet workflow automation
 
 ## 1. Product outcome
 
 An agent can turn a natural-language automation request into reusable React Email templates and an executable workflow, validate and simulate its capability graph, enroll recipients, and manage its lifecycle through MCP. A human or automation can perform the same operations through CLI. Temporal preserves execution across restarts, deploys, long waits, and recoverable failures. Resend delivers email and reports events through verified webhooks.
 
-The core product is open-ended workflow authoring **and execution** within installed capabilities. Email sequences are one common workflow, not the authoring boundary. MCP host agents interpret natural language; Reflow exposes schemas, prompts, validation, simulation, and a generic Temporal graph interpreter. New integrations add named actions without adding a new public workflow type.
+The core product is open-ended workflow authoring **and execution** within installed capabilities. Email sequences are one common workflow, not the authoring boundary. MCP host agents interpret natural language; Rachet exposes schemas, prompts, validation, simulation, and a generic Temporal graph interpreter. New integrations add named actions without adding a new public workflow type.
 
 ### Decisions established by this brief
 
@@ -25,10 +25,10 @@ The core product is open-ended workflow authoring **and execution** within insta
 These are design assumptions, not facts supplied by the product owner:
 
 - One deployment can host multiple isolated workspaces. Initially Social Robot may use only one.
-- Existing agents generate copy and TSX. Reflow supplies schemas, reusable assets, validation, rendering, and execution; it does not require its own LLM subscription or model orchestration.
+- Existing agents generate copy and TSX. Rachet supplies schemas, reusable assets, validation, rendering, and execution; it does not require its own LLM subscription or model orchestration.
 - V1 sends permission-based lifecycle and marketing email. Contact discovery, scraping, and mailbox warmup are outside scope.
 - Production v1 supports a single host with backups and documented recovery. Multi-host high availability is a later topology.
-- Human OAuth uses a configured external identity provider; service clients authenticate without a browser using scoped client credentials. No Reflow account-management UI is required.
+- Human OAuth uses a configured external identity provider; service clients authenticate without a browser using scoped client credentials. No Rachet account-management UI is required.
 - Default marketing topic is `marketing`; transactional purpose requires an explicit classification and policy.
 
 ## 2. Users and success measures
@@ -60,7 +60,7 @@ Proposed acceptance targets, measured on a published reference deployment rather
 | Execution | Send, wait, event wait, branch, end; per-contact enrollments; schedules; pause/resume/cancel | Arbitrary loops, parallel graphs, cross-channel orchestration |
 | Audience | Contact upsert/import, tags, static snapshots, filtered selection, dedupe, consent, suppressions | Continuous segment membership and native CRM connectors |
 | Delivery | Resend, sender/domain status, caps, test send, event ingestion, reply correlation | Other production providers, cross-provider routing, attachments |
-| Agents | MCP stdio bridge, authenticated Streamable HTTP, configured OAuth, CLI JSON, scoped client credentials, packaged Reflow skills | Additional client compatibility as protocols evolve |
+| Agents | MCP stdio bridge, authenticated Streamable HTTP, configured OAuth, CLI JSON, scoped client credentials, packaged Rachet skills | Additional client compatibility as protocols evolve |
 | Operations | Audit, status, recovery, exports, alerts/metrics, tested Compose deployment | Multi-host HA and managed provisioning |
 
 ## 4. Workflow catalog
@@ -193,7 +193,7 @@ Engagement tracking is optional and disabled by workspace policy when inappropri
 
 **FR-I08.** `ALLOW_REGISTRATION` defaults to false. Enforce it on password registration, OAuth first-time identity creation, raw Better Auth routes, CLI, and MCP. When true, CLI/MCP self-registration creates a non-admin account and isolated workspace according to deployment policy; it never joins an existing workspace without an explicit grant. See the auth document for verification and send activation rules.
 
-**FR-I09.** Publish an installable `reflow` agent skill covering authentication, authoring, templates, simulation, launch, monitoring, and recovery. The skill must discover current capabilities, preserve operation IDs/idempotency keys, and use Reflow operations instead of bypassing its send ledger through a provider. Skill instructions must distinguish proposed commands from implemented behavior.
+**FR-I09.** Publish an installable `reflow` agent skill covering authentication, authoring, templates, simulation, launch, monitoring, and recovery. The skill must discover current capabilities, preserve operation IDs/idempotency keys, and use Rachet operations instead of bypassing its send ledger through a provider. Skill instructions must distinguish proposed commands from implemented behavior.
 
 Default roles: viewer, author, sender, operator, administrator. Author can edit/publish assets but cannot enroll live recipients or send tests. Sender can launch within policy. Operator can pause, inspect, replay safe ingestion, and reconcile with a dedicated scope. Administrator manages credentials and policy. Keys cannot grant scopes their creator lacks.
 
@@ -235,7 +235,7 @@ Default roles: viewer, author, sender, operator, administrator. Author can edit/
 | A21: Registration policy | Disabled signup is rejected across all transports and OAuth auto-provisioning; enabled CLI/MCP signup creates no elevated privileges |
 | A22: Configured OAuth | State/PKCE/nonce, redirect, expiry, issuer and account-linking failures are rejected; valid configured-provider login works from CLI and MCP |
 | A23: Client secrets | Machine token can trigger only its scoped workspace flows; invalid/rotated/revoked secrets and wrong-audience tokens fail; retries dedupe |
-| A24: Repository and skills | A clean checkout runs documented checks; Reflow skill installs and resolves its references; CI runs the same checks; runtime parity tests are required before release |
+| A24: Repository and skills | A clean checkout runs documented checks; Rachet skill installs and resolves its references; CI runs the same checks; runtime parity tests are required before release |
 
 ## 13. Implementation milestones
 
@@ -250,7 +250,7 @@ No calendar estimate is asserted before the authentication and renderer isolatio
 ## 14. Decisions to revisit without blocking the draft
 
 - Confirm expected audience size and peak send rate to replace proposed benchmark targets.
-- Supply the OAuth provider issuer/client configuration at deployment; configured OAuth support is required, while Better Auth owns Reflow identities and authorization.
+- Supply the OAuth provider issuer/client configuration at deployment; configured OAuth support is required, while Better Auth owns Rachet identities and authorization.
 - Confirm intended MCP clients for the interoperability test matrix; CLI/stdio and configured OAuth HTTP paths are required.
 - Confirm receiving domain availability for native reply-stop; external authenticated reply events work independently.
 - Decide whether stronger isolation is required for untrusted third-party template authors before offering hosted multi-tenant access.

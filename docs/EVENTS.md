@@ -69,11 +69,11 @@ const response = await fetch(`${process.env.REFLOW_URL}/v1/operations/event.emit
 });
 
 if (!response.ok) {
-  throw new Error(`Reflow event failed: ${response.status} ${await response.text()}`);
+  throw new Error(`Rachet event failed: ${response.status} ${await response.text()}`);
 }
 ```
 
-Persist or deterministically derive `eventId` before making the request. A network timeout does not prove Reflow rejected the event, so retry with the same ID rather than generating another one. Supply `REFLOW_URL`, `REFLOW_WORKSPACE_ID`, and `REFLOW_API_KEY` through the application's secret-managed environment.
+Persist or deterministically derive `eventId` before making the request. A network timeout does not prove Rachet rejected the event, so retry with the same ID rather than generating another one. Supply `REFLOW_URL`, `REFLOW_WORKSPACE_ID`, and `REFLOW_API_KEY` through the application's secret-managed environment.
 
 ## Send through MCP
 
@@ -95,7 +95,7 @@ OAuth/MCP authorization must include `reflow:send`; API keys use the correspondi
 
 - Events are accepted only for an existing enrollment in the same workspace.
 - Event identity is scoped to the enrollment. Repeating an identical `(enrollmentId, eventId)` is a no-op, including after that enrollment completes; conflicting reuse is rejected.
-- Reflow stores the event and its retry job atomically before delivery. A transient Temporal outage therefore produces `delivery: "queued"` instead of losing the event.
+- Rachet stores the event and its retry job atomically before delivery. A transient Temporal outage therefore produces `delivery: "queued"` instead of losing the event.
 - An event can arrive before the enrollment reaches its matching wait; Temporal records it for deterministic progression.
 - The first `event.emit` receipt is written to the enrollment audit trail with `eventType`, `eventId`, and `data`. The dashboard lists delivered receipts under **Events seen** and in **History**.
 - A matching wait follows `onEvent`; if no matching event arrives before its deadline, it follows `onTimeout`.

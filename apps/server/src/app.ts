@@ -183,7 +183,7 @@ export function createApp(dependencies: Dependencies) {
       const outcome = await new ResendProvider(key, undefined).send({
         from: connection.fromAddress,
         to: session.user.email,
-        subject: 'Reflow Resend connection test',
+        subject: 'Rachet Resend connection test',
         html: '<p>Your organization’s Resend connection can send email.</p>',
         text: 'Your organization’s Resend connection can send email.',
         tags: [{ name: 'reflow_kind', value: 'connection_test' }],
@@ -329,13 +329,13 @@ export function createApp(dependencies: Dependencies) {
       if (!response.ok) throw new ReflowError('UNAUTHENTICATED', 'Invalid OAuth access token', 401);
       const token = await response.json() as { aud?: string | string[]; sub?: string; client_id?: string; scope?: string };
       const audience = Array.isArray(token.aud) ? token.aud : [token.aud];
-      if (!audience.includes(`${config.publicUrl}/mcp`)) throw new ReflowError('FORBIDDEN', 'OAuth token is not valid for Reflow MCP', 403);
+      if (!audience.includes(`${config.publicUrl}/mcp`)) throw new ReflowError('FORBIDDEN', 'OAuth token is not valid for Rachet MCP', 403);
       let userId = token.sub;
       if (!userId && token.client_id) {
         const result = await db.execute<{ userId: string }>(sql`select "userId" as "userId" from "oauthClient" where "clientId" = ${token.client_id} and disabled is not true limit 1`);
         userId = result.rows[0]?.userId;
       }
-      if (!userId) throw new ReflowError('FORBIDDEN', 'OAuth client is not assigned to a Reflow account', 403);
+      if (!userId) throw new ReflowError('FORBIDDEN', 'OAuth client is not assigned to a Rachet account', 403);
       const principal = await service.principalFor(userId);
       principal.scopes = token.scope?.split(' ').filter(Boolean) ?? [];
       return { principal, requestId: crypto.randomUUID() };
@@ -393,7 +393,7 @@ export function createApp(dependencies: Dependencies) {
   }
   app.get('/.well-known/oauth-authorization-server', () => proxyAuthWellKnown('/.well-known/oauth-authorization-server'));
   // RFC 8414 inserts the issuer path after the well-known prefix. Because the
-  // Reflow authorization-server issuer is /api/auth, OAuth clients such as
+  // Rachet authorization-server issuer is /api/auth, OAuth clients such as
   // Cursor discover it at this path rather than at the origin-only variant.
   app.get('/.well-known/oauth-authorization-server/api/auth', () => proxyAuthWellKnown('/.well-known/oauth-authorization-server'));
   app.get('/.well-known/openid-configuration', () => proxyAuthWellKnown('/.well-known/openid-configuration'));
@@ -468,7 +468,7 @@ export function createApp(dependencies: Dependencies) {
   });
 
   // Same-origin operations console (baked into the image; skipped when the build output is absent).
-  mountDashboard(app, config.dashboardDir, config.publicUrl);
+  mountDashboard(app, config.dashboardDir, config.publicUrl, config.googleAnalyticsId);
 
   return app;
 }

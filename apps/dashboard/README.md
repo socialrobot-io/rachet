@@ -1,4 +1,4 @@
-# Reflow dashboard
+# Rachet dashboard
 
 One-column workflow operations console. Vite + React + Tailwind + [shadcn/ui](https://ui.shadcn.com).
 

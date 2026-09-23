@@ -1,13 +1,13 @@
 # Integration research and decision notes
 
-Official documentation consulted on 2026-09-13. These links establish vendor/protocol behavior. Product choices, capacity targets, schema examples, topology, and recovery policies are Reflow requirements, not vendor guarantees. Package versions are pinned in the lockfile and Compose definition.
+Official documentation consulted on 2026-09-13. These links establish vendor/protocol behavior. Product choices, capacity targets, schema examples, topology, and recovery policies are Rachet requirements, not vendor guarantees. Package versions are pinned in the lockfile and Compose definition.
 
 The Temporal Compose helper scripts and dynamic configuration under `docker/temporal/` are copied from `temporalio/samples-server` commit `ca1106b647c34323876bd6f221f4310271096dd8`.
 
 | Source | Verified constraint / design implication |
 |---|---|
 | [Better Auth Hono integration](https://better-auth.com/docs/integrations/hono) | Mount the auth handler in Hono; account for CORS/trusted-origin configuration |
-| [Better Auth API keys](https://better-auth.com/docs/plugins/api-key) | Supports managed keys including organization ownership; Reflow still enforces resource authorization |
+| [Better Auth API keys](https://better-auth.com/docs/plugins/api-key) | Supports managed keys including organization ownership; Rachet still enforces resource authorization |
 | [Better Auth OAuth provider](https://better-auth.com/docs/plugins/oauth-provider) | Machine grant support and user authorization are distinct; do not assume API keys implement the MCP OAuth flow |
 | [MCP authorization, 2026-07-28](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization) | HTTP resource discovery, scoped access, audience validation; client provisioning must match actual client support |
 | [MCP transports, 2025-11-25](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports) | STDIO and Streamable HTTP transport baseline; implementation must negotiate supported protocol versions |
@@ -34,12 +34,12 @@ The Temporal Compose helper scripts and dynamic configuration under `docker/temp
 - React Email supplies rendering, not an isolation guarantee for uploaded TSX.
 - Docker Compose defines a deployment topology, not host redundancy or automatic disaster recovery.
 
-The webhook overview and dedicated retries page can differ in the schedule details they display. Reflow intentionally does not hard-code an operational dependency on a particular retry count; internal inbox persistence, monitoring, and recovery remain necessary.
+The webhook overview and dedicated retries page can differ in the schedule details they display. Rachet intentionally does not hard-code an operational dependency on a particular retry count; internal inbox persistence, monitoring, and recovery remain necessary.
 
 ## Account lifecycle and skills additions
 
 - [Better Auth generic OAuth](https://better-auth.com/docs/plugins/generic-oauth): configurable external OAuth/OIDC providers and callback handling.
-- [Better Auth administration](https://better-auth.com/docs/plugins/admin): account administration building blocks; Reflow defines administrator scope and signup policy.
+- [Better Auth administration](https://better-auth.com/docs/plugins/admin): account administration building blocks; Rachet defines administrator scope and signup policy.
 - [Better Auth email/password](https://better-auth.com/docs/authentication/email-password): password account and verification building blocks.
 - [Official Resend skill](https://resend.com/docs/resend-skill) and [Temporal developer skill announcement](https://temporal.io/blog/introducing-temporal-developer-skill): requested development skills; pinned installation sources are in [skills.lock.json](../skills.lock.json).
 - [Official Better Auth skills](https://better-auth.com/docs/ai-resources/skills): the requested six-skill pack, installed at the revision recorded in the same lock file.

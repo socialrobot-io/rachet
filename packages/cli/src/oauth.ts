@@ -89,7 +89,7 @@ export async function loginWithBrowser(options: {
         fail?.(new Error(incoming.searchParams.get('error_description') ?? oauthError ?? 'Authorization failed'));
         return;
       }
-      response.writeHead(200, { 'content-type': 'text/plain; charset=utf-8' }).end('Reflow CLI is connected. You can close this window.');
+      response.writeHead(200, { 'content-type': 'text/plain; charset=utf-8' }).end('Rachet CLI is connected. You can close this window.');
       settle?.(code);
     });
     await new Promise<void>((resolve, reject) => {
@@ -105,7 +105,7 @@ export async function loginWithBrowser(options: {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
-        client_name: 'Reflow CLI',
+      client_name: 'Rachet CLI',
         redirect_uris: [redirectUri],
         token_endpoint_auth_method: 'none',
         grant_types: ['authorization_code', 'refresh_token'],

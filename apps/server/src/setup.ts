@@ -31,10 +31,10 @@ async function setup() {
       const [initialized] = await database.db.select().from(systemSettings).where(eq(systemSettings.key, 'initialized')).limit(1);
       if (initialized) {
         if (options['if-needed']) {
-          console.log('Reflow is already initialized.');
+          console.log('Rachet is already initialized.');
           return;
         }
-        throw new Error('Reflow has already been initialized');
+        throw new Error('Rachet has already been initialized');
       }
       await connection.query(
         `insert into registration_intents (

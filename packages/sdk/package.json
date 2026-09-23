@@ -1,7 +1,7 @@
 {
   "name": "@socialrobot-io/reflow-sdk",
   "version": "0.1.0",
-  "description": "Browser-compatible SDK for triggering Reflow workflows",
+  "description": "Browser-compatible SDK for triggering Rachet workflows",
   "license": "AGPL-3.0-only",
   "type": "module",
   "main": "./dist/index.js",

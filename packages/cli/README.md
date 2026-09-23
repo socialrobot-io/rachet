@@ -1,8 +1,8 @@
 # @socialrobot-io/reflow
 
-The CLI for **Reflow—the open-source journey engine for agents**.
+The CLI for **Rachet, the open-source journey engine for agents**.
 
-Connect to a Reflow deployment, authorize through its dashboard with OAuth + PKCE, and author or operate durable customer journeys from your terminal.
+Connect to a Rachet deployment, authorize through its dashboard with OAuth + PKCE, and author or operate durable customer journeys from your terminal.
 
 ```sh
 npm install --global @socialrobot-io/reflow
@@ -30,7 +30,7 @@ reflow call event.emit --input '{
 }'
 ```
 
-The CLI stores short-lived access and rotating refresh credentials in a mode-`0600` config file. It never stores your Reflow password or dashboard cookie.
+The CLI stores short-lived access and rotating refresh credentials in a mode-`0600` config file. It never stores your Rachet password or dashboard cookie.
 
 React Email `.tsx` files are trusted local code. Review them before running:
 

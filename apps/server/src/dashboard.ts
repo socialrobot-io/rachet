@@ -5,7 +5,7 @@ import type { Hono } from 'hono';
 
 const appRoutes = /^\/(?:login|auth\/(?:login|consent)|workflows(?:\/[^/]+)?|enrollments\/[^/]+|(?:settings|onboarding)\/integrations(?:\/resend)?|settings\/(?:connected-apps|api-keys))\/?$/;
 
-export function mountDashboard(app: Hono, root: string, publicUrl: string) {
+export function mountDashboard(app: Hono, root: string, publicUrl: string, googleAnalyticsId?: string) {
   if (!existsSync(join(root, 'index.html'))) return false;
   // Only trusted deployment configuration can supply canonical and sharing URLs.
   const origin = new URL(publicUrl).origin;
@@ -14,14 +14,18 @@ export function mountDashboard(app: Hono, root: string, publicUrl: string) {
   const landing = existsSync(landingPath)
     ? readFileSync(landingPath, 'utf8').replaceAll('__RACHET_PUBLIC_URL__', origin)
     : shell;
+  const analytics = googleAnalyticsId
+    ? `<script async src="https://www.googletagmanager.com/gtag/js?id=${googleAnalyticsId}"></script><script>window.dataLayer = window.dataLayer || []; function gtag(){dataLayer.push(arguments);} gtag('js', new Date()); gtag('config', '${googleAnalyticsId}');</script>`
+    : '';
+  const publicLanding = landing.replace('<!-- RACHET_ANALYTICS -->', analytics);
   const privateShell = shell.replace('content="index, follow, max-image-preview:large"', 'content="noindex, nofollow"')
     .replace(/<link rel="canonical"[^>]*>/, '')
     .replace(/<title>[^<]*<\/title>/, '<title>Rachet | Dashboard</title>');
 
   app.get('/robots.txt', (c) => c.text(`User-agent: *\nAllow: /\nDisallow: /api/\nDisallow: /v1/\nDisallow: /mcp\n\nSitemap: ${origin}/sitemap.xml\n`));
   app.get('/sitemap.xml', (c) => c.body(`<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>${origin}/</loc></url></urlset>`, 200, { 'Content-Type': 'application/xml; charset=UTF-8' }));
-  app.get('/', (c) => c.html(landing));
-  app.get('/welcome', (c) => c.html(landing));
+  app.get('/', (c) => c.html(publicLanding));
+  app.get('/welcome', (c) => c.html(publicLanding));
   // Prevent direct access to build templates and their unresolved metadata.
   app.get('/index.html', (c) => c.redirect('/', 301));
   app.get('/landing.html', (c) => c.redirect('/', 301));

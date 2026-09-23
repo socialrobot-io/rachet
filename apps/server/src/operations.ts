@@ -29,7 +29,7 @@ const workspaceOnly = z.object({ workspaceId: workspaceIdSchema });
 export function createOperations(service: ReflowService): Record<string, Operation> {
   return {
     'system.capabilities': {
-      description: 'Describe the implemented Reflow operations and runtime capabilities.', input: z.object({}), readOnly: true,
+      description: 'Describe the implemented Rachet operations and runtime capabilities.', input: z.object({}), readOnly: true,
       invoke: async () => ({
         version: '0.1.0',
         emailProvider: 'resend',

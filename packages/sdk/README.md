@@ -1,6 +1,6 @@
 # @socialrobot-io/reflow-sdk
 
-Browser-compatible TypeScript client for triggering published Reflow workflows.
+Browser-compatible TypeScript client for triggering published Rachet workflows.
 
 ```sh
 pnpm add @socialrobot-io/reflow-sdk
@@ -29,6 +29,6 @@ const result = await reflow.trigger({
 });
 ```
 
-`trigger()` upserts the contact and creates a durable enrollment. Reusing the same idempotency key makes retries safe. The API key must be scoped to `send`; workspace roles and workflow policy are still enforced by Reflow.
+`trigger()` upserts the contact and creates a durable enrollment. Reusing the same idempotency key makes retries safe. The API key must be scoped to `send`; workspace roles and workflow policy are still enforced by Rachet.
 
-For a browser-only UI, call your own server endpoint or server action that uses this SDK. Do not expose a Reflow API key in a public bundle.
+For a browser-only UI, call your own server endpoint or server action that uses this SDK. Do not expose a Rachet API key in a public bundle.

@@ -1,7 +1,7 @@
 {
   "name": "@socialrobot-io/reflow",
   "version": "0.1.2",
-  "description": "CLI for Reflow, the open-source journey engine for agents",
+  "description": "CLI for Rachet, the open-source journey engine for agents",
   "license": "AGPL-3.0-only",
   "type": "module",
   "bin": { "reflow": "./dist/cli.js" },

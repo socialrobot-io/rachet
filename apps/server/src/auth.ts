@@ -56,7 +56,7 @@ export function createAuth(config: Config, pool: Pool) {
     : undefined;
 
   return betterAuth({
-    appName: 'Reflow',
+    appName: 'Rachet',
     baseURL: config.publicUrl,
     secret: config.betterAuthSecret,
     database: pool,
@@ -173,9 +173,9 @@ export function createAuth(config: Config, pool: Pool) {
           const { error } = await new Resend(config.authResendApiKey).emails.send({
             from: config.authFrom,
             to: email,
-            subject: 'Sign in to Reflow',
-            html: `<p>Use this one-time link to sign in to Reflow:</p><p><a href="${safeUrl}">Sign in to Reflow</a></p><p>This link expires in 10 minutes.</p>`,
-            text: `Sign in to Reflow: ${url}\n\nThis link expires in 10 minutes.`,
+            subject: 'Sign in to Rachet',
+            html: `<p>Use this one-time link to sign in to Rachet:</p><p><a href="${safeUrl}">Sign in to Rachet</a></p><p>This link expires in 10 minutes.</p>`,
+            text: `Sign in to Rachet: ${url}\n\nThis link expires in 10 minutes.`,
           }, { idempotencyKey });
           if (error) throw new Error(`Authentication email failed: ${error.name}`);
         },

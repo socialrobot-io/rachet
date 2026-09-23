@@ -1,4 +1,4 @@
-# Reflow workflow paths
+# Rachet workflow paths
 
 ## Author from natural language
 
@@ -11,7 +11,7 @@
 6. Call `workflow_create` with the original natural-language `intent` and validated definition. Publish only when requested. Publishing returns the immutable workflow version used for enrollment.
 7. Upsert contacts and call `enrollment_create` with a stable idempotency key when live execution is authorized.
 
-The MCP host agent performs the natural-language interpretation. Reflow validates and executes the resulting capability graph; it does not execute generated code.
+The MCP host agent performs the natural-language interpretation. Rachet validates and executes the resulting capability graph; it does not execute generated code.
 
 ## Template edit loop
 
@@ -58,4 +58,4 @@ Use `event_emit` with a stable caller event ID to satisfy workflow event waits. 
 
 Inspect enrollment and message lists separately. “Accepted” means the provider admitted a message; “delivered” requires a verified provider event. Hard bounce and complaint webhooks add local suppression. Preserve the same operation input and idempotency key when retrying a timeout.
 
-Use trusted local stdio MCP only with `REFLOW_ACTOR_USER_ID` on the Reflow host. Remote agents should use the OAuth-protected HTTP MCP endpoint.
+Use trusted local stdio MCP only with `REFLOW_ACTOR_USER_ID` on the Rachet host. Remote agents should use the OAuth-protected HTTP MCP endpoint.

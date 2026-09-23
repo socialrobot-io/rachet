@@ -53,7 +53,7 @@ export class ReflowSdk {
   private readonly requestFetch: typeof globalThis.fetch;
 
   constructor(private readonly options: ReflowSdkOptions) {
-    if (!options.apiKey && !options.token) throw new Error('Reflow SDK requires apiKey or token');
+    if (!options.apiKey && !options.token) throw new Error('Rachet SDK requires apiKey or token');
     this.baseUrl = options.url.replace(/\/$/, '');
     this.requestFetch = options.fetch ?? globalThis.fetch;
   }
@@ -68,7 +68,7 @@ export class ReflowSdk {
     const payload = await response.json().catch(() => ({ message: response.statusText })) as unknown;
     if (!response.ok) {
       const record = typeof payload === 'object' && payload !== null ? payload as Record<string, unknown> : {};
-      throw new ReflowSdkError(response.status, typeof record.message === 'string' ? record.message : 'Reflow request failed', {
+      throw new ReflowSdkError(response.status, typeof record.message === 'string' ? record.message : 'Rachet request failed', {
         ...(typeof record.code === 'string' ? { code: record.code } : {}),
         ...(typeof record.hint === 'string' ? { hint: record.hint } : {}),
         ...(record.details && typeof record.details === 'object' ? { details: record.details as Record<string, unknown> } : {}),

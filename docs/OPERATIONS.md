@@ -57,4 +57,4 @@ Set `REFLOW_URL` and either `REFLOW_TOKEN` or `REFLOW_API_KEY`. Human login uses
 
 ## Planned extensions
 
-The PRD includes draft updates/cloning, bulk audiences, recurring schedule triggers, workflow-level pause, richer delivery reports, webhook replay, sender/domain administration, provider connections, and action packages for CRMs and HTTP callbacks. Until those operations appear in `system.capabilities`, agents report the capability gap rather than bypassing Reflow through PostgreSQL or Temporal.
+The PRD includes draft updates/cloning, bulk audiences, recurring schedule triggers, workflow-level pause, richer delivery reports, webhook replay, sender/domain administration, provider connections, and action packages for CRMs and HTTP callbacks. Until those operations appear in `system.capabilities`, agents report the capability gap rather than bypassing Rachet through PostgreSQL or Temporal.

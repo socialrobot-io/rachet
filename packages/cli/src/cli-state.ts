@@ -39,7 +39,7 @@ async function readState(environment: NodeJS.ProcessEnv = process.env): Promise<
     return { version: 2, servers: record.servers, ...(typeof record.currentUrl === 'string' ? { currentUrl: record.currentUrl } : {}) };
   } catch (error) {
     if (error instanceof Error && 'code' in error && error.code === 'ENOENT') return { version: 2, servers: {} };
-    throw new Error(`Invalid Reflow CLI state at ${cliStatePath(environment)}`, { cause: error });
+    throw new Error(`Invalid Rachet CLI state at ${cliStatePath(environment)}`, { cause: error });
   }
 }
 

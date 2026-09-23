@@ -1,9 +1,9 @@
 ---
 name: reflow
-description: Author and operate durable Reflow workflows through MCP or CLI from natural-language intent, including React Email templates, validation, simulation, publishing, enrollment, authentication, events, and recovery.
+description: Author and operate durable Rachet workflows through MCP or CLI from natural-language intent, including React Email templates, validation, simulation, publishing, enrollment, authentication, events, and recovery.
 ---
 
-# Reflow
+# Rachet
 
 Prefer the authenticated MCP endpoint. Use CLI for the same operations or trusted host setup. Discover this skill via SEP-2640 `skills/list` / `skills/get` (`skill://reflow/SKILL.md`) when the host supports it, then read its resources. Also call `system_capabilities` (includes `agentCookbook`), read `reflow://workflow/actions` and `reflow://workflow/schema`, and use the `design-workflow` MCP prompt when starting from natural language. Never invent actions absent from the installed catalog.
 
@@ -23,7 +23,7 @@ When a user mentions a clock time, date, or local calendar schedule without a ti
 
 Publishing creates an immutable workflow version and does not enroll anyone. Enrollment may send email or perform other side effects. Perform it when the user's task already authorizes that effect; otherwise leave a concrete validated draft for review. Keep workflow-version, contact, event, and idempotency IDs stable across retries.
 
-Use Reflow's delivery action rather than direct Resend calls so the durable send ledger, suppressions, and Temporal lifecycle remain effective. Verified Resend webhooks update message state. An unknown send outcome after provider deduplication expires needs operator attention because an automatic replacement could duplicate email.
+Use Rachet's delivery action rather than direct Resend calls so the durable send ledger, suppressions, and Temporal lifecycle remain effective. Verified Resend webhooks update message state. An unknown send outcome after provider deduplication expires needs operator attention because an automatic replacement could duplicate email.
 
 Human login uses the dashboard. For interactive CLI use, run `reflow auth login` to complete OAuth Authorization Code + PKCE, select a workspace, then use plain `reflow`; the saved active workspace scopes later CLI operations. Use `reflow workspace use` to switch. Machine callers use scoped OAuth client credentials or a user-bound API key. Initial administrator creation is a trusted deployment-host operation. Later account creation requires deployment-administrator permission; self-registration works only when `ALLOW_REGISTRATION=true`.
 

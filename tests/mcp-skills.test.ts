@@ -70,7 +70,7 @@ description: A demo skill.
       { method: SKILLS_GET_METHOD, params: { uri: 'skill://reflow/SKILL.md' } },
       GetSkillResultSchema,
     );
-    expect(got.skill.frontmatter.description).toContain('Reflow workflows');
+    expect(got.skill.frontmatter.description).toContain('Rachet workflows');
 
     const body = await client.readResource({ uri: 'skill://reflow/references/workflows.md' });
     expect(String((body.contents[0] as { text?: string }).text)).toContain('Author from natural language');

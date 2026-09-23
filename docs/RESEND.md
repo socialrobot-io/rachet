@@ -1,6 +1,6 @@
 # Resend setup
 
-Reflow keeps workflow-delivery credentials per organization. Each organization owner or admin connects their Resend account in **Organization settings → Resend**. The deployment's `AUTH_RESEND_API_KEY` and `AUTH_EMAIL_FROM` are separate: they send sign-in magic links, never workflow mail.
+Rachet keeps workflow-delivery credentials per organization. Each organization owner or admin connects their Resend account in **Organization settings → Resend**. The deployment's `AUTH_RESEND_API_KEY` and `AUTH_EMAIL_FROM` are separate: they send sign-in magic links, never workflow mail.
 
 ## Deployment prerequisite
 
@@ -15,13 +15,13 @@ Critical events for older sends that lack tags are retried when the send respons
 
 1. In a dedicated [Resend account](https://resend.com/domains) for this organization, add and verify the domain used in the sender address. The `resend.dev` sandbox cannot send to arbitrary recipients.
 2. Create a [sending-only API key](https://resend.com/api-keys), restricted to the verified domain when possible.
-3. Create a [webhook](https://resend.com/webhooks) using the exact URL shown in Reflow, `/webhooks/resend/<organization-id>`. Subscribe to sent, delivered, bounced, complained, and suppressed email events. Copy that webhook's `whsec_...` signing secret; it is **not** the API key.
-4. In Reflow, enter the verified `From` address, a Resend sending API key beginning with `re_` (not your account password), and the webhook signing secret beginning with `whsec_`. Standard base64 signing secrets may contain `+`, `/`, and trailing `=`; paste the entire value. Reflow encrypts both secrets at rest and never returns them to the browser. To rotate a connection, re-enter both secrets in Organization settings.
+3. Create a [webhook](https://resend.com/webhooks) using the exact URL shown in Rachet, `/webhooks/resend/<organization-id>`. Subscribe to sent, delivered, bounced, complained, and suppressed email events. Copy that webhook's `whsec_...` signing secret; it is **not** the API key.
+4. In Rachet, enter the verified `From` address, a Resend sending API key beginning with `re_` (not your account password), and the webhook signing secret beginning with `whsec_`. Standard base64 signing secrets may contain `+`, `/`, and trailing `=`; paste the entire value. Rachet encrypts both secrets at rest and never returns them to the browser. To rotate a connection, re-enter both secrets in Organization settings.
 5. Click **Send a test email**. An accepted response proves the key and sender can submit to Resend, not final delivery. Confirm delivery in the recipient inbox and Resend's dashboard, then run a small test workflow and inspect `message.list` and webhook effects.
 
 Connection-save validation and success messages appear beside **Save connection**, with field-specific errors beneath the affected inputs. Test-send results appear beside **Send a test email**. During onboarding, an accepted test stays on the page so you can read its result before choosing **Continue to dashboard**.
 
-The webhook URL is not a secret or proof of ownership. Reflow verifies the raw request body against this organization's signing secret, correlates the provider message ID to a send in the same organization, and only then records the event or suppression. Unknown messages are acknowledged without being stored or attributed to another organization. Duplicate webhook IDs are scoped per organization. The legacy deployment-wide `/webhooks/resend` route is no longer used.
+The webhook URL is not a secret or proof of ownership. Rachet verifies the raw request body against this organization's signing secret, correlates the provider message ID to a send in the same organization, and only then records the event or suppression. Unknown messages are acknowledged without being stored or attributed to another organization. Duplicate webhook IDs are scoped per organization. The legacy deployment-wide `/webhooks/resend` route is no longer used.
 
 ## Operational notes
 

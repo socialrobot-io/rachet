@@ -40,7 +40,7 @@
 
 ## From prompt to production
 
-Tell your agent what should happen. Reflow handles the rest.
+Tell your agent what should happen. Rachet handles the rest.
 
 No drag-and-drop builder. No translating product logic into a maze of automation blocks.
 
@@ -66,7 +66,7 @@ npm install --global @socialrobot-io/reflow
 reflow --version
 ```
 
-The CLI connects to a Reflow server; it does not install the server.
+The CLI connects to a Rachet server; it does not install the server.
 
 ### 2. Start the server
 
@@ -111,7 +111,7 @@ Copy the checked-in [`examples/mcp/cursor.json`](examples/mcp/cursor.json) to `.
 }
 ```
 
-Do not add a static `Authorization` header. Reflow publishes OAuth discovery metadata; compatible clients register with PKCE, show the requested scopes, and save their own grant. Operators can revoke the grant from **Connected apps**. For production, replace the URL with `https://your-reflow.example/mcp`. Redirect allowlists are described in [Authentication](docs/AUTHENTICATION.md).
+Do not add a static `Authorization` header. Rachet publishes OAuth discovery metadata; compatible clients register with PKCE, show the requested scopes, and save their own grant. Operators can revoke the grant from **Connected apps**. For production, replace the URL with `https://your-rachet.example/mcp`. Redirect allowlists are described in [Authentication](docs/AUTHENTICATION.md).
 
 ## Usage
 
@@ -158,7 +158,7 @@ await reflow.trigger({
 
 The SDK upserts the contact and starts an idempotent enrollment. Keep the API key server-side; browser bundles must call your own backend endpoint.
 
-### Operate Reflow
+### Operate Rachet
 
 ```sh
 reflow workflow show --name "Activation welcome"
@@ -176,7 +176,7 @@ Production landing HTML is prerendered for crawlers, with a branded social previ
 
 ## Architecture
 
-![Reflow architecture: MCP, CLI, HTTP, and dashboard over shared operations and authorization, backed by PostgreSQL and Temporal, sending through Resend](docs/assets/architecture.png)
+![Rachet architecture: MCP, CLI, HTTP, and dashboard over shared operations and authorization, backed by PostgreSQL and Temporal, sending through Resend](docs/assets/architecture.png)
 
 | Concept | Meaning |
 | --- | --- |
@@ -196,6 +196,7 @@ Server variables, documented in [`.env.example`](.env.example):
 | Variable | Purpose |
 | --- | --- |
 | `REFLOW_DOMAIN`, `PUBLIC_URL` | Public hostname and URL of the deployment |
+| `GOOGLE_ANALYTICS_ID` | Optional Google Analytics measurement ID, for example `G-X7CL1NYLSM`; unset disables tracking |
 | `DATABASE_URL` | PostgreSQL connection string |
 | `BETTER_AUTH_SECRET` | Auth signing secret, at least 32 random characters |
 | `REFLOW_SETUP_SECRET` | High-entropy secret required by the one-time first-admin page |
@@ -286,8 +287,8 @@ make check
 
 It runs repository validation, linting, typechecks, backend and dashboard tests, Temporal replay checks, all builds, Compose validation, and an npm package dry run. Read [CONTRIBUTING.md](CONTRIBUTING.md) for the full rules, and update the docs and [agent skill](skills/reflow/SKILL.md) when behavior changes. The CLI release process is documented in [Releasing](docs/RELEASING.md).
 
-Reflow is early. If you try it, open an issue and tell us where setup hurt, which journey actions you need next, and whether the MCP flow felt natural.
+Rachet is early. If you try it, open an issue and tell us where setup hurt, which journey actions you need next, and whether the MCP flow felt natural.
 
 ## License
 
-Reflow is licensed under the [GNU Affero General Public License v3.0](LICENSE) only (`AGPL-3.0-only`).
+Rachet is licensed under the [GNU Affero General Public License v3.0](LICENSE) only (`AGPL-3.0-only`).

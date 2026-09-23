@@ -33,7 +33,7 @@ export default function WelcomeEmail({ contact, variables }: WelcomeEmailProps) 
             </Button>
           </Section>
           <Hr style={hr} />
-          <Text style={footer}>Sent by Reflow</Text>
+          <Text style={footer}>Sent by Rachet</Text>
         </Container>
       </Body>
     </Html>

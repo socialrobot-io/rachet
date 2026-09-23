@@ -101,8 +101,8 @@ export async function createMcpServer(operations: Record<string, Operation>, con
   }
 
   server.registerPrompt('design-workflow', {
-    title: 'Design a Reflow workflow',
-    description: 'Turn a natural-language automation request into a validated, simulated Reflow workflow.',
+    title: 'Design a Rachet workflow',
+    description: 'Turn a natural-language automation request into a validated, simulated Rachet workflow.',
     argsSchema: {
       intent: z.string().min(1).describe('What the workflow should accomplish, in natural language.'),
       workspaceId: z.string().uuid().describe('Workspace in which templates and the workflow will be created.'),

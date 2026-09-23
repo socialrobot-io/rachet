@@ -1,6 +1,6 @@
 # Authentication and connected clients
 
-Reflow uses Better Auth 1.7.4 for browser sessions, OAuth 2.1 authorization, API keys, and optional upstream OAuth/OIDC sign-in. The dashboard is the human login and consent surface. Product authorization is still enforced by Reflow workspace roles and operation scopes after Better Auth establishes identity.
+Rachet uses Better Auth 1.7.4 for browser sessions, OAuth 2.1 authorization, API keys, and optional upstream OAuth/OIDC sign-in. The dashboard is the human login and consent surface. Product authorization is still enforced by Rachet workspace roles and operation scopes after Better Auth establishes identity.
 
 ## Initial administrator
 
@@ -14,7 +14,7 @@ The same-origin dashboard signs in at `/auth/login` using a single-use magic lin
 
 Cookies remain HTTP-only, SameSite, and secure on HTTPS deployments. CSRF and origin checks remain enabled, trusted origins are explicit, OAuth tokens are encrypted at rest, and authentication endpoints are rate limited in database-backed storage.
 
-An optional upstream OAuth/OIDC provider can be configured with `OAUTH_PROVIDER_ID`, `OAUTH_DISCOVERY_URL`, `OAUTH_CLIENT_ID`, and `OAUTH_CLIENT_SECRET` (or its file variant). Reflow-issued access tokens—not upstream provider tokens—authorize Reflow operations.
+An optional upstream OAuth/OIDC provider can be configured with `OAUTH_PROVIDER_ID`, `OAUTH_DISCOVERY_URL`, `OAUTH_CLIENT_ID`, and `OAUTH_CLIENT_SECRET` (or its file variant). Rachet-issued access tokens—not upstream provider tokens—authorize Rachet operations.
 
 ## CLI login
 
@@ -22,17 +22,17 @@ An optional upstream OAuth/OIDC provider can be configured with `OAUTH_PROVIDER_
 
 1. The CLI binds an ephemeral callback on `127.0.0.1`.
 2. It registers a native public client and creates a verifier, S256 challenge, and state value.
-3. It opens the Reflow dashboard authorization page (or prints the URL with `--no-open`).
+3. It opens the Rachet dashboard authorization page (or prints the URL with `--no-open`).
 4. The user signs in and explicitly approves the requested scopes.
 5. The callback validates state, exchanges the short-lived code, and stores the resulting short-lived access token plus rotating refresh token.
 
 The CLI configuration is mode `0600` under `${XDG_CONFIG_HOME:-~/.config}/reflow/config.json`. Passwords and dashboard session cookies are never copied into it. Expired access tokens are refreshed before an operation; a failed or revoked refresh requires a new login. `REFLOW_TOKEN`, `REFLOW_API_KEY`, and `REFLOW_WORKSPACE_ID` remain process-local automation overrides.
 
-The published CLI intentionally does not expose a generic `/api/auth/*` proxy. Account creation and credential administration use named Reflow operations with their normal authorization checks.
+The published CLI intentionally does not expose a generic `/api/auth/*` proxy. Account creation and credential administration use named Rachet operations with their normal authorization checks.
 
 ## MCP and dynamic client registration
 
-HTTP MCP is an OAuth protected resource at `/mcp`. Reflow publishes protected-resource, OAuth authorization-server, and OpenID discovery metadata. Public MCP clients use PKCE and the same dashboard login/consent pages as the CLI.
+HTTP MCP is an OAuth protected resource at `/mcp`. Rachet publishes protected-resource, OAuth authorization-server, and OpenID discovery metadata. Public MCP clients use PKCE and the same dashboard login/consent pages as the CLI.
 
 Unauthenticated dynamic registration is limited to public clients (`token_endpoint_auth_method=none`) and rejects client credentials. Redirects are limited to loopback HTTP, native schemes explicitly listed in `OAUTH_PUBLIC_REDIRECT_SCHEMES` (default: `cursor`), and exact HTTPS origins listed in `OAUTH_PUBLIC_REDIRECT_ORIGINS`. Every dynamically registered client requires consent; there is no consent bypass.
 
@@ -42,9 +42,9 @@ After first sign-in, an organization owner is directed to **Integrations**, wher
 
 ## Machine access and stdio
 
-Non-interactive systems use a scoped organization-bound API key or an administrator-provisioned confidential OAuth client. Credentials belong in a secret manager or protected environment/file, never command arguments, prompts, or logs. Reflow intersects credential scopes with current organization membership and role checks on every operation.
+Non-interactive systems use a scoped organization-bound API key or an administrator-provisioned confidential OAuth client. Credentials belong in a secret manager or protected environment/file, never command arguments, prompts, or logs. Rachet intersects credential scopes with current organization membership and role checks on every operation.
 
-The published `@socialrobot-io/reflow-sdk` uses the same `/v1/operations` contract for UI server actions. Give it a `send`-scoped API key and keep that key on the server; do not embed it in browser JavaScript. Add the UI origin to `TRUSTED_ORIGINS` when the UI calls Reflow directly from a browser, although a server-side action/proxy is recommended.
+The published `@socialrobot-io/reflow-sdk` uses the same `/v1/operations` contract for UI server actions. Give it a `send`-scoped API key and keep that key on the server; do not embed it in browser JavaScript. Add the UI origin to `TRUSTED_ORIGINS` when the UI calls Rachet directly from a browser, although a server-side action/proxy is recommended.
 
 See [Sending product events](EVENTS.md) for a complete scoped API-key and HTTP integration example.
 
@@ -72,4 +72,4 @@ OAuth and API-key scopes can only narrow that set. Each operation also checks th
 - Keep `OAUTH_PUBLIC_REDIRECT_SCHEMES` limited to installed native MCP clients that own those URI schemes.
 - Verify the dashboard login, consent, deny, refresh, logout, and Connected apps revocation paths.
 - Verify at least one intended MCP client through discovery, registration, PKCE, consent, and tool invocation.
-- Configure npm trusted publishing separately; npm credentials are unrelated to Reflow runtime authentication.
+- Configure npm trusted publishing separately; npm credentials are unrelated to Rachet runtime authentication.

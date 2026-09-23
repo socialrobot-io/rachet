@@ -1,6 +1,6 @@
 # Contributing
 
-Reflow is an Nx TypeScript workspace containing a Hono API, Better Auth, Temporal workers, a React dashboard, shared contracts, and the published CLI. Python utilities only maintain repository metadata and the first-party skill.
+Rachet is an Nx TypeScript workspace containing a Hono API, Better Auth, Temporal workers, a React dashboard, shared contracts, and the published CLI. Python utilities only maintain repository metadata and the first-party skill.
 
 Install Node.js 22+, pnpm 11+, Docker Compose, and Python 3.9+. Start the complete local stack with `pnpm dev`; it provisions development infrastructure, migrates the database, performs first-admin setup when needed, and runs the API, worker, dispatcher, and dashboard.
 

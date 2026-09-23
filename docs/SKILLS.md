@@ -19,7 +19,7 @@ Skill files are also ordinary MCP resources in the [FastMCP Skills Provider](htt
 
 Resources carry `_meta.fastmcp.skill`. Disclosure mode is FastMCP `resources` (every file listed). Server `instructions` point hosts at `skill://reflow/SKILL.md`. Override the on-disk skill root with `REFLOW_SKILL_DIR` when needed.
 
-Until [typescript-sdk#2818](https://github.com/modelcontextprotocol/typescript-sdk/pull/2818) lands, Reflow uses the temporary workspace package `@reflow/mcp-ext-skills` (schemas, `installSkills`, and FastMCP `registerFastMcpSkills`, adapted for `@modelcontextprotocol/sdk`). Remove that package and switch to the official `@modelcontextprotocol/*/ext/skills` exports when they ship.
+Until [typescript-sdk#2818](https://github.com/modelcontextprotocol/typescript-sdk/pull/2818) lands, Rachet uses the temporary workspace package `@reflow/mcp-ext-skills` (schemas, `installSkills`, and FastMCP `registerFastMcpSkills`, adapted for `@modelcontextprotocol/sdk`). Remove that package and switch to the official `@modelcontextprotocol/*/ext/skills` exports when they ship.
 
 Hosts that already install the skill locally can keep using [scripts/install_reflow_skill.py](../scripts/install_reflow_skill.py). MCP discovery is additive, not a replacement for that installer.
 
@@ -41,7 +41,7 @@ python3 "${CODEX_HOME:-$HOME/.codex}/skills/.system/skill-installer/scripts/inst
 python3 "${CODEX_HOME:-$HOME/.codex}/skills/.system/skill-installer/scripts/install-skill-from-github.py" --repo better-auth/skills --path better-auth/best-practices better-auth/create-auth better-auth/emailAndPassword better-auth/organization better-auth/twoFactor security --ref 20c9e88a5c007461a703f1c213572b073196113e
 ```
 
-These commands require network access. Installation adds instructions, not a Resend credential, Temporal server, or Reflow runtime. Do not run an unpinned package installation command as an implicit skill update.
+These commands require network access. Installation adds instructions, not a Resend credential, Temporal server, or Rachet runtime. Do not run an unpinned package installation command as an implicit skill update.
 
 The [official Better Auth pack](https://better-auth.com/docs/ai-resources/skills) includes best practices, auth creation, email/password, organizations, two-factor authentication, and security. Installing a guidance pack does not enable every corresponding product feature. Follow version-matched Better Auth documentation when changing authentication; runtime versions are pinned in `package.json` and `pnpm-lock.yaml`.
 
@@ -57,4 +57,4 @@ It defaults to `$CODEX_HOME/skills/reflow` (or `~/.codex/skills/reflow`), can ta
 
 `make check` validates the first-party skill metadata and internal references. Release qualification must also exercise realistic MCP/CLI flows with that release's skill and discovered schemas. Maintain it alongside operation contracts.
 
-Upstream skill updates are explicit: choose/review a revision, update the lock, reinstall, read relevant guidance, and rerun the affected implementation tests. Vendor advice must not replace Reflow's user-required Temporal orchestration with provider-native automations or bypass its send ledger. The pinned Temporal skill recommends evaluating task-queue fairness; qualify support against the chosen self-hosted version before enabling it.
+Upstream skill updates are explicit: choose/review a revision, update the lock, reinstall, read relevant guidance, and rerun the affected implementation tests. Vendor advice must not replace Rachet's user-required Temporal orchestration with provider-native automations or bypass its send ledger. The pinned Temporal skill recommends evaluating task-queue fairness; qualify support against the chosen self-hosted version before enabling it.

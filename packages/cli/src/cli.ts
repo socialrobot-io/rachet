@@ -61,7 +61,7 @@ async function resolveAuthenticatedCliContext(): Promise<CliContext> {
       await saveRefreshedOAuth(context.url, oauth);
       return { ...context, token: oauth.accessToken, oauth };
     } catch {
-      throw new CliFailure('Your Reflow authorization expired or was revoked.', 'Run `reflow auth login` again.');
+    throw new CliFailure('Your Rachet authorization expired or was revoked.', 'Run `reflow auth login` again.');
     }
   }
   requireAuthentication(context);
@@ -102,7 +102,7 @@ async function openTui(selector?: string): Promise<void> {
   await launchTui(workspace.id, client(context));
 }
 
-const program = new Command().name('reflow').description('Operate Reflow entirely from the command line.').version('0.1.0');
+const program = new Command().name('reflow').description('Operate Rachet entirely from the command line.').version('0.1.0');
 program.command('call').argument('<operation>', 'Operation name, such as workflow.validate').option('-i, --input <json>').option('-f, --file <path>').action(async (operation, options: { input?: string; file?: string }) => {
   const context = await resolveAuthenticatedCliContext();
   const input = await jsonInput(options.input, options.file);
@@ -111,8 +111,8 @@ program.command('call').argument('<operation>', 'Operation name, such as workflo
 });
 const auth = program.command('auth');
 auth.command('login')
-  .description('Authorize this CLI in the Reflow dashboard using OAuth 2.1 + PKCE.')
-  .option('--url <url>', 'Reflow server URL')
+  .description('Authorize this CLI in the Rachet dashboard using OAuth 2.1 + PKCE.')
+  .option('--url <url>', 'Rachet server URL')
   .option('--workspace <id-or-slug>', 'Select without prompting')
   .option('--no-open', 'Print the authorization URL without opening a browser')
   .action(async (options: { url?: string; workspace?: string; open: boolean }) => {
@@ -121,7 +121,7 @@ auth.command('login')
     const result = await loginWithBrowser({
       url: context.url,
       openBrowser: options.open,
-      onAuthorize: (url) => console.log(`Authorize Reflow CLI in your browser:\n${url}`),
+      onAuthorize: (url) => console.log(`Authorize Rachet CLI in your browser:\n${url}`),
     });
     const authenticated: CliContext = { url: context.url, token: result.oauth.accessToken, oauth: result.oauth };
     const choices = await availableWorkspaces(authenticated);
@@ -130,10 +130,10 @@ auth.command('login')
       : await chooseWorkspace(choices);
     if (!choice) throw new Error(`Workspace not found: ${options.workspace}`);
     await saveLogin(context.url, result.oauth, savedWorkspace(choice));
-    console.log('Reflow CLI authorized.');
+    console.log('Rachet CLI authorized.');
     console.log(`Workspace: ${choice.name} (${choice.slug})`);
   });
-auth.command('logout').description('Remove the saved credential for the current Reflow server.').action(async () => {
+auth.command('logout').description('Remove the saved credential for the current Rachet server.').action(async () => {
   const context = await resolveCliContext();
   await clearLogin(context.url);
   console.log(`Logged out from ${context.url}`);
@@ -200,7 +200,7 @@ try {
       if (error.details) console.error(JSON.stringify({ details: error.details }, null, 2));
     }
   } else if (error instanceof TypeError && error.message.toLowerCase().includes('fetch')) {
-    message = 'Reflow could not reach the configured server.';
+    message = 'Rachet could not reach the configured server.';
     hint = 'Check that the server is running and verify `REFLOW_URL`.';
   }
   console.error(`Error: ${message}`);

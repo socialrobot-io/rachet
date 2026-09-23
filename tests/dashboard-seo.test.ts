@@ -15,6 +15,8 @@ writeFileSync(join(root, 'favicon.svg'), readFileSync('apps/dashboard/public/fav
 const app = new Hono();
 app.get('/api/health', (c) => c.json({ ok: true }));
 mountDashboard(app, root, 'https://rachet.example.test');
+const analyticsApp = new Hono();
+mountDashboard(analyticsApp, root, 'https://rachet.example.test', 'G-X7CL1NYLSM');
 afterAll(() => rmSync(root, { recursive: true, force: true }));
 
 describe('landing SEO and static serving', () => {
@@ -71,5 +73,13 @@ describe('landing SEO and static serving', () => {
     expect(png.readUInt32BE(20)).toBe(630);
     expect((await app.request('/favicon.svg')).headers.get('content-type')).toContain('image/svg+xml');
     expect(await (await app.request('/api/health')).json()).toEqual({ ok: true });
+  });
+
+  it('injects Google Analytics only when configured', async () => {
+    const withoutAnalytics = await (await app.request('/')).text();
+    const withAnalytics = await (await analyticsApp.request('/')).text();
+    expect(withoutAnalytics).not.toContain('googletagmanager.com');
+    expect(withAnalytics).toContain('https://www.googletagmanager.com/gtag/js?id=G-X7CL1NYLSM');
+    expect(withAnalytics).toContain("gtag('config', 'G-X7CL1NYLSM')");
   });
 });

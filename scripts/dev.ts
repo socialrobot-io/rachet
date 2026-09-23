@@ -79,7 +79,7 @@ await run('docker', ['compose', '-f', 'compose.dev.yaml', 'up', '-d']);
 await run('docker', ['compose', '-f', 'compose.dev.yaml', 'run', '--rm', 'temporal-namespace']);
 await run('node', ['--env-file-if-exists=.env.local', '--env-file=.env', '--import', 'tsx', 'apps/server/src/db/migrate.ts']);
 
-console.log('\nReflow is ready:');
+console.log('\nRachet is ready:');
 console.log('  Dashboard: http://localhost:5173');
 console.log('  API + MCP: http://localhost:3000');
 console.log('  Fresh DB:  enter REFLOW_SETUP_SECRET from .env.local or .env');

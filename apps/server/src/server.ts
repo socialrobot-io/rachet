@@ -17,4 +17,4 @@ const server = startServer(createApp({ config, auth, db, service, operations }),
 const shutdown = () => server.close(() => void pool.end());
 process.once('SIGTERM', shutdown);
 process.once('SIGINT', shutdown);
-console.log(JSON.stringify({ level: 'info', message: 'Reflow server listening', port: config.port }));
+console.log(JSON.stringify({ level: 'info', message: 'Rachet server listening', port: config.port }));

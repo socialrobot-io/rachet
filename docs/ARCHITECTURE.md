@@ -1,4 +1,4 @@
-# Reflow implementation architecture
+# Rachet implementation architecture
 
 Status: runnable baseline plus planned hardening. Product semantics and release gates are defined in [PRD](PRD.md).
 
@@ -51,7 +51,7 @@ apps/server/             Hono, Better Auth, HTTP MCP, Temporal worker/dispatcher
 apps/dashboard/          permanent same-origin React operations and OAuth consent UI
 packages/contracts/      shared workflow and operation schemas
 packages/cli/            publishable, server-free npm CLI bundle
-migrations/              reviewed Better Auth and Reflow PostgreSQL migrations
+migrations/              reviewed Better Auth and Rachet PostgreSQL migrations
 docker/                  Compose support, TLS, and Temporal configuration
 docs/                    architecture, setup, operations, and provider runbooks
 ```
@@ -169,7 +169,7 @@ The CLI is a public OAuth client. It registers a loopback callback, uses Authori
 
 HTTP MCP is a protected resource. Publish authorization-server and protected-resource metadata, validate issuer/audience/expiry/scopes, and authorize every request. Machine access uses administrator-provisioned client IDs/secrets, explicit workspace scopes, and short-lived OAuth tokens. Clients exchange secrets at the token endpoint; they do not pass a provider secret to flow operations. [OAuth provider](https://better-auth.com/docs/plugins/oauth-provider).
 
-Better Auth can broker a configured external OAuth/OIDC provider and always issues the Reflow-scoped credential; external-provider access tokens are never directly accepted. The permanent same-origin dashboard owns login, explicit client consent, and Connected apps revocation. CLI/MCP operations remain independently complete and do not require an operator to use workflow screens. Standard HTTP MCP authorization uses discovery, PKCE, restricted redirects, and resource-specific tokens. [MCP authorization](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization).
+Better Auth can broker a configured external OAuth/OIDC provider and always issues the Rachet-scoped credential; external-provider access tokens are never directly accepted. The permanent same-origin dashboard owns login, explicit client consent, and Connected apps revocation. CLI/MCP operations remain independently complete and do not require an operator to use workflow screens. Standard HTTP MCP authorization uses discovery, PKCE, restricted redirects, and resource-specific tokens. [MCP authorization](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization).
 
 `ALLOW_REGISTRATION=false` is enforced for first-time magic-link and GitHub identities. Existing users can sign in. When enabled, self-registration creates a non-admin user with one isolated, sending-disabled default organization. Organization creation and switching are not exposed. Deployment administrators authorize later registrations with expiring invitations.
 
