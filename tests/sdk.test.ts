@@ -1,14 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { ReflowSdk, ReflowSdkError } from '../packages/sdk/src/index.js';
+import { RachetSdk, RachetSdkError } from '../packages/sdk/src/index.js';
 
 const workspaceId = '00000000-0000-4000-8000-000000000001';
 const workflowVersionId = '00000000-0000-4000-8000-000000000002';
 const contactId = '00000000-0000-4000-8000-000000000003';
 
-describe('ReflowSdk', () => {
+describe('RachetSdk', () => {
   it('upserts a contact and starts an idempotent enrollment', async () => {
     const requests: Array<{ url: string; body: Record<string, unknown>; headers: Headers }> = [];
-    const client = new ReflowSdk({
+    const client = new RachetSdk({
       url: 'https://reflow.example.test/',
       apiKey: 'reflow_test_key',
       workspaceId,
@@ -40,10 +40,10 @@ describe('ReflowSdk', () => {
   });
 
   it('preserves structured operation errors', async () => {
-    const client = new ReflowSdk({
+    const client = new RachetSdk({
       url: 'https://reflow.example.test', apiKey: 'key', workspaceId,
       fetch: async () => new Response(JSON.stringify({ code: 'FORBIDDEN', message: 'Missing required scope: reflow:send' }), { status: 403 }),
     });
-    await expect(client.call('enrollment.create')).rejects.toEqual(expect.objectContaining({ status: 403, code: 'FORBIDDEN' } satisfies Partial<ReflowSdkError>));
+    await expect(client.call('enrollment.create')).rejects.toEqual(expect.objectContaining({ status: 403, code: 'FORBIDDEN' } satisfies Partial<RachetSdkError>));
   });
 });

@@ -33,6 +33,6 @@ jobs:
           expected="v$(node -p 'require("./packages/cli/package.json").version')"
           test "${GITHUB_REF_NAME}" = "${expected}"
       - name: Publish CLI with provenance
-        run: pnpm --filter @socialrobot-io/reflow publish --no-git-checks --provenance
+        run: pnpm --filter @socialrobot-io/rachet publish --no-git-checks --provenance
       - name: Publish SDK with provenance
-        run: pnpm --filter @socialrobot-io/reflow-sdk publish --no-git-checks --provenance
+        run: pnpm --filter @socialrobot-io/rachet-sdk publish --no-git-checks --provenance

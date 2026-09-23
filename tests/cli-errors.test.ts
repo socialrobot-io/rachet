@@ -38,7 +38,7 @@ describe('CLI errors before login', () => {
   ])('%s gives one actionable error without contacting the server', async (_name, arguments_) => {
     const error = await run(...arguments_);
     expect(error.code).toBe(1);
-    expect(error.stderr).toBe('Error: You are not logged in to http://127.0.0.1:1.\nNext: Run `reflow auth login`.\n');
+    expect(error.stderr).toBe('Error: You are not logged in to http://127.0.0.1:1.\nNext: Run `rachet auth login`.\n');
     expect(error.stderr).not.toContain('at ');
     expect(error.stdout).toBe('');
   }, 15_000);

@@ -1,6 +1,6 @@
 # Operations and MCP contract
 
-Every product operation is defined once in `apps/server/src/operations.ts` and exposed as an HTTP operation, an MCP tool with dots converted to underscores, and the generic `reflow call` CLI command. Authentication protocol endpoints are intentionally not exposed through a generic CLI proxy.
+Every product operation is defined once in `apps/server/src/operations.ts` and exposed as an HTTP operation, an MCP tool with dots converted to underscores, and the generic `rachet call` CLI command. Authentication protocol endpoints are intentionally not exposed through a generic CLI proxy.
 
 ## Implemented operation catalog
 
@@ -9,7 +9,7 @@ Every product operation is defined once in `apps/server/src/operations.ts` and e
 | `system.capabilities`, `auth.whoami`, `workspace.list` | Discover runtime, actions, current access, and available workspaces |
 | `account.create` | Deployment administrator authorizes a passwordless registration invitation |
 | `credential.create`, `credential.list`, `credential.revoke` | Create, inspect, or revoke an organization-bound SDK key. The secret is returned once; creation is HTTP/CLI only and excluded from MCP/model-visible catalogs. |
-| `template.create`, `template.list`, `template.revise`, `template.publish`, `template.archive`, `template.render` | Manage HTML (preferred) or plain templates. CLI `reflow template push --allow-code-execution` renders reviewed local React Email code and **upserts by `--name`** (revise + publish). The server never executes TSX; it only interpolates `{{…}}` placeholders. |
+| `template.create`, `template.list`, `template.revise`, `template.publish`, `template.archive`, `template.render` | Manage HTML (preferred) or plain templates. CLI `rachet template push --allow-code-execution` renders reviewed local React Email code and **upserts by `--name`** (revise + publish). The server never executes TSX; it only interpolates `{{…}}` placeholders. |
 | `workflow.actions` | List the installed action registry |
 | `workflow.create`, `workflow.list`, `workflow.validate`, `workflow.simulate`, `workflow.publish` | Author, check, trace, persist, and version capability graphs |
 | `contact.upsert`, `contact.list` | Manage enrolled contacts |
@@ -33,25 +33,25 @@ Graphs reject duplicate IDs, missing targets, cycles, unreachable nodes, unknown
 ## CLI examples
 
 ```sh
-reflow template init
-reflow template preview
-reflow template push emails/welcome.tsx --name Welcome --subject "Welcome, {{contact.firstName}}" --allow-code-execution
-reflow template list
+rachet template init
+rachet template preview
+rachet template push emails/welcome.tsx --name Welcome --subject "Welcome, {{contact.firstName}}" --allow-code-execution
+rachet template list
 ```
 
 Preview needs `react-email` and `@react-email/ui` installed in the project that owns `emails/` (React Email 6). The init/preview commands print an install hint when either is missing.
 
 ```sh
-reflow call workflow.actions
-reflow call workflow.validate --file ./workflow-validation.json
-reflow call workflow.simulate --file ./workflow-simulation.json
-reflow call workflow.create --file ./workflow-create.json
-reflow call enrollment.create --file ./enrollment.json
+rachet call workflow.actions
+rachet call workflow.validate --file ./workflow-validation.json
+rachet call workflow.simulate --file ./workflow-simulation.json
+rachet call workflow.create --file ./workflow-create.json
+rachet call enrollment.create --file ./enrollment.json
 ```
 
-Send a product event with `reflow call event.emit --input '{...}'` or `--file activation-event.json`. The complete CLI, HTTP, and MCP examples are in [Sending product events](EVENTS.md).
+Send a product event with `rachet call event.emit --input '{...}'` or `--file activation-event.json`. The complete CLI, HTTP, and MCP examples are in [Sending product events](EVENTS.md).
 
-`reflow tui --workspace UUID` provides an interactive workflow browser backed by `workflow.list`. Its workflow pane generates an SVG from the Mermaid definition and displays it through Kitty, iTerm2, or Sixel terminal graphics. It never substitutes character art. Press `o` to open the exact SVG when the terminal cannot display inline images. The equivalent noninteractive command is `reflow workflow show --workspace UUID --id UUID`, with `--format svg|mermaid|json`; SVG is the default. These are presentation clients over the shared operation contract, so they preserve CLI/MCP authorization and do not bypass the service layer.
+`rachet tui --workspace UUID` provides an interactive workflow browser backed by `workflow.list`. Its workflow pane generates an SVG from the Mermaid definition and displays it through Kitty, iTerm2, or Sixel terminal graphics. It never substitutes character art. Press `o` to open the exact SVG when the terminal cannot display inline images. The equivalent noninteractive command is `rachet workflow show --workspace UUID --id UUID`, with `--format svg|mermaid|json`; SVG is the default. These are presentation clients over the shared operation contract, so they preserve CLI/MCP authorization and do not bypass the service layer.
 
 Set `REFLOW_URL` and either `REFLOW_TOKEN` or `REFLOW_API_KEY`. Human login uses the dashboard's magic-link or GitHub flow. Public registration succeeds only when `ALLOW_REGISTRATION=true`; administrator-created invitations remain explicit. Preserve idempotency and event IDs on retries.
 

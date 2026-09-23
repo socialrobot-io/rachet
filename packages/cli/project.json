@@ -9,11 +9,11 @@
     "build": {
       "executor": "nx:run-commands",
       "outputs": ["{projectRoot}/dist"],
-      "options": { "command": "pnpm --filter @socialrobot-io/reflow build" }
+      "options": { "command": "pnpm --filter @socialrobot-io/rachet build" }
     },
     "typecheck": {
       "executor": "nx:run-commands",
-      "options": { "command": "pnpm --filter @socialrobot-io/reflow typecheck" }
+      "options": { "command": "pnpm --filter @socialrobot-io/rachet typecheck" }
     }
   }
 }

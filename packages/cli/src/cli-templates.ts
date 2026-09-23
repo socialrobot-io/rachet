@@ -131,8 +131,8 @@ export function registerTemplateCommands(
         console.log(`  ${reactEmailInstallHint(missing)}`);
       }
       console.log('Next:');
-      console.log(`  reflow template preview --dir ${dir}`);
-      console.log(`  reflow template push ${dir}/welcome.tsx --name Welcome --subject "Welcome, {{contact.firstName}}" --allow-code-execution`);
+      console.log(`  rachet template preview --dir ${dir}`);
+      console.log(`  rachet template push ${dir}/welcome.tsx --name Welcome --subject "Welcome, {{contact.firstName}}" --allow-code-execution`);
     });
 
   template.command('preview')
@@ -143,7 +143,7 @@ export function registerTemplateCommands(
     .action(async (options: { dir: string; port: string }) => {
       const dir = resolve(options.dir);
       if (!(await pathExists(dir))) {
-        throw new Error(`Template directory not found: ${dir}. Run \`reflow template init\` first.`);
+        throw new Error(`Template directory not found: ${dir}. Run \`rachet template init\` first.`);
       }
       const missing = missingReactEmailProjectDeps();
       if (missing.length > 0) {

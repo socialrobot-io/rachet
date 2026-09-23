@@ -50,7 +50,7 @@ function client(context: CliContext): ReflowClient {
 
 function requireAuthentication(context: CliContext): void {
   if (context.token || context.apiKey) return;
-  throw new CliFailure(`You are not logged in to ${context.url}.`, 'Run `reflow auth login`.');
+  throw new CliFailure(`You are not logged in to ${context.url}.`, 'Run `rachet auth login`.');
 }
 
 async function resolveAuthenticatedCliContext(): Promise<CliContext> {
@@ -61,7 +61,7 @@ async function resolveAuthenticatedCliContext(): Promise<CliContext> {
       await saveRefreshedOAuth(context.url, oauth);
       return { ...context, token: oauth.accessToken, oauth };
     } catch {
-    throw new CliFailure('Your Rachet authorization expired or was revoked.', 'Run `reflow auth login` again.');
+    throw new CliFailure('Your Rachet authorization expired or was revoked.', 'Run `rachet auth login` again.');
     }
   }
   requireAuthentication(context);
@@ -102,7 +102,7 @@ async function openTui(selector?: string): Promise<void> {
   await launchTui(workspace.id, client(context));
 }
 
-const program = new Command().name('reflow').description('Operate Rachet entirely from the command line.').version('0.1.0');
+const program = new Command().name('rachet').description('Operate Rachet entirely from the command line.').version('0.1.0');
 program.command('call').argument('<operation>', 'Operation name, such as workflow.validate').option('-i, --input <json>').option('-f, --file <path>').action(async (operation, options: { input?: string; file?: string }) => {
   const context = await resolveAuthenticatedCliContext();
   const input = await jsonInput(options.input, options.file);
@@ -193,7 +193,7 @@ try {
   if (error instanceof ReflowClientError) {
     if (error.status === 401) {
       message = 'Your saved login is missing, invalid, or expired.';
-      hint = 'Run `reflow auth login` again.';
+      hint = 'Run `rachet auth login` again.';
     } else {
       if (error.code) message = `${error.code}: ${message}`;
       hint = error.hint ?? hint;

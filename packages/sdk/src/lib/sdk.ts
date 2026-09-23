@@ -1,4 +1,4 @@
-export type ReflowSdkOptions = {
+export type RachetSdkOptions = {
   url: string;
   apiKey?: string;
   token?: string;
@@ -21,8 +21,8 @@ export type TriggerWorkflowInput = {
   idempotencyKey: string;
 };
 
-export type ReflowContact = TriggerContact & { id: string; workspaceId: string; emailKey: string };
-export type ReflowEnrollment = {
+export type RachetContact = TriggerContact & { id: string; workspaceId: string; emailKey: string };
+export type RachetEnrollment = {
   id: string;
   workspaceId: string;
   sequenceVersionId: string;
@@ -32,27 +32,27 @@ export type ReflowEnrollment = {
   createdAt: string;
   updatedAt: string;
 };
-export type TriggerWorkflowResult = { contact: ReflowContact; enrollment: ReflowEnrollment };
+export type TriggerWorkflowResult = { contact: RachetContact; enrollment: RachetEnrollment };
 
-export class ReflowSdkError extends Error {
+export class RachetSdkError extends Error {
   readonly code?: string;
   readonly hint?: string;
   readonly details?: Record<string, unknown>;
 
   constructor(readonly status: number, message: string, extras?: { code?: string; hint?: string; details?: Record<string, unknown> }) {
     super(message);
-    this.name = 'ReflowSdkError';
+    this.name = 'RachetSdkError';
     if (extras?.code !== undefined) this.code = extras.code;
     if (extras?.hint !== undefined) this.hint = extras.hint;
     if (extras?.details !== undefined) this.details = extras.details;
   }
 }
 
-export class ReflowSdk {
+export class RachetSdk {
   private readonly baseUrl: string;
   private readonly requestFetch: typeof globalThis.fetch;
 
-  constructor(private readonly options: ReflowSdkOptions) {
+  constructor(private readonly options: RachetSdkOptions) {
     if (!options.apiKey && !options.token) throw new Error('Rachet SDK requires apiKey or token');
     this.baseUrl = options.url.replace(/\/$/, '');
     this.requestFetch = options.fetch ?? globalThis.fetch;
@@ -68,7 +68,7 @@ export class ReflowSdk {
     const payload = await response.json().catch(() => ({ message: response.statusText })) as unknown;
     if (!response.ok) {
       const record = typeof payload === 'object' && payload !== null ? payload as Record<string, unknown> : {};
-      throw new ReflowSdkError(response.status, typeof record.message === 'string' ? record.message : 'Rachet request failed', {
+      throw new RachetSdkError(response.status, typeof record.message === 'string' ? record.message : 'Rachet request failed', {
         ...(typeof record.code === 'string' ? { code: record.code } : {}),
         ...(typeof record.hint === 'string' ? { hint: record.hint } : {}),
         ...(record.details && typeof record.details === 'object' ? { details: record.details as Record<string, unknown> } : {}),
@@ -79,8 +79,8 @@ export class ReflowSdk {
   }
 
   async trigger(input: TriggerWorkflowInput): Promise<TriggerWorkflowResult> {
-    const contact = await this.call<ReflowContact>('contact.upsert', { workspaceId: this.options.workspaceId, ...input.contact });
-    const enrollment = await this.call<ReflowEnrollment>('enrollment.create', {
+    const contact = await this.call<RachetContact>('contact.upsert', { workspaceId: this.options.workspaceId, ...input.contact });
+    const enrollment = await this.call<RachetEnrollment>('enrollment.create', {
       workspaceId: this.options.workspaceId,
       workflowVersionId: input.workflowVersionId,
       contactId: contact.id,

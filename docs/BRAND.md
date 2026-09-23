@@ -1,6 +1,6 @@
 # Rachet brand
 
-Rachet is the public product name used by the landing page, sign-in, and dashboard. Existing repository, CLI, package, and API identifiers continue to use `reflow`.
+Rachet is the public product name used by the landing page, sign-in, dashboard, CLI, and published SDK. Internal server contracts and environment variables retain historical `reflow` identifiers where they are part of the wire contract.
 
 ## Logo assets
 

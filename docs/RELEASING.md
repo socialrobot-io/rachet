@@ -4,18 +4,18 @@ Two public packages ship from this repository:
 
 | Package | Path | Role |
 | --- | --- | --- |
-| `@socialrobot-io/reflow` | `packages/cli` | CLI |
-| `@socialrobot-io/reflow-sdk` | `packages/sdk` | Server-side SDK for UI backends |
+| `@socialrobot-io/rachet` | `packages/cli` | CLI |
+| `@socialrobot-io/rachet-sdk` | `packages/sdk` | Server-side SDK for UI backends |
 
 Both are licensed under the GNU Affero General Public License v3.0 only (`AGPL-3.0-only`). The repository root, server, dashboard, and internal packages stay private and are not published.
 
 ## One-time npm setup
 
 1. Ensure the `@socialrobot-io` npm organization and package publishing permissions are configured.
-2. Configure npm trusted publishing for this GitHub repository and the workflow file `.github/workflows/release.yml` for both `@socialrobot-io/reflow` and `@socialrobot-io/reflow-sdk`.
+2. Configure npm trusted publishing for this GitHub repository and the workflow file `.github/workflows/release.yml` for both `@socialrobot-io/rachet` and `@socialrobot-io/rachet-sdk`.
 3. Protect the GitHub Environment named `npm` if release approvals are required.
 
-The workflow uses GitHub OIDC and npm provenance. It does not require a long-lived `NPM_TOKEN` secret.
+The workflow uses GitHub OIDC and npm provenance. It does not require a long-lived `NPM_TOKEN` secret. The new packages ship only Rachet names and commands. Keep the old `@socialrobot-io/reflow` registry entries only long enough to publish a deprecation message after the first Rachet release.
 
 ## Release procedure
 
@@ -26,5 +26,14 @@ The workflow uses GitHub OIDC and npm provenance. It does not require a long-liv
 5. Create and push a tag named `v<cli-version>`.
 
 The release workflow runs the full check, verifies the tag matches the CLI version, then publishes both packages with public access and provenance.
+
+After the first successful Rachet publish, deprecate the old names from an authenticated npm session:
+
+```sh
+npm deprecate @socialrobot-io/reflow "This package moved to @socialrobot-io/rachet. Install the Rachet package instead."
+npm deprecate @socialrobot-io/reflow-sdk "This package moved to @socialrobot-io/rachet-sdk. Install the Rachet SDK instead."
+```
+
+Do not add compatibility exports or a `reflow` executable to the new packages. Deprecating the old registry entries is separate from runtime compatibility and lets npm show the migration message to anyone who tries to install an old name.
 
 Do not publish the repository root with `npm publish`; it is intentionally private.

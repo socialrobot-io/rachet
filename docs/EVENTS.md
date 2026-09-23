@@ -7,7 +7,7 @@ Product events resume enrollments waiting at a `wait_for_event` node. The event 
 Interactive CLI login remembers the active workspace, so only the enrollment and event fields are required:
 
 ```sh
-reflow call event.emit --input '{
+rachet call event.emit --input '{
   "enrollmentId": "ENROLLMENT_ID",
   "eventId": "product-activation:ACTIVITY_ID",
   "eventType": "product.activated",
@@ -33,7 +33,7 @@ Repeating the same ID and payload is a successful idempotent no-op: it returns `
 For a saved request, place the same object in `activation-event.json` and run:
 
 ```sh
-reflow call event.emit --file activation-event.json
+rachet call event.emit --file activation-event.json
 ```
 
 ## Send from your application over HTTP
@@ -41,7 +41,7 @@ reflow call event.emit --file activation-event.json
 Create a machine credential with the `send` scope from the dashboard's **API keys** page, or use the operation with your organization ID:
 
 ```sh
-reflow call credential.create --input '{
+rachet call credential.create --input '{
   "workspaceId": "WORKSPACE_ID",
   "name": "product-events",
   "scopes": ["send"]

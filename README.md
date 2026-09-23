@@ -25,9 +25,9 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/socialrobot-io/reflow/actions/workflows/sanity.yml"><img src="https://github.com/socialrobot-io/reflow/actions/workflows/sanity.yml/badge.svg" alt="Repository checks" /></a>
-  <a href="https://www.npmjs.com/package/@socialrobot-io/reflow"><img src="https://img.shields.io/npm/v/%40socialrobot-io%2Freflow?logo=npm&label=npm" alt="npm version" /></a>
-  <a href="https://www.npmjs.com/package/@socialrobot-io/reflow"><img src="https://img.shields.io/npm/dm/%40socialrobot-io%2Freflow?logo=npm&label=downloads" alt="npm downloads" /></a>
+  <a href="https://github.com/socialrobot-io/rachet/actions/workflows/sanity.yml"><img src="https://github.com/socialrobot-io/rachet/actions/workflows/sanity.yml/badge.svg" alt="Repository checks" /></a>
+  <a href="https://www.npmjs.com/package/@socialrobot-io/rachet"><img src="https://img.shields.io/npm/v/%40socialrobot-io%2Frachet?logo=npm&label=npm" alt="npm version" /></a>
+  <a href="https://www.npmjs.com/package/@socialrobot-io/rachet"><img src="https://img.shields.io/npm/dm/%40socialrobot-io%2Frachet?logo=npm&label=downloads" alt="npm downloads" /></a>
   <a href="package.json"><img src="https://img.shields.io/badge/Node.js-22%2B-339933?logo=nodedotjs&logoColor=white" alt="Node.js 22+" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-AGPL_v3-blue.svg" alt="License: AGPL v3" /></a>
 </p>
@@ -62,8 +62,8 @@ Your agent can inspect your existing templates and workflows, build the journey,
 ### 1. Install the CLI
 
 ```sh
-npm install --global @socialrobot-io/reflow
-reflow --version
+npm install --global @socialrobot-io/rachet
+rachet --version
 ```
 
 The CLI connects to a Rachet server; it does not install the server.
@@ -71,8 +71,8 @@ The CLI connects to a Rachet server; it does not install the server.
 ### 2. Start the server
 
 ```sh
-git clone https://github.com/socialrobot-io/reflow.git
-cd reflow
+git clone https://github.com/socialrobot-io/rachet.git
+cd rachet
 pnpm install
 pnpm dev
 ```
@@ -91,8 +91,8 @@ If startup reports that port 5173 is already in use, another dashboard process i
 ### 3. Log in with the CLI
 
 ```sh
-reflow auth login --url http://localhost:3000
-reflow call auth.whoami
+rachet auth login --url http://localhost:3000
+rachet call auth.whoami
 ```
 
 The CLI completes OAuth Authorization Code with PKCE through the dashboard and stores short-lived access and rotating refresh credentials in a protected local file, never your password or browser cookie.
@@ -128,7 +128,7 @@ The agent can inspect, author, validate, and simulate, but must ask before publi
 ### Send product events
 
 ```sh
-reflow call event.emit --input '{
+rachet call event.emit --input '{
   "enrollmentId": "ENROLLMENT_ID",
   "eventId": "product-activation:ACTIVITY_ID",
   "eventType": "product.activated",
@@ -141,15 +141,15 @@ Keep `eventId` stable across retries. Production applications call the same `eve
 ### Trigger a journey from product code
 
 ```ts
-import { ReflowSdk } from '@socialrobot-io/reflow-sdk';
+import { RachetSdk } from '@socialrobot-io/rachet-sdk';
 
-const reflow = new ReflowSdk({
+const rachet = new RachetSdk({
   url: process.env.REFLOW_URL,
   workspaceId: process.env.REFLOW_WORKSPACE_ID,
   apiKey: process.env.REFLOW_API_KEY, // user-bound key with the send scope
 });
 
-await reflow.trigger({
+await rachet.trigger({
   workflowVersionId: 'WORKFLOW_VERSION_ID',
   contact: { email: 'user@example.com' },
   idempotencyKey: 'activation-welcome:user@example.com',
@@ -161,16 +161,16 @@ The SDK upserts the contact and starts an idempotent enrollment. Keep the API ke
 ### Operate Rachet
 
 ```sh
-reflow workflow show --name "Activation welcome"
-reflow call enrollment.list
-reflow call message.list
+rachet workflow show --name "Activation welcome"
+rachet call enrollment.list
+rachet call message.list
 ```
 
 The operations console at [http://localhost:5173](http://localhost:5173) shows journey graphs, live enrollments, timelines, messages, OAuth consent, and connected apps.
 
 Signed-out visitors see the public landing page at `/`; signed-in users continue to `/workflows`. The landing page is always available at `/welcome`, as a single-screen hero using the dashboard’s typography, colors, and UI components. Run `pnpm dev:dashboard` to preview the page independently of the backend. Sign-in and the operations console require the full development stack.
 
-The public interface is branded **Rachet**, using Inter Tight and IBM Plex Mono. Logo assets and typography rules are documented in [Brand](docs/BRAND.md). Repository, CLI, package, and API identifiers retain the `reflow` name.
+The public interface is branded **Rachet**, using Inter Tight and IBM Plex Mono. Logo assets and typography rules are documented in [Brand](docs/BRAND.md). The published CLI and SDK use the Rachet names; internal server contracts and environment variables retain historical `reflow` identifiers where they are part of the wire contract.
 
 Production landing HTML is prerendered for crawlers, with a branded social preview, canonical URL, and structured metadata. The backend uses `PUBLIC_URL` for sharing URLs, `robots.txt`, and `sitemap.xml`; app and sign-in routes are excluded from indexing. See [Social preview and search](docs/BRAND.md#social-preview-and-search) for deployment verification.
 
@@ -215,7 +215,7 @@ Validation and simulation work without Resend. Before a real enrollment can send
 
 ## API
 
-Every operation is defined once and exposed three ways: HTTP `POST /v1/operations/<operation>`, an MCP tool with dots converted to underscores, and the generic `reflow call` CLI command.
+Every operation is defined once and exposed three ways: HTTP `POST /v1/operations/<operation>`, an MCP tool with dots converted to underscores, and the generic `rachet call` CLI command.
 
 | Operations | Effect |
 | --- | --- |
@@ -240,8 +240,8 @@ apps/
 └── server/           # Hono API, Better Auth, Temporal workers, Resend adapter
 packages/
 ├── contracts/        # Shared operation and journey schemas
-├── cli/              # @socialrobot-io/reflow CLI
-├── sdk/              # @socialrobot-io/reflow-sdk for server actions and UI backends
+├── cli/              # @socialrobot-io/rachet CLI
+├── sdk/              # @socialrobot-io/rachet-sdk for server actions and UI backends
 └── mcp-ext-skills/   # MCP skills extension shim
 docs/                 # Architecture, authentication, deployment, operations, events guides
 examples/             # welcome-nudge tutorial and MCP client configs

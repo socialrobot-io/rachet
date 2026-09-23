@@ -1,27 +1,27 @@
-# @socialrobot-io/reflow-sdk
+# @socialrobot-io/rachet-sdk
 
 Browser-compatible TypeScript client for triggering published Rachet workflows.
 
 ```sh
-pnpm add @socialrobot-io/reflow-sdk
+pnpm add @socialrobot-io/rachet-sdk
 ```
 
 Create a user-bound API key with the `send` scope, then keep it in your UI server/action environment (never in browser JavaScript):
 
 ```sh
-reflow call credential.create --input '{"userId":"USER_ID","name":"product-ui","scopes":["send"]}'
+rachet call credential.create --input '{"userId":"USER_ID","name":"product-ui","scopes":["send"]}'
 ```
 
 ```ts
-import { ReflowSdk } from '@socialrobot-io/reflow-sdk';
+import { RachetSdk } from '@socialrobot-io/rachet-sdk';
 
-const reflow = new ReflowSdk({
+const rachet = new RachetSdk({
   url: process.env.REFLOW_URL!,
   apiKey: process.env.REFLOW_API_KEY!,
   workspaceId: process.env.REFLOW_WORKSPACE_ID!,
 });
 
-const result = await reflow.trigger({
+const result = await rachet.trigger({
   workflowVersionId: 'PUBLISHED_WORKFLOW_VERSION_ID',
   contact: { email: user.email, externalId: user.id, fields: { firstName: user.name } },
   variables: { plan: user.plan },
