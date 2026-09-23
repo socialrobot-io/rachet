@@ -284,6 +284,8 @@ It runs repository validation, linting, typechecks, backend and dashboard tests,
 
 Rachet is early. If you try it, open an issue and tell us where setup hurt, which journey actions you need next, and whether the MCP flow felt natural.
 
+For project updates, follow [@ntorresdev on X](https://x.com/ntorresdev).
+
 ## License
 
 Rachet is licensed under the [GNU Affero General Public License v3.0](LICENSE) only (`AGPL-3.0-only`).
