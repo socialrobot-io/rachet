@@ -5,6 +5,7 @@ import { api, authorizeRegistration, continueOAuth, getOAuthClient, getOAuthCons
 import type { ApiCredential, CreatedApiCredential, OAuthClient, OAuthConsent, SessionUser, SetupStatus, Workspace } from '@/types';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
+import { RachetLogo } from '@/components/RachetLogo';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
@@ -108,7 +109,7 @@ export function AppShell() {
       <header className="sticky top-0 z-20 border-b bg-background/90 backdrop-blur-md">
         <div className="mx-auto flex min-h-16 w-full max-w-7xl flex-wrap items-center justify-between gap-x-6 gap-y-2 px-4 py-2 sm:px-6 lg:px-8">
           <div className="flex items-center gap-8">
-            <Link to="/" className="text-xl font-bold tracking-[-0.055em]">Reflow</Link>
+            <Link to="/" aria-label="Rachet home"><RachetLogo className="h-7 w-auto" /></Link>
             <nav aria-label="Primary navigation" className="hidden items-center gap-1 md:flex">
               <Link to="/" className="rounded-full px-3 py-1.5 text-sm font-medium hover:bg-accent">Workflows</Link>
               <Link to="/settings/integrations" className="rounded-full px-3 py-1.5 text-sm font-medium hover:bg-accent">Integrations</Link>
@@ -227,7 +228,7 @@ export function LoginPage() {
       const registration = shouldAuthorizeRegistration
         ? await authorizeRegistration({
             ...(method === 'magic-link' ? { email: email.trim() } : {}),
-            name: name.trim() || (method === 'magic-link' ? email.split('@')[0] : 'GitHub user') || 'Reflow user',
+            name: name.trim() || (method === 'magic-link' ? email.split('@')[0] : 'GitHub user') || 'Rachet user',
             organizationName: organizationName.trim() || 'My organization',
             ...(organizationSlug.trim() ? { organizationSlug: organizationSlug.trim() } : {}),
             method,
@@ -277,7 +278,7 @@ export function LoginPage() {
     <div className="flex min-h-dvh items-center justify-center p-6">
       <Card className="w-full max-w-md border-border/80 shadow-[0_1px_0_rgb(0_0_0/0.03),0_18px_40px_rgb(15_25_35/0.06)]">
         <CardHeader className="flex flex-col gap-1.5">
-          <CardTitle className="text-2xl tracking-tight">Reflow</CardTitle>
+          <CardTitle><RachetLogo className="h-9 w-auto" /></CardTitle>
           <CardDescription>
             {status?.requiresSetup
               ? 'Create the first administrator and the deployment’s organization.'
@@ -415,7 +416,7 @@ export function ConsentPage() {
         <CardHeader>
           <CardTitle>Authorize {client?.client_name ?? 'this app'}</CardTitle>
           <CardDescription>
-            Review the access requested for your Reflow account. You can revoke it later under Connected apps.
+            Review the access requested for your Rachet account. You can revoke it later under Connected apps.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-5">
@@ -468,7 +469,7 @@ export function ConnectedAppsPage() {
     <div className="mx-auto w-full max-w-4xl px-4 py-10 sm:px-6">
       <div className="mb-6">
         <h1 className="text-2xl font-semibold tracking-tight">Connected apps</h1>
-        <p className="mt-1 text-sm text-muted-foreground">CLI and MCP clients authorized to access Reflow on your behalf.</p>
+        <p className="mt-1 text-sm text-muted-foreground">CLI and MCP clients authorized to access Rachet on your behalf.</p>
       </div>
       {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
       {loading ? <p className="text-sm text-muted-foreground">Loading connected apps…</p> : items.length === 0 ? (

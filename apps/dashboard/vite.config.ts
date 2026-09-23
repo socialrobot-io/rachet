@@ -13,7 +13,15 @@ function resolvePkg(name: string): string {
 }
 
 export default defineConfig({
-  plugins: [react(), tailwindcss()],
+  plugins: [react(), tailwindcss(), {
+    name: 'development-seo',
+    apply: 'serve',
+    transformIndexHtml(html) {
+      // Local previews should never be indexed. Production uses runtime PUBLIC_URL.
+      return html.replaceAll('__RACHET_PUBLIC_URL__', 'http://localhost:5173')
+        .replace('content="index, follow, max-image-preview:large"', 'content="noindex, nofollow"');
+    },
+  }],
   resolve: {
     alias: {
       '@': path.resolve(rootDir, './src'),

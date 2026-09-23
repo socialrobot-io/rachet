@@ -1,14 +1,14 @@
 <!-- BEAUTIFIED -->
 <p align="center">
-  <img src="docs/assets/reflow-banner.png" alt="Reflow: journeys that keep moving" width="100%" />
+  <img src="apps/dashboard/public/brand/rachet-logo.svg" alt="Rachet" width="320" />
 </p>
 
 <h1 align="center">Build customer journeys by asking.</h1>
 
 <p align="center">
-  <strong>Reflow is the open-source journey engine for AI agents.</strong>
+  <strong>Rachet is the open-source journey engine for AI agents.</strong>
   <br />
-  <em>Describe what should happen. Your agent builds the workflow, tests every path, and Reflow runs it reliably for days, weeks, or months.</em>
+  <em>Describe what should happen. Your agent builds the workflow, tests every path, and Rachet runs it reliably for days, weeks, or months.</em>
 </p>
 
 <p align="center">
@@ -74,7 +74,7 @@ pnpm install
 pnpm dev
 ```
 
-`pnpm dev` starts PostgreSQL and Temporal, applies migrations, and runs the API, worker, dispatcher, and dashboard. Configure either `AUTH_RESEND_API_KEY` **and** `AUTH_EMAIL_FROM` (a sender on a domain verified in that separate authentication Resend account), or the GitHub client credentials in `.env.local`, then open [http://localhost:5173](http://localhost:5173). On a fresh database the page creates the first administrator. Development reads `REFLOW_SETUP_SECRET` from `.env.local` or `.env`; if it is missing or shorter than 32 characters, `pnpm dev` generates a strong replacement in `.env.local`. Use that value on the setup page, not an old code.
+`pnpm dev` starts PostgreSQL and Temporal, applies migrations, and runs the API, worker, dispatcher, and dashboard. Configure either `AUTH_RESEND_API_KEY` **and** `AUTH_EMAIL_FROM` (a sender on a domain verified in that separate authentication Resend account), or the GitHub client credentials in `.env.local`, then open [http://localhost:5173/login](http://localhost:5173/login). On a fresh database the page creates the first administrator. Development reads `REFLOW_SETUP_SECRET` from `.env.local` or `.env`; if it is missing or shorter than 32 characters, `pnpm dev` generates a strong replacement in `.env.local`. Use that value on the setup page, not an old code.
 
 After registration, the dashboard opens **Integrations**. The owner can choose Resend, while outbound Webhooks and Push are marked coming soon. The API key, verified sender, and webhook signing secret are managed in **Integrations → Resend**, not in deployment-wide workflow-delivery variables. Development also generates an integration encryption key in `.env.local` if needed.
 
@@ -164,6 +164,12 @@ reflow call message.list
 ```
 
 The operations console at [http://localhost:5173](http://localhost:5173) shows journey graphs, live enrollments, timelines, messages, OAuth consent, and connected apps.
+
+Signed-out visitors see the public landing page at `/`; signed-in users continue to `/workflows`. The landing page is always available at `/welcome`, as a single-screen hero using the dashboard’s typography, colors, and UI components. Run `pnpm dev:dashboard` to preview the page independently of the backend. Sign-in and the operations console require the full development stack.
+
+The public interface is branded **Rachet**, using Inter Tight and IBM Plex Mono. Logo assets and typography rules are documented in [Brand](docs/BRAND.md). Repository, CLI, package, and API identifiers retain the `reflow` name.
+
+Production landing HTML is prerendered for crawlers, with a branded social preview, canonical URL, and structured metadata. The backend uses `PUBLIC_URL` for sharing URLs, `robots.txt`, and `sitemap.xml`; app and sign-in routes are excluded from indexing. See [Social preview and search](docs/BRAND.md#social-preview-and-search) for deployment verification.
 
 ## Architecture
 

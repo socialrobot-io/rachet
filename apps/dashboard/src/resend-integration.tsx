@@ -209,7 +209,7 @@ export function ResendIntegrationPage({ onboarding = false }: { onboarding?: boo
             <li><a className="underline underline-offset-4" href="https://resend.com/webhooks" target="_blank" rel="noreferrer">Create a webhook</a> for sent, delivered, bounced, complained, and suppressed email events. Set its endpoint URL to:</li>
           </ol>
           <code className="mt-3 block break-all rounded-md bg-muted p-3 text-xs">{status?.webhookUrl ?? 'Loading webhook URL…'}</code>
-          <p className="mt-3 text-sm text-muted-foreground">Copy that webhook’s signing secret. The API key and signing secret are different values. Keep both private; Reflow encrypts them at rest and never displays them again.</p>
+          <p className="mt-3 text-sm text-muted-foreground">Copy that webhook’s signing secret. The API key and signing secret are different values. Keep both private; Rachet encrypts them at rest and never displays them again.</p>
         </CardContent>
       </Card>
 

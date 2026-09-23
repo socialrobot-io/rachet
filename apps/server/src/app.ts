@@ -1,9 +1,6 @@
 import { serve } from '@hono/node-server';
-import { serveStatic } from '@hono/node-server/serve-static';
 import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js';
 import { and, eq, isNull, sql } from 'drizzle-orm';
-import { existsSync } from 'node:fs';
-import { join } from 'node:path';
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { secureHeaders } from 'hono/secure-headers';
@@ -21,6 +18,7 @@ import { ResendProvider } from './providers/resend.js';
 import { decryptIntegrationSecret, encryptIntegrationSecret, fingerprintIntegrationSecret } from './integrations/secret.js';
 import { authorizeRegistrationIntent, registrationIntentSchema, registrationStatus } from './registration.js';
 import { consumeRateLimit } from './security/rate-limit.js';
+import { mountDashboard } from './dashboard.js';
 import {
   inferNativeApplicationType,
   needsMcpPublicClientRegistration,
@@ -43,13 +41,6 @@ export const resendWebhookSecretInput = z.string().trim().regex(
   /^whsec_[A-Za-z0-9+/_-]{8,200}={0,2}$/,
   'Enter a Resend webhook signing secret',
 );
-
-function mountDashboard(app: Hono, root: string) {
-  if (!existsSync(join(root, 'index.html'))) return false;
-  app.use('/*', serveStatic({ root }));
-  app.get('*', serveStatic({ root, path: 'index.html' }));
-  return true;
-}
 
 export function createApp(dependencies: Dependencies) {
   const { config, auth, db, service, operations } = dependencies;
@@ -477,7 +468,7 @@ export function createApp(dependencies: Dependencies) {
   });
 
   // Same-origin operations console (baked into the image; skipped when the build output is absent).
-  mountDashboard(app, config.dashboardDir);
+  mountDashboard(app, config.dashboardDir, config.publicUrl);
 
   return app;
 }
