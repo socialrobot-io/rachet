@@ -19,7 +19,7 @@ The workflow uses GitHub OIDC and npm provenance. It does not require a long-liv
 
 ## Release procedure
 
-1. Update `packages/cli/package.json` to the release version. The git tag must match that CLI version (`v0.1.2` for CLI `0.1.2`).
+1. Update `packages/cli/package.json` to the release version. The git tag must match that CLI version (`v0.1.3` for CLI `0.1.3`).
 2. Set `packages/sdk/package.json` to the SDK version you want published in the same release (independent of the CLI version when needed).
 3. Run `make check` from a clean checkout.
 4. Inspect dry-run tarballs and confirm each package only contains its compiled output, README, LICENSE, and package metadata.
