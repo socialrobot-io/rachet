@@ -13,6 +13,7 @@ describe('CLI context state', () => {
     directories.push(directory);
     const path = join(directory, 'config.json');
     const environment = { REFLOW_CONFIG_PATH: path };
+    expect(await resolveCliContext(environment)).toEqual({ url: 'https://rachet.dev' });
     const first = { id: '00000000-0000-4000-8000-000000000010', name: 'Social Robot', slug: 'social-robot' };
     const second = { id: '00000000-0000-4000-8000-000000000011', name: 'Labs', slug: 'labs' };
 

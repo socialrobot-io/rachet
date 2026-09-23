@@ -6,8 +6,10 @@ Connect to a Rachet deployment, authorize through its dashboard with OAuth + PKC
 
 ```sh
 npm install --global @socialrobot-io/rachet
-rachet auth login --url https://your-rachet.example
+rachet auth login
 ```
+
+Login defaults to `https://rachet.dev`. For a self-hosted server, use `rachet auth login --url https://your-rachet.example` or set `REFLOW_URL`. Other commands use your saved server.
 
 Then discover the server’s capabilities or start authoring:
 

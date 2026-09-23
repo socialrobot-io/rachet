@@ -116,8 +116,7 @@ auth.command('login')
   .option('--workspace <id-or-slug>', 'Select without prompting')
   .option('--no-open', 'Print the authorization URL without opening a browser')
   .action(async (options: { url?: string; workspace?: string; open: boolean }) => {
-    const current = await resolveCliContext();
-    const context: CliContext = { url: (options.url ?? current.url).replace(/\/$/, '') };
+    const context: CliContext = { url: (options.url ?? process.env.REFLOW_URL ?? 'https://rachet.dev').replace(/\/$/, '') };
     const result = await loginWithBrowser({
       url: context.url,
       openBrowser: options.open,

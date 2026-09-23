@@ -1,6 +1,6 @@
 {
   "mcpServers": {
-    "reflow": {
+    "rachet": {
       "url": "http://localhost:3000/mcp"
     }
   }

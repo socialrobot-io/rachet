@@ -55,7 +55,7 @@ async function writeState(state: CliState, environment: NodeJS.ProcessEnv = proc
 
 export async function resolveCliContext(environment: NodeJS.ProcessEnv = process.env): Promise<CliContext> {
   const state = await readState(environment);
-  const url = normalizeUrl(environment.REFLOW_URL ?? state.currentUrl ?? 'http://localhost:3000');
+  const url = normalizeUrl(environment.REFLOW_URL ?? state.currentUrl ?? 'https://rachet.dev');
   const saved = state.servers[url] ?? {};
   const token = environment.REFLOW_TOKEN ?? saved.oauth?.accessToken ?? saved.token;
   const apiKey = environment.REFLOW_API_KEY ?? saved.apiKey;

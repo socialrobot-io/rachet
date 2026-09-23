@@ -100,6 +100,7 @@ export async function loginWithBrowser(options: {
     redirectUri = `http://127.0.0.1:${address.port}/oauth/callback`;
   }
 
+  let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
   try {
     const registration = await parseResponse<{ client_id: string }>(await requestFetch(`${baseUrl}/api/auth/oauth2/register`, {
       method: 'POST',
@@ -134,7 +135,9 @@ export async function loginWithBrowser(options: {
     else throw new Error('OAuth callback listener was not initialized');
     const code = await Promise.race([
       pendingCode,
-      new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Timed out waiting for browser authorization')), timeoutMs)),
+      new Promise<never>((_, reject) => {
+        timeoutHandle = setTimeout(() => reject(new Error('Timed out waiting for browser authorization')), timeoutMs);
+      }),
     ]);
     const token = await parseResponse<TokenResponse>(await requestFetch(`${baseUrl}/api/auth/oauth2/token`, {
       method: 'POST',
@@ -150,6 +153,7 @@ export async function loginWithBrowser(options: {
     }));
     return { oauth: oauthCredential(registration.client_id, token), authorizationUrl: authorization.toString() };
   } finally {
+    if (timeoutHandle) clearTimeout(timeoutHandle);
     if (callback) {
       callback.closeAllConnections();
       await new Promise<void>((resolve) => callback?.close(() => resolve()));

@@ -1,6 +1,6 @@
 # Resend setup
 
-Rachet keeps workflow-delivery credentials per organization. Each organization owner or admin connects their Resend account in **Organization settings → Resend**. The deployment's `AUTH_RESEND_API_KEY` and `AUTH_EMAIL_FROM` are separate: they send sign-in magic links, never workflow mail.
+Rachet keeps workflow-delivery credentials per organization. Each organization owner or admin connects their Resend account in **Integrations → Email → Resend**. The deployment's `AUTH_RESEND_API_KEY` and `AUTH_EMAIL_FROM` are separate: they send sign-in magic links, never workflow mail.
 
 ## Deployment prerequisite
 
@@ -8,7 +8,7 @@ Set `INTEGRATION_ENCRYPTION_KEY` to `openssl rand -base64 32` in the deployment'
 
 ## Organization onboarding
 
-After signup, the owner lands on **Integrations** and can choose **Resend**. Webhooks and Push are listed as coming soon. They may skip setup to build and simulate workflows, but real email sends require a saved and successfully tested connection. The same Integrations page is available later from the main navigation.
+After signup, the owner lands on **Integrations** and can choose **Email → Resend**. Webhooks and Push are listed as coming soon. They may skip setup to build and simulate workflows, but real email sends require a saved and successfully tested connection. The same Integrations page is available later from the main navigation.
 
 Each workflow email includes non-personal organization and send-intent tags. The signed webhook uses those tags to associate early delivery events with the correct organization even before the send API response has been saved. Events for another organization are ignored, and the webhook body is capped at 256 KiB.
 Critical events for older sends that lack tags are retried when the send response has not yet been correlated; operators should monitor webhook retry failures and replay them after resolving any mismatch.

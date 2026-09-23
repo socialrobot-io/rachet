@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react';
 import { Link, Navigate, Outlet, useNavigate, useSearchParams } from 'react-router-dom';
-import { Cable, Copy, KeyRound, LogOut, Trash2 } from 'lucide-react';
+import { Cable, Copy, KeyRound, LogOut, Trash2, UserRound } from 'lucide-react';
 import { api, authorizeRegistration, continueOAuth, getOAuthClient, getOAuthConsents, getSession, getSetupStatus, revokeOAuthConsent, sendMagicLink, signInWithGitHub, signOut, submitOAuthConsent, ApiError } from '@/api';
 import type { ApiCredential, CreatedApiCredential, OAuthClient, OAuthConsent, SessionUser, SetupStatus, Workspace } from '@/types';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -161,7 +161,7 @@ export function AppShell() {
 }
 
 export function LoginPage() {
-  const { user, loading, workspaceId, workspaces } = useAuth();
+  const { user, loading } = useAuth();
   const [status, setStatus] = useState<SetupStatus | null>(null);
   const [email, setEmail] = useState('');
   const [name, setName] = useState('');
@@ -179,19 +179,11 @@ export function LoginPage() {
 
   const finishLogin = useCallback(async () => {
     if (oauthQuery) {
-      const role = workspaces.find((workspace) => workspace.id === workspaceId)?.role;
-      if (workspaceId && (role === 'owner' || role === 'admin')) {
-        const connection = await api.resendConnection(workspaceId);
-        if (!connection.onboardingComplete) {
-          navigate(`/onboarding/integrations?oauth_query=${encodeURIComponent(oauthQuery)}`, { replace: true });
-          return;
-        }
-      }
       window.location.assign(await continueOAuth(oauthQuery));
       return;
     }
     navigate('/', { replace: true });
-  }, [navigate, oauthQuery, workspaceId, workspaces]);
+  }, [navigate, oauthQuery]);
 
   useEffect(() => {
     if (!loading && user) void finishLogin().catch((reason: unknown) => {
@@ -421,6 +413,14 @@ export function ConsentPage() {
         </CardHeader>
         <CardContent className="space-y-5">
           {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
+          <div className="flex items-center gap-3 rounded-lg border bg-muted/30 px-3 py-3">
+            <UserRound className="size-5 text-muted-foreground" />
+            <div className="min-w-0">
+              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">You are signed in as</p>
+              <p className="truncate text-sm font-medium">{user?.name || 'Rachet user'}</p>
+              {user?.email && <p className="truncate text-xs text-muted-foreground">{user.email}</p>}
+            </div>
+          </div>
           <div className="space-y-2">
             {scopes.map((scope) => (
               <div key={scope} className="flex items-center gap-2 rounded-md border px-3 py-2 text-sm">

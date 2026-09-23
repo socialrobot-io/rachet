@@ -77,16 +77,35 @@ pnpm install
 pnpm dev
 ```
 
-`pnpm dev` starts PostgreSQL and Temporal, applies migrations, and runs the API, worker, dispatcher, and dashboard. Configure either `AUTH_RESEND_API_KEY` **and** `AUTH_EMAIL_FROM` (a sender on a domain verified in that separate authentication Resend account), or the GitHub client credentials in `.env.local`, then open [http://localhost:5173/login](http://localhost:5173/login). On a fresh database the page creates the first administrator. Development reads `REFLOW_SETUP_SECRET` from `.env.local` or `.env`; if it is missing or shorter than 32 characters, `pnpm dev` generates a strong replacement in `.env.local`. Use that value on the setup page, not an old code.
+`pnpm dev` starts the local database, Temporal, API, worker, dispatcher, and dashboard. On the first run it also creates `.env` and generates any missing local secrets.
 
-After registration, the dashboard opens **Integrations**. The owner can choose Resend, while outbound Webhooks and Push are marked coming soon. The API key, verified sender, and webhook signing secret are managed in **Integrations → Resend**, not in deployment-wide workflow-delivery variables. Development also generates an integration encryption key in `.env.local` if needed.
+Open [http://localhost:5173/login](http://localhost:5173/login) and choose a sign-in method:
 
-To preview the dashboard with realistic workflow definitions, run `pnpm demo:seed --list` to see local workspace slugs, then `pnpm demo:seed <workspace-slug>`. This idempotent, local-only command connects to the development database on `127.0.0.1:5433`, replaces the earlier placeholder fixtures, and adds three clearly labeled **draft** journeys, eight previewable email templates, and fake demo people at in-progress and completed steps. It never starts Temporal or queues email. Pass multiple slugs to seed each organization separately. It does not mark organization onboarding complete or connect Resend. See [Local demo journeys](docs/DEMO_JOURNEYS.md) for the product assumptions, event contracts, and complete paths.
+- **Magic link:** set `AUTH_RESEND_API_KEY` and `AUTH_EMAIL_FROM` in `.env.local`. The sender must belong to a verified domain in that Resend account.
+- **GitHub:** set `GITHUB_CLIENT_ID` and `GITHUB_CLIENT_SECRET` in `.env.local`.
 
-Registration remains disabled by default. To allow new accounts in development, set `ALLOW_REGISTRATION=true` in `.env.local` and restart `pnpm dev`; the development launcher passes this setting through to the server.
+With a fresh database, the login page creates the first administrator. When it asks for the setup secret, use the current `REFLOW_SETUP_SECRET` from `.env.local` or `.env`. If the value is missing or too short, `pnpm dev` replaces it with a new one.
 
-Stop the application with `Ctrl+C`; stop its Docker services with `pnpm dev:infra:down`.
-If startup reports that port 5173 is already in use, another dashboard process is still running; stop that process and rerun `pnpm dev`. Development uses `tsx watch` rather than Node's native `--watch`, which avoids a known Node 24.18+ worker-thread conflict in the Temporal TypeScript SDK.
+After signing in, connect the organization’s delivery provider in **Integrations → Email → Resend**. Keep that workflow-delivery account separate from the Resend account used for sign-in. Webhooks and Push are still marked as coming soon.
+
+To load sample journeys and fake contacts, list your local workspaces and seed one or more of them:
+
+```sh
+pnpm demo:seed --list
+pnpm demo:seed <workspace-slug>
+```
+
+The seed is safe to rerun. It creates draft journeys, previewable templates, and demo people without starting Temporal or sending email. See [Local demo journeys](docs/DEMO_JOURNEYS.md) for details.
+
+New account registration is off by default. For local testing, add `ALLOW_REGISTRATION=true` to `.env.local` and restart `pnpm dev`.
+
+Stop the app with `Ctrl+C`. Stop its Docker services with:
+
+```sh
+pnpm dev:infra:down
+```
+
+If port 5173 is busy, stop the other dashboard process and run `pnpm dev` again.
 
 ### 3. Log in with the CLI
 
@@ -104,7 +123,7 @@ Copy the checked-in [`examples/mcp/cursor.json`](examples/mcp/cursor.json) to `.
 ```json
 {
   "mcpServers": {
-    "reflow": {
+    "rachet": {
       "url": "http://localhost:3000/mcp"
     }
   }
@@ -113,17 +132,17 @@ Copy the checked-in [`examples/mcp/cursor.json`](examples/mcp/cursor.json) to `.
 
 Do not add a static `Authorization` header. Rachet publishes OAuth discovery metadata; compatible clients register with PKCE, show the requested scopes, and save their own grant. Operators can revoke the grant from **Connected apps**. For production, replace the URL with `https://your-rachet.example/mcp`. Redirect allowlists are described in [Authentication](docs/AUTHENTICATION.md).
 
+The dashboard's **Connect your tools** section also has setup instructions for Claude Code, ChatGPT, VS Code, Windsurf, Zed, and other remote HTTP MCP clients. Cursor and VS Code have direct install buttons. Step 4 offers a short, copyable welcome journey prompt. Public clients may need their exact OAuth callback origin or scheme added to the deployment allowlist.
+
 ## Usage
 
 ### Create the first journey with MCP
 
 Give your MCP-capable agent this prompt:
 
-> Create an activation welcome journey for new users: welcome them, give them 24 hours to activate, remind them once if they don't, and stop messaging them as soon as they activate.
->
-> Hook it up to the app, reuse our existing setup and style, test it, and show me the result before anything goes live.
+> Welcome new users with one friendly email, then end the journey.
 
-The agent can inspect, author, validate, and simulate, but must ask before publishing or enrolling a real contact. For the explicit CLI path with template files, graph JSON, publishing, and the 20-second event/timeout test, follow the [welcome + nudge tutorial](examples/welcome-nudge/).
+Rachet's MCP skill guides the agent through discovery, authoring, validation, and simulation. The agent must ask before publishing or enrolling a real contact. For a more involved example with a reminder and activation event, follow the [welcome + nudge tutorial](examples/welcome-nudge/).
 
 ### Send product events
 

@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
+import { DeveloperSetup } from '@/developer-setup';
 
 export function RequireResendOnboarding() {
   const { workspaceId, workspaces } = useAuth();
@@ -74,15 +75,16 @@ export function IntegrationsPage({ onboarding = false }: { onboarding?: boolean 
       <p className="mt-2 text-muted-foreground">Connect the services your workflows use. Each organization manages its own credentials.</p>
     </div>
     {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
-    <div className="grid gap-4 sm:grid-cols-3">
-      <Card><CardHeader><CardTitle>Resend</CardTitle><CardDescription>Send email and receive delivery events with your own Resend account.</CardDescription></CardHeader><CardContent className="flex flex-col gap-3">
-        <p className="text-sm text-muted-foreground">{status?.lastTestAcceptedAt ? 'Connected and tested' : status?.configured ? 'Configured · test required' : 'Not connected'}</p>
-        <Button asChild variant="outline"><Link to={`${onboarding ? '/onboarding/integrations/resend' : '/settings/integrations/resend'}${suffix}`}>{status?.configured ? 'Manage Resend' : 'Connect Resend'}</Link></Button>
+    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <Card><CardHeader><CardTitle>Email</CardTitle><CardDescription>Send workflow emails through a provider you connect.</CardDescription></CardHeader><CardContent className="flex flex-col gap-3">
+        <p className="text-xs font-medium text-muted-foreground">AVAILABLE PROVIDER</p>
+        <Button asChild variant="outline" className="justify-between"><Link to={`${onboarding ? '/onboarding/integrations/resend' : '/settings/integrations/resend'}${suffix}`}><span>Resend</span><span className="text-xs text-muted-foreground">{status?.lastTestAcceptedAt ? 'Connected' : status?.configured ? 'Test required' : 'Connect'}</span></Link></Button>
       </CardContent></Card>
       <Card className="opacity-70"><CardHeader><CardTitle>Webhooks</CardTitle><CardDescription>Send workflow events to external endpoints.</CardDescription></CardHeader><CardContent><p className="text-sm font-medium text-muted-foreground">Coming soon</p></CardContent></Card>
       <Card className="opacity-70"><CardHeader><CardTitle>Push</CardTitle><CardDescription>Send push notifications from workflows.</CardDescription></CardHeader><CardContent><p className="text-sm font-medium text-muted-foreground">Coming soon</p></CardContent></Card>
     </div>
     {onboarding && canManage && <div className="flex items-center justify-between gap-4"><p className="text-sm text-muted-foreground">You can explore and simulate workflows without connecting Resend. Email sending stays disabled until a connection test is accepted.</p><Button type="button" variant="outline" disabled={saving} onClick={() => { void skip(); }}>{saving ? 'Continuing…' : 'Skip for now'}</Button></div>}
+    <div id="mcp-setup"><DeveloperSetup /></div>
   </main>;
 }
 

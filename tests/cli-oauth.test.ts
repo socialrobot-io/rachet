@@ -1,8 +1,10 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { loginWithBrowser, refreshOAuth } from '../packages/cli/src/oauth.js';
 
 describe('CLI OAuth', () => {
+  afterEach(() => vi.useRealTimers());
   it('uses dynamic native-client registration and authorization-code PKCE', async () => {
+    vi.useFakeTimers();
     let verifier = '';
     let redirectUri = '';
     const requestFetch: typeof fetch = async (input, init) => {
@@ -40,6 +42,7 @@ describe('CLI OAuth', () => {
     });
 
     expect(verifier.length).toBeGreaterThan(40);
+    expect(vi.getTimerCount()).toBe(0);
     expect(result.oauth).toMatchObject({ clientId: 'cli-client', accessToken: 'access', refreshToken: 'refresh' });
   });
 
