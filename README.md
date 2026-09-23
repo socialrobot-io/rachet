@@ -1,6 +1,9 @@
 <!-- BEAUTIFIED -->
 <p align="center">
-  <img src="apps/dashboard/public/brand/rachet-logo.svg" alt="Rachet" width="320" />
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="apps/dashboard/public/brand/rachet-logo-light.svg" />
+    <img src="apps/dashboard/public/brand/rachet-logo.svg" alt="Rachet" width="320" />
+  </picture>
 </p>
 
 <h1 align="center">Build customer journeys by asking.</h1>
