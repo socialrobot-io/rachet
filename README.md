@@ -68,7 +68,36 @@ rachet --version
 
 The CLI connects to a Rachet server; it does not install the server.
 
-### 2. Start the server
+### 2. Sign in
+
+Open [rachet.dev/login](https://rachet.dev/login), or use the CLI:
+
+```sh
+rachet auth login
+rachet call auth.whoami
+```
+
+The CLI uses `https://rachet.dev` by default. For your own server, pass `--url https://your-domain` to `rachet auth login`. It stores short-lived access and rotating refresh credentials in a protected local file, never your password or browser cookie.
+
+### 3. Connect an MCP client
+
+Copy the checked-in [`examples/mcp/cursor.json`](examples/mcp/cursor.json) to `.cursor/mcp.json`:
+
+```json
+{
+  "mcpServers": {
+    "rachet": {
+      "url": "https://rachet.dev/mcp"
+    }
+  }
+}
+```
+
+For your own server, replace `https://rachet.dev` with its URL. Do not add a static `Authorization` header. Rachet publishes OAuth discovery metadata; compatible clients register with PKCE, show the requested scopes, and save their own grant. Operators can revoke the grant from **Connected apps**. Redirect allowlists are described in [Authentication](docs/AUTHENTICATION.md).
+
+The dashboard's **Connect your tools** section also has setup instructions for Claude Code, ChatGPT, VS Code, Windsurf, Zed, and other remote HTTP MCP clients. Cursor and VS Code have direct install buttons. Step 4 offers a short, copyable welcome journey prompt. Public clients may need their exact OAuth callback origin or scheme added to the deployment allowlist.
+
+## Run locally
 
 ```sh
 git clone https://github.com/socialrobot-io/rachet.git
@@ -77,62 +106,9 @@ pnpm install
 pnpm dev
 ```
 
-`pnpm dev` starts the local database, Temporal, API, worker, dispatcher, and dashboard. On the first run it also creates `.env` and generates any missing local secrets.
+`pnpm dev` starts PostgreSQL, Temporal, the API, worker, dispatcher, and dashboard. Open the dashboard URL printed by the launcher. For sign-in, configure either `AUTH_RESEND_API_KEY` with `AUTH_EMAIL_FROM`, or `GITHUB_CLIENT_ID` with `GITHUB_CLIENT_SECRET` in `.env.local`. On a fresh database, use the generated `REFLOW_SETUP_SECRET` to create the first administrator. Registration is disabled by default; set `ALLOW_REGISTRATION=true` in `.env.local` and restart to test new accounts.
 
-Open [http://localhost:5173/login](http://localhost:5173/login) and choose a sign-in method:
-
-- **Magic link:** set `AUTH_RESEND_API_KEY` and `AUTH_EMAIL_FROM` in `.env.local`. The sender must belong to a verified domain in that Resend account.
-- **GitHub:** set `GITHUB_CLIENT_ID` and `GITHUB_CLIENT_SECRET` in `.env.local`.
-
-With a fresh database, the login page creates the first administrator. When it asks for the setup secret, use the current `REFLOW_SETUP_SECRET` from `.env.local` or `.env`. If the value is missing or too short, `pnpm dev` replaces it with a new one.
-
-After signing in, connect the organization’s delivery provider in **Integrations → Email → Resend**. Keep that workflow-delivery account separate from the Resend account used for sign-in. Webhooks and Push are still marked as coming soon.
-
-To load sample journeys and fake contacts, list your local workspaces and seed one or more of them:
-
-```sh
-pnpm demo:seed --list
-pnpm demo:seed <workspace-slug>
-```
-
-The seed is safe to rerun. It creates draft journeys, previewable templates, and demo people without starting Temporal or sending email. See [Local demo journeys](docs/DEMO_JOURNEYS.md) for details.
-
-New account registration is off by default. For local testing, add `ALLOW_REGISTRATION=true` to `.env.local` and restart `pnpm dev`.
-
-Stop the app with `Ctrl+C`. Stop its Docker services with:
-
-```sh
-pnpm dev:infra:down
-```
-
-If port 5173 is busy, stop the other dashboard process and run `pnpm dev` again.
-
-### 3. Log in with the CLI
-
-```sh
-rachet auth login --url http://localhost:3000
-rachet call auth.whoami
-```
-
-The CLI completes OAuth Authorization Code with PKCE through the dashboard and stores short-lived access and rotating refresh credentials in a protected local file, never your password or browser cookie.
-
-### 4. Connect an MCP client
-
-Copy the checked-in [`examples/mcp/cursor.json`](examples/mcp/cursor.json) to `.cursor/mcp.json`:
-
-```json
-{
-  "mcpServers": {
-    "rachet": {
-      "url": "http://localhost:3000/mcp"
-    }
-  }
-}
-```
-
-Do not add a static `Authorization` header. Rachet publishes OAuth discovery metadata; compatible clients register with PKCE, show the requested scopes, and save their own grant. Operators can revoke the grant from **Connected apps**. For production, replace the URL with `https://your-rachet.example/mcp`. Redirect allowlists are described in [Authentication](docs/AUTHENTICATION.md).
-
-The dashboard's **Connect your tools** section also has setup instructions for Claude Code, ChatGPT, VS Code, Windsurf, Zed, and other remote HTTP MCP clients. Cursor and VS Code have direct install buttons. Step 4 offers a short, copyable welcome journey prompt. Public clients may need their exact OAuth callback origin or scheme added to the deployment allowlist.
+After signing in, connect workflow delivery in **Integrations → Email → Resend**. To preview sample journeys, run `pnpm demo:seed --list` and then `pnpm demo:seed <workspace-slug>`. See [Local demo journeys](docs/DEMO_JOURNEYS.md) for details. Stop the app with `Ctrl+C` and its Docker services with `pnpm dev:infra:down`.
 
 ## Usage
 
@@ -185,7 +161,7 @@ rachet call enrollment.list
 rachet call message.list
 ```
 
-The operations console at [http://localhost:5173](http://localhost:5173) shows journey graphs, live enrollments, timelines, messages, OAuth consent, and connected apps.
+The operations console at [rachet.dev](https://rachet.dev) shows journey graphs, live enrollments, timelines, messages, OAuth consent, and connected apps.
 
 Signed-out visitors see the public landing page at `/`; signed-in users continue to `/workflows`. The landing page is always available at `/welcome`, as a single-screen hero using the dashboard’s typography, colors, and UI components. Run `pnpm dev:dashboard` to preview the page independently of the backend. Sign-in and the operations console require the full development stack.
 

@@ -1,7 +1,7 @@
 {
   "mcpServers": {
     "rachet": {
-      "url": "http://localhost:3000/mcp"
+      "url": "https://rachet.dev/mcp"
     }
   }
 }
