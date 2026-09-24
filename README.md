@@ -6,12 +6,12 @@
   </picture>
 </p>
 
-<h1 align="center">Build customer journeys by asking.</h1>
+<h1 align="center">Customer journeys, built with your agent.</h1>
 
 <p align="center">
-  <strong>Rachet is the open-source journey engine for AI agents.</strong>
+  <strong>Open-source workflow software for AI agents.</strong>
   <br />
-  <em>Describe what should happen. Your agent builds the workflow, tests every path, and Rachet runs it reliably for days, weeks, or months.</em>
+  <em>Create a workflow, test it, and run it.</em>
 </p>
 
 <p align="center">
@@ -20,7 +20,7 @@
 
 <p align="center">
   <a href="docs/AUTHENTICATION.md">MCP native</a> ·
-  <a href="docs/ARCHITECTURE.md">Powered by Temporal</a> ·
+  <a href="docs/ARCHITECTURE.md">Architecture</a> ·
   <a href="docs/DEPLOYMENT.md">Self-hostable</a>
 </p>
 
@@ -40,17 +40,13 @@
 
 ## From prompt to production
 
-Tell your agent what should happen. Rachet handles the rest.
-
-No drag-and-drop builder. No translating product logic into a maze of automation blocks.
-
-Your agent can inspect your existing templates and workflows, build the journey, validate its graph, simulate every branch, and show you exactly what will happen before anything goes live.
+Tell your agent what the journey should do. It can inspect templates and workflows, create the graph, and simulate each path before you publish.
 
 ![From a sentence to an email template and a durable journey graph](docs/assets/prompt-to-production.png)
 
 | Agent authored | Built to keep running | You stay in control |
 | --- | --- | --- |
-| Create and modify journeys through MCP or the CLI. | Wait for hours or weeks. Survive deploys and restarts. Resume at exactly the right step. | Review journeys, inspect live enrollments and messages, and decide what gets published. |
+| Create and edit journeys through MCP or the CLI. | Wait and resume after deploys or restarts. | Review journeys and decide what to publish. |
 
 ## Quick Start
 
@@ -163,11 +159,7 @@ rachet call message.list
 
 The operations console at [rachet.dev](https://rachet.dev) shows journey graphs, live enrollments, timelines, messages, OAuth consent, and connected apps.
 
-Signed-out visitors see the public landing page at `/`; signed-in users continue to `/workflows`. The landing page is always available at `/welcome`, as a single-screen hero using the dashboard’s typography, colors, and UI components. Run `pnpm dev:dashboard` to preview the page independently of the backend. Sign-in and the operations console require the full development stack.
-
-The public interface is branded **Rachet**, using Inter Tight and IBM Plex Mono. Logo assets and typography rules are documented in [Brand](docs/BRAND.md). The published CLI and SDK use the Rachet names; internal server contracts and environment variables retain historical `reflow` identifiers where they are part of the wire contract.
-
-Production landing HTML is prerendered for crawlers, with a branded social preview, canonical URL, and structured metadata. The backend uses `PUBLIC_URL` for sharing URLs, `robots.txt`, and `sitemap.xml`; app and sign-in routes are excluded from indexing. See [Social preview and search](docs/BRAND.md#social-preview-and-search) for deployment verification.
+The public landing page is at `/` and `/welcome`. Signed-in users go to `/workflows`. Run `pnpm dev:dashboard` to work on the landing page. Sign-in and the operations console need the full development stack.
 
 ## Architecture
 
@@ -280,9 +272,9 @@ Contributions follow the standard fork, branch, commit, pull request workflow. B
 make check
 ```
 
-It runs repository validation, linting, typechecks, backend and dashboard tests, Temporal replay checks, all builds, Compose validation, and an npm package dry run. Read [CONTRIBUTING.md](CONTRIBUTING.md) for the full rules, and update the docs and [agent skill](skills/reflow/SKILL.md) when behavior changes. The CLI release process is documented in [Releasing](docs/RELEASING.md).
+It runs validation, linting, typechecks, tests, replay checks, builds, Compose validation, and an npm package dry run. Read [CONTRIBUTING.md](CONTRIBUTING.md) and follow the [writing guide](docs/WRITING.md). Update the docs and [agent skill](skills/reflow/SKILL.md) when behavior changes. The CLI release process is in [Releasing](docs/RELEASING.md).
 
-Rachet is early. If you try it, open an issue and tell us where setup hurt, which journey actions you need next, and whether the MCP flow felt natural.
+Rachet is early. Open an issue with setup problems or missing journey actions.
 
 For project updates, follow [@ntorresdev on X](https://x.com/ntorresdev).
 

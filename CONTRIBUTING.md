@@ -14,4 +14,6 @@ CI runs the same command from a clean checkout. Add regression coverage for ever
 
 Update [README](README.md), [PRD](docs/PRD.md), [architecture](docs/ARCHITECTURE.md), [authentication](docs/AUTHENTICATION.md), [operation catalog](docs/OPERATIONS.md), [event guide](docs/EVENTS.md), and the [agent skill](skills/reflow/SKILL.md) when their behavior changes. Verify every documented CLI/MCP command before reporting it as available. Keep changes focused and explain the affected behavior and validation in the commit/PR description.
 
+Follow the [writing guide](docs/WRITING.md) for documentation and user-facing copy.
+
 Install the official implementation skills and first-party interaction skill using [skill setup](docs/SKILLS.md). Review upstream changes before advancing their pinned revisions. Do not commit `.env`, credentials, message bodies from real recipients, or production exports.

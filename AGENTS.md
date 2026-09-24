@@ -6,6 +6,10 @@ For operating Rachet, read `skills/reflow/SKILL.md`. For Resend, Temporal, or Be
 
 Keep product operations equivalent across CLI and MCP using shared contracts. Configured OAuth, client-secret machine access, one-time admin setup, and default-disabled registration are required. Never implement an operator dashboard as a prerequisite. Keep secret handling out of model-visible content and preserve idempotency across retries.
 
+## Writing
+
+Follow [docs/WRITING.md](docs/WRITING.md) for all user-facing prose and documentation changes. Keep only information that helps the reader act, decide, stay safe, or solve a problem.
+
 Before finishing a repository change, run `make check`. Update README/docs when behavior or setup changes. Once runtime code exists, also run its typecheck, lint, tests, workflow replay checks, and affected integration checks. Passing documentation checks alone does not establish production readiness.
 
 <!-- nx configuration start-->
