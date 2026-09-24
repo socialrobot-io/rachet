@@ -42,7 +42,7 @@ describe('RachetSdk', () => {
   it('preserves structured operation errors', async () => {
     const client = new RachetSdk({
       url: 'https://reflow.example.test', apiKey: 'key', workspaceId,
-      fetch: async () => new Response(JSON.stringify({ code: 'FORBIDDEN', message: 'Missing required scope: reflow:send' }), { status: 403 }),
+      fetch: async () => new Response(JSON.stringify({ code: 'FORBIDDEN', message: 'Missing required scope: rachet:send' }), { status: 403 }),
     });
     await expect(client.call('enrollment.create')).rejects.toEqual(expect.objectContaining({ status: 403, code: 'FORBIDDEN' } satisfies Partial<RachetSdkError>));
   });

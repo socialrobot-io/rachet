@@ -232,7 +232,7 @@ Every operation is defined once and exposed three ways: HTTP `POST /v1/operation
 | `event.emit` | Durably accept a stable event ID; identical retries are no-ops |
 | `message.list`, `webhook_event.list` | Inspect the send ledger and verified Resend events |
 
-MCP also serves `reflow://operations`, `reflow://workflow/schema`, and `reflow://workflow/actions`, plus the `design-workflow` authoring prompt and the first-party agent skill. The full contract is in [Operations and MCP contract](docs/OPERATIONS.md).
+MCP also serves `rachet://operations`, `rachet://workflow/schema`, and `rachet://workflow/actions`, plus the `design-workflow` authoring prompt and the first-party agent skill. The full contract is in [Operations and MCP contract](docs/OPERATIONS.md).
 
 ## Project Structure
 

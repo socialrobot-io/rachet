@@ -59,9 +59,9 @@ export class ReflowService {
     const deploymentAdmin = profile?.deploymentAdmin ?? false;
     const roles = new Set(activeRows.map((row) => row.role));
     const scopes = [
-      ...(deploymentAdmin || activeRows.length > 0 ? ['reflow:read'] : []),
-      ...(deploymentAdmin || [...roles].some((role) => ['owner', 'admin', 'author', 'operator'].includes(role)) ? ['reflow:write'] : []),
-      ...(deploymentAdmin || [...roles].some((role) => ['owner', 'admin', 'sender'].includes(role)) ? ['reflow:send'] : []),
+      ...(deploymentAdmin || activeRows.length > 0 ? ['rachet:read'] : []),
+      ...(deploymentAdmin || [...roles].some((role) => ['owner', 'admin', 'author', 'operator'].includes(role)) ? ['rachet:write'] : []),
+      ...(deploymentAdmin || [...roles].some((role) => ['owner', 'admin', 'sender'].includes(role)) ? ['rachet:send'] : []),
     ];
     return {
       userId,
@@ -129,7 +129,7 @@ export class ReflowService {
   async credentialCreate(context: OperationContext, input: { workspaceId: string; name: string; scopes: ('read' | 'write' | 'send')[]; expiresInSeconds: number }) {
     this.workspace(context, input.workspaceId);
     for (const scope of input.scopes) {
-      if (!context.principal.scopes.includes(`reflow:${scope}`)) {
+      if (!context.principal.scopes.includes(`rachet:${scope}`)) {
         throw new ReflowError('FORBIDDEN', `Cannot grant unavailable scope: ${scope}`, 403);
       }
     }
@@ -138,7 +138,7 @@ export class ReflowService {
         userId: context.principal.userId,
         name: input.name,
         prefix: 'rf',
-        permissions: { reflow: [...new Set(input.scopes)] },
+        permissions: { rachet: [...new Set(input.scopes)] },
         metadata: { workspaceId: input.workspaceId },
         expiresIn: input.expiresInSeconds,
       },
@@ -164,8 +164,8 @@ export class ReflowService {
       ...row,
       scopes: (() => {
         try {
-          const parsed = JSON.parse(row.permissions ?? '{}') as { reflow?: unknown };
-          return Array.isArray(parsed.reflow) ? parsed.reflow.filter((scope): scope is string => typeof scope === 'string') : [];
+          const parsed = JSON.parse(row.permissions ?? '{}') as { rachet?: unknown };
+          return Array.isArray(parsed.rachet) ? parsed.rachet.filter((scope): scope is string => typeof scope === 'string') : [];
         } catch { return []; }
       })(),
       permissions: undefined,

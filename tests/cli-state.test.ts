@@ -17,7 +17,7 @@ describe('CLI context state', () => {
     const first = { id: '00000000-0000-4000-8000-000000000010', name: 'Social Robot', slug: 'social-robot' };
     const second = { id: '00000000-0000-4000-8000-000000000011', name: 'Labs', slug: 'labs' };
 
-    const oauth: SavedOAuth = { clientId: 'cli', accessToken: 'access-token', refreshToken: 'refresh-token', expiresAt: Date.now() + 60_000, scope: 'reflow:read', tokenType: 'Bearer' };
+    const oauth: SavedOAuth = { clientId: 'cli', accessToken: 'access-token', refreshToken: 'refresh-token', expiresAt: Date.now() + 60_000, scope: 'rachet:read', tokenType: 'Bearer' };
     await saveLogin('https://reflow.example/', oauth, first, environment);
     expect((await stat(path)).mode & 0o777).toBe(0o600);
     expect(await resolveCliContext(environment)).toMatchObject({ url: 'https://reflow.example', token: 'access-token', oauth, workspace: first });
@@ -32,7 +32,7 @@ describe('CLI context state', () => {
     const directory = await mkdtemp(join(tmpdir(), 'reflow-cli-'));
     directories.push(directory);
     const environment = { REFLOW_CONFIG_PATH: join(directory, 'config.json') };
-    await saveLogin('https://saved.example', { clientId: 'cli', accessToken: 'saved-token', expiresAt: Date.now() + 60_000, scope: 'reflow:read', tokenType: 'Bearer' }, { id: 'saved', name: 'Saved', slug: 'saved' }, environment);
+    await saveLogin('https://saved.example', { clientId: 'cli', accessToken: 'saved-token', expiresAt: Date.now() + 60_000, scope: 'rachet:read', tokenType: 'Bearer' }, { id: 'saved', name: 'Saved', slug: 'saved' }, environment);
     expect(await resolveCliContext({ ...environment, REFLOW_URL: 'https://other.example/', REFLOW_TOKEN: 'override', REFLOW_WORKSPACE_ID: 'other' }))
       .toEqual({ url: 'https://other.example', token: 'override', workspace: { id: 'other', name: 'other', slug: 'other' } });
   });

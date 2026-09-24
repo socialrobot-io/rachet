@@ -21,7 +21,7 @@ describe('CLI OAuth', () => {
         verifier = body.get('code_verifier') ?? '';
         expect(body.get('grant_type')).toBe('authorization_code');
         expect(body.get('redirect_uri')).toBe(redirectUri);
-        return Response.json({ access_token: 'access', refresh_token: 'refresh', expires_in: 900, token_type: 'Bearer', scope: 'reflow:read' });
+        return Response.json({ access_token: 'access', refresh_token: 'refresh', expires_in: 900, token_type: 'Bearer', scope: 'rachet:read' });
       }
       throw new Error(`Unexpected request: ${url}`);
     };
@@ -52,7 +52,7 @@ describe('CLI OAuth', () => {
     }, async (_input, init) => {
       const body = new URLSearchParams(String(init?.body));
       expect(body.get('refresh_token')).toBe('refresh');
-      return Response.json({ access_token: 'new', expires_in: 900, scope: 'reflow:read', token_type: 'Bearer' });
+      return Response.json({ access_token: 'new', expires_in: 900, scope: 'rachet:read', token_type: 'Bearer' });
     });
     expect(oauth).toMatchObject({ accessToken: 'new', refreshToken: 'refresh' });
   });

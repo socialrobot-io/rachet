@@ -82,13 +82,13 @@ export async function createMcpServer(operations: Record<string, Operation>, con
       }
     });
   }
-  server.registerResource('operation-catalog', 'reflow://operations', { mimeType: 'application/json' }, async (uri) => ({
+  server.registerResource('operation-catalog', 'rachet://operations', { mimeType: 'application/json' }, async (uri) => ({
     contents: [{ uri: uri.href, mimeType: 'application/json', text: JSON.stringify(Object.fromEntries(Object.entries(operations).filter(([, operation]) => operation.exposeToMcp !== false).map(([name, operation]) => [name, { description: operation.description, readOnly: operation.readOnly }]))) }],
   }));
-  server.registerResource('workflow-schema', 'reflow://workflow/schema', { mimeType: 'application/schema+json', description: 'The complete validated graph schema used to author durable workflows.' }, async (uri) => ({
+  server.registerResource('workflow-schema', 'rachet://workflow/schema', { mimeType: 'application/schema+json', description: 'The complete validated graph schema used to author durable workflows.' }, async (uri) => ({
     contents: [{ uri: uri.href, mimeType: 'application/schema+json', text: JSON.stringify(workflowDefinitionSchema.toJSONSchema()) }],
   }));
-  server.registerResource('workflow-actions', 'reflow://workflow/actions', { mimeType: 'application/json', description: 'Installed action capabilities available to authored workflows.' }, async (uri) => ({
+  server.registerResource('workflow-actions', 'rachet://workflow/actions', { mimeType: 'application/json', description: 'Installed action capabilities available to authored workflows.' }, async (uri) => ({
     contents: [{ uri: uri.href, mimeType: 'application/json', text: JSON.stringify(actionCatalog) }],
   }));
 
@@ -110,7 +110,7 @@ export async function createMcpServer(operations: Record<string, Operation>, con
   }, async ({ intent, workspaceId }) => ({ messages: [{ role: 'user', content: { type: 'text', text: [
     `Design this workflow for workspace ${workspaceId}: ${intent}`,
     'Read skill://reflow/SKILL.md (and its listed resources) when available; otherwise call skills/list / skills/get.',
-    'Call system_capabilities and read agentCookbook. Read reflow://workflow/actions and reflow://workflow/schema.',
+    'Call system_capabilities and read agentCookbook. Read rachet://workflow/actions and rachet://workflow/schema.',
     'Call template_list and workflow_list first; reuse existing artifacts. Check examples/welcome-nudge and examples/onboarding.workflow.json before inventing a similar graph.',
     'Use only installed capabilities. Explain any missing capability instead of inventing an action.',
     'If the intent contains a clock time without a timezone, ask the user which IANA timezone they mean; offer "your own timezone" as the default. A schedule needs an explicit-offset ISO datetime and matching IANA timeZone. Confirm ambiguous DST times.',

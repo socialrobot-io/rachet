@@ -44,7 +44,7 @@ describe.skipIf(!runtime)('ReflowService template + workflow validation (postgre
       workspaceIds: [],
       workspaceRoles: {},
       deploymentAdmin: true,
-      scopes: ['reflow:read', 'reflow:write', 'reflow:send'],
+      scopes: ['rachet:read', 'rachet:write', 'rachet:send'],
     },
   };
 

@@ -305,7 +305,7 @@ export function createApp(dependencies: Dependencies) {
       const verified = await api.verifyApiKey({ body: { key: rawApiKey } });
       if (!verified.valid || !verified.key) throw new ReflowError('UNAUTHENTICATED', 'Invalid API key', 401);
       const principal = await service.principalFor(verified.key.referenceId);
-      principal.scopes = (verified.key.permissions?.reflow ?? []).map((scope) => `reflow:${scope}`);
+      principal.scopes = (verified.key.permissions?.rachet ?? []).map((scope) => `rachet:${scope}`);
       const metadata = verified.key.metadata && typeof verified.key.metadata === 'object'
         ? verified.key.metadata as Record<string, unknown>
         : {};
@@ -378,7 +378,7 @@ export function createApp(dependencies: Dependencies) {
   const protectedResourceMetadata = {
     resource: `${config.publicUrl}/mcp`,
     authorization_servers: [authorizationServer],
-    scopes_supported: ['reflow:read', 'reflow:write', 'reflow:send'],
+    scopes_supported: ['rachet:read', 'rachet:write', 'rachet:send'],
     bearer_methods_supported: ['header'],
   };
   app.get('/.well-known/oauth-protected-resource', (context) => context.json(protectedResourceMetadata));

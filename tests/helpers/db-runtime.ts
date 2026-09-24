@@ -40,7 +40,7 @@ export function adminContext(requestId = 'vitest'): OperationContext {
       workspaceIds: [],
       workspaceRoles: {},
       deploymentAdmin: true,
-      scopes: ['reflow:read', 'reflow:write', 'reflow:send'],
+      scopes: ['rachet:read', 'rachet:write', 'rachet:send'],
     },
   };
 }
@@ -57,7 +57,7 @@ export function roleContext(
       workspaceIds: [workspaceId],
       workspaceRoles: { [workspaceId]: role },
       deploymentAdmin: false,
-      scopes: ['reflow:read', 'reflow:write', 'reflow:send'],
+      scopes: ['rachet:read', 'rachet:write', 'rachet:send'],
     },
   };
 }

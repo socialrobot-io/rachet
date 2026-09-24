@@ -112,7 +112,7 @@ export async function loginWithBrowser(options: {
         grant_types: ['authorization_code', 'refresh_token'],
         response_types: ['code'],
         application_type: 'native',
-        scope: 'openid profile email offline_access reflow:read reflow:write reflow:send',
+        scope: 'openid profile email offline_access rachet:read rachet:write rachet:send',
       }),
     }));
     const authorization = new URL(`${baseUrl}/api/auth/oauth2/authorize`);
@@ -120,7 +120,7 @@ export async function loginWithBrowser(options: {
       response_type: 'code',
       client_id: registration.client_id,
       redirect_uri: redirectUri,
-      scope: 'openid profile email offline_access reflow:read reflow:write reflow:send',
+      scope: 'openid profile email offline_access rachet:read rachet:write rachet:send',
       resource: `${baseUrl}/mcp`,
       code_challenge: challenge,
       code_challenge_method: 'S256',

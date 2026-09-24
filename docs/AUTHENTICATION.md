@@ -54,9 +54,9 @@ The stdio MCP bridge is a trusted, single-user host adapter. It refuses to start
 
 Browser sessions derive coarse scopes from current roles:
 
-- any workspace membership grants `reflow:read`;
-- owner, admin, author, or operator grants `reflow:write`;
-- owner, admin, or sender grants `reflow:send`;
+- any workspace membership grants `rachet:read`;
+- owner, admin, author, or operator grants `rachet:write`;
+- owner, admin, or sender grants `rachet:send`;
 - deployment administrators receive all three.
 
 OAuth and API-key scopes can only narrow that set. Each operation also checks the role against the target workspace, so a workspace identifier in request input never grants access.

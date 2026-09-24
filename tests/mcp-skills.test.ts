@@ -16,6 +16,19 @@ import {
   skillResourceName,
 } from '@reflow/mcp-ext-skills';
 import { createMcpServer } from '../apps/server/src/mcp.js';
+import { createOperations } from '../apps/server/src/operations.js';
+import type { ReflowService } from '../apps/server/src/domain/service.js';
+
+const adminContext = {
+  principal: {
+    userId: 'test',
+    workspaceIds: [],
+    workspaceRoles: {},
+    deploymentAdmin: true,
+    scopes: ['rachet:read', 'rachet:write', 'rachet:send'],
+  },
+  requestId: 'test',
+} as const;
 
 describe('mcp-ext-skills FastMCP + SEP-2640', () => {
   it('parses skill frontmatter', () => {
@@ -80,16 +93,7 @@ description: A demo skill.
   });
 
   it('createMcpServer lists reflow skill resources for Cursor-style discovery', async () => {
-    const mcp = await createMcpServer({}, {
-      principal: {
-        userId: 'test',
-        workspaceIds: [],
-        workspaceRoles: {},
-        deploymentAdmin: true,
-        scopes: ['reflow:read', 'reflow:write', 'reflow:send'],
-      },
-      requestId: 'test',
-    });
+    const mcp = await createMcpServer({}, adminContext);
 
     const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
     const client = new Client({ name: 'reflow-skills-client', version: '0.0.0' });
@@ -99,6 +103,27 @@ description: A demo skill.
     expect(resources.resources.some((resource) => resource.uri === 'skill://reflow/SKILL.md')).toBe(true);
     expect(resources.resources.some((resource) => resource.name === 'reflow/SKILL.md')).toBe(true);
     expect(client.getInstructions()).toContain('skill://reflow/SKILL.md');
+
+    await client.close();
+    await mcp.close();
+  });
+
+  it('exposes workflow and enrollment deletion through MCP tool discovery', async () => {
+    const mcp = await createMcpServer(createOperations({} as ReflowService), adminContext);
+    const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+    const client = new Client({ name: 'reflow-delete-tools-client', version: '0.0.0' });
+    await Promise.all([mcp.connect(serverTransport), client.connect(clientTransport)]);
+
+    const tools = await client.listTools();
+    const workflowDelete = tools.tools.find((tool) => tool.name === 'workflow_delete');
+    const enrollmentDelete = tools.tools.find((tool) => tool.name === 'enrollment_delete');
+    expect(workflowDelete?.inputSchema).toMatchObject({
+      properties: { dangerouslyDeleteWorkflow: { const: true } },
+      required: expect.arrayContaining(['workspaceId', 'workflowId', 'dangerouslyDeleteWorkflow']),
+    });
+    expect(enrollmentDelete?.inputSchema).toMatchObject({
+      required: expect.arrayContaining(['workspaceId', 'enrollmentId']),
+    });
 
     await client.close();
     await mcp.close();

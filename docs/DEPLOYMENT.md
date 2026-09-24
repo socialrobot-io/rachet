@@ -78,7 +78,7 @@ Coolify can deploy the checked-in `compose.yaml` directly. Leave the `caddy` pro
 | Variable | Value |
 | --- | --- |
 | `POSTGRES_PASSWORD` | random PostgreSQL password |
-| `DATABASE_URL` | `postgresql://reflow:PASSWORD@postgres:5432/reflow` |
+| `DATABASE_URL` | `postgresql://rachet:PASSWORD@postgres:5432/reflow` |
 | `TEMPORAL_POSTGRES_PASSWORD` | random Temporal database password |
 | `BETTER_AUTH_SECRET` | `openssl rand -base64 32` output |
 | `REFLOW_SETUP_SECRET` | separate `openssl rand -base64 32` output |

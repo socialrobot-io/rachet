@@ -16,12 +16,12 @@ export type Operation = {
   input: AnySchema;
   readOnly: boolean;
   exposeToMcp?: boolean;
-  requiredScope?: 'reflow:read' | 'reflow:write' | 'reflow:send';
+  requiredScope?: 'rachet:read' | 'rachet:write' | 'rachet:send';
   invoke: (context: OperationContext, input: Record<string, unknown>) => Promise<unknown>;
 };
 
 export function authorizeOperation(operation: Operation, context: OperationContext): void {
-  const required = operation.requiredScope ?? (operation.readOnly ? 'reflow:read' : 'reflow:write');
+  const required = operation.requiredScope ?? (operation.readOnly ? 'rachet:read' : 'rachet:write');
   if (!context.principal.scopes.includes(required)) throw new ReflowError('FORBIDDEN', `Missing required scope: ${required}`, 403);
 }
 
@@ -149,7 +149,7 @@ export function createOperations(service: ReflowService): Record<string, Operati
     },
     'enrollment.create': {
       description: 'Durably enroll a contact into a published workflow. This can perform side effects.', input: enrollmentCreateSchema, readOnly: false,
-      requiredScope: 'reflow:send',
+      requiredScope: 'rachet:send',
       invoke: (context, input) => service.enrollmentCreate(context, enrollmentCreateSchema.parse(input)),
     },
     'enrollment.list': {
@@ -182,7 +182,7 @@ export function createOperations(service: ReflowService): Record<string, Operati
     },
     'event.emit': {
       description: 'Durably emit an idempotently named domain event into an enrollment. Returns whether it was newly accepted or an existing duplicate, and whether Temporal delivery is complete or queued.', input: eventEmitSchema, readOnly: false,
-      requiredScope: 'reflow:send',
+      requiredScope: 'rachet:send',
       invoke: (context, input) => service.eventEmit(context, eventEmitSchema.parse(input)),
     },
     'message.list': {

@@ -75,7 +75,7 @@ export function loadConfig(source: NodeJS.ProcessEnv = process.env) {
     nodeEnv: parsed.NODE_ENV,
     port: parsed.PORT,
     publicUrl,
-    databaseUrl: parsed.DATABASE_URL ?? 'postgresql://reflow:reflow@localhost:5432/reflow',
+    databaseUrl: parsed.DATABASE_URL ?? 'postgresql://rachet:reflow@localhost:5432/reflow',
     betterAuthSecret,
     allowRegistration: parsed.ALLOW_REGISTRATION === 'true',
     trustedOrigins,

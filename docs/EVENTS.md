@@ -101,7 +101,7 @@ event_emit({
 })
 ```
 
-OAuth/MCP authorization must include `reflow:send`; API keys use the corresponding `send` scope. Workspace role checks still apply.
+OAuth/MCP authorization must include `rachet:send`; API keys use the corresponding `send` scope. Workspace role checks still apply.
 
 ## Event behavior
 
