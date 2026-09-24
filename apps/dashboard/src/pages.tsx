@@ -112,11 +112,7 @@ export function WorkflowsPage() {
     );
   }
   if (loading) {
-    return (
-      <PageFrame>
-        <p className="font-mono text-sm text-muted-foreground">Loading workflows…</p>
-      </PageFrame>
-    );
+    return <PageFrame><p className="font-mono text-sm text-muted-foreground">Loading workflows…</p></PageFrame>;
   }
 
   const drafts = rows.filter(({ workflow }) => workflow.state === 'draft').length;
@@ -232,11 +228,7 @@ export function WorkflowDetailPage() {
   }
 
   if (loading) {
-    return (
-      <PageFrame>
-        <p className="font-mono text-sm text-muted-foreground">Loading workflow…</p>
-      </PageFrame>
-    );
+    return <PageFrame><p className="font-mono text-sm text-muted-foreground">Loading workflow…</p></PageFrame>;
   }
   if (!workflow || !definition) {
     return (
@@ -436,11 +428,7 @@ export function EnrollmentDetailPage() {
   }
 
   if (loading) {
-    return (
-      <PageFrame>
-        <p className="font-mono text-sm text-muted-foreground">Loading enrollment…</p>
-      </PageFrame>
-    );
+    return <PageFrame><p className="font-mono text-sm text-muted-foreground">Loading enrollment…</p></PageFrame>;
   }
   if (!enrollment) {
     return (

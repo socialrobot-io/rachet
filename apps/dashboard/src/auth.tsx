@@ -6,6 +6,7 @@ import type { ApiCredential, CreatedApiCredential, OAuthClient, OAuthConsent, Se
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { RachetLogo } from '@/components/RachetLogo';
+import { LoginCardHeader, LoginPrerender } from '@/app-prerender';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
@@ -88,13 +89,7 @@ export function useAuth(): AuthState {
 
 export function RequireAuth() {
   const { user, loading } = useAuth();
-  if (loading) {
-    return (
-      <div className="flex min-h-dvh items-center justify-center font-mono text-sm text-muted-foreground">
-        Loading session…
-      </div>
-    );
-  }
+  if (loading) return null;
   if (!user) return <Navigate to="/login" replace />;
   return <Outlet />;
 }
@@ -197,7 +192,7 @@ export function LoginPage() {
     });
   }, []);
 
-  const callbackURL = `/auth/login${oauthQuery ? `?oauth_query=${encodeURIComponent(oauthQuery)}` : ''}`;
+  const callbackURL = `${window.location.origin}/auth/login${oauthQuery ? `?oauth_query=${encodeURIComponent(oauthQuery)}` : ''}`;
 
   const begin = async (method: 'magic-link' | 'github') => {
     if (!status) return;
@@ -258,27 +253,14 @@ export function LoginPage() {
     void begin(method);
   };
 
-  if (loading || (!status && !error)) {
-    return (
-      <div className="flex min-h-dvh items-center justify-center font-mono text-sm text-muted-foreground">
-        Loading…
-      </div>
-    );
-  }
+  if (loading || (!status && !error)) return <LoginPrerender />;
 
   return (
-    <div className="flex min-h-dvh items-center justify-center p-6">
-      <Card className="w-full max-w-md border-border/80 shadow-[0_1px_0_rgb(0_0_0/0.03),0_18px_40px_rgb(15_25_35/0.06)]">
-        <CardHeader className="flex flex-col gap-1.5">
-          <CardTitle><RachetLogo className="h-9 w-auto" /></CardTitle>
-          <CardDescription>
-            {status?.requiresSetup
-              ? 'Create the first administrator and the deployment’s organization.'
-              : 'Sign in securely with a magic link or GitHub.'}
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form className="flex flex-col gap-4" noValidate onSubmit={submit}>
+    <div className="flex min-h-dvh items-center justify-center px-4 py-10 sm:px-6">
+      <Card className="login-card w-full max-w-md gap-0 py-0 shadow-[0_1px_0_rgb(0_0_0/0.03),0_18px_40px_rgb(15_25_35/0.06)] [--card-spacing:--spacing(7)] sm:[--card-spacing:--spacing(8)]">
+        <LoginCardHeader requiresSetup={status?.requiresSetup} />
+        <CardContent className="pt-7 pb-8">
+          <form className="flex flex-col gap-5" noValidate onSubmit={submit}>
             {error && (
               <Alert variant="destructive">
                 <AlertDescription>{error}</AlertDescription>
@@ -472,7 +454,7 @@ export function ConnectedAppsPage() {
         <p className="mt-1 text-sm text-muted-foreground">CLI and MCP clients authorized to access Rachet on your behalf.</p>
       </div>
       {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
-      {loading ? <p className="text-sm text-muted-foreground">Loading connected apps…</p> : items.length === 0 ? (
+      {loading ? <Card aria-busy="true"><CardContent className="h-20" /></Card> : items.length === 0 ? (
         <Card><CardContent className="py-10 text-sm text-muted-foreground">No connected apps.</CardContent></Card>
       ) : (
         <div className="space-y-3">
@@ -585,7 +567,7 @@ export function ApiKeysPage() {
           </Button>
         </CardContent>
       </Card>
-      {loading ? <p className="text-sm text-muted-foreground">Loading API keys…</p> : items.length === 0 ? (
+      {loading ? <Card aria-busy="true"><CardContent className="h-20" /></Card> : items.length === 0 ? (
         <Card><CardContent className="py-10 text-sm text-muted-foreground">No API keys.</CardContent></Card>
       ) : (
         <div className="space-y-3">

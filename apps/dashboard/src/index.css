@@ -162,6 +162,24 @@
   }
 }
 
+.login-card [data-slot="input"] {
+  height: 2.75rem;
+  padding-inline: 0.875rem;
+  font-size: 1rem;
+}
+
+.login-card [data-slot="field-label"] {
+  font-weight: 600;
+}
+
+.login-card [data-slot="field-description"] {
+  font-size: 0.8125rem;
+}
+
+.login-card [data-slot="button"] {
+  min-height: 2.75rem;
+}
+
 @layer components {
   .reflow-panel {
     box-shadow: 0 6px 0 oklch(0.26 0.05 24 / 0.075), 0 14px 32px oklch(0.26 0.05 24 / 0.045);

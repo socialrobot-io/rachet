@@ -28,7 +28,7 @@ export function RequireResendOnboarding() {
 
   if (!workspaceId) return <Alert><AlertDescription>No organization is assigned to this account.</AlertDescription></Alert>;
   if (error) return <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>;
-  if (!result || result.workspaceId !== workspaceId) return <div className="p-8 text-sm text-muted-foreground">Loading organization setup…</div>;
+  if (!result || result.workspaceId !== workspaceId) return <div className="p-8" aria-busy="true"><div className="h-24 rounded-xl border bg-card/70" /></div>;
   const role = workspaces.find((workspace) => workspace.id === workspaceId)?.role;
   if (!result.status.onboardingComplete && (role === 'owner' || role === 'admin')) {
     return <Navigate to="/onboarding/integrations" replace />;

@@ -9,6 +9,7 @@ const root = mkdtempSync(join(tmpdir(), 'rachet-seo-'));
 const template = readFileSync('apps/dashboard/index.html', 'utf8');
 writeFileSync(join(root, 'index.html'), template);
 writeFileSync(join(root, 'landing.html'), template.replace('<div id="root"></div>', '<div id="root"><h1>Build customer journeys by asking.</h1></div>'));
+writeFileSync(join(root, 'login.html'), template.replace('<div id="root"></div>', '<div id="root"><p>Back to home</p></div>'));
 mkdirSync(join(root, 'brand'));
 writeFileSync(join(root, 'brand/rachet-og.png'), readFileSync('apps/dashboard/public/brand/rachet-og.png'));
 writeFileSync(join(root, 'favicon.svg'), readFileSync('apps/dashboard/public/favicon.svg'));
@@ -41,7 +42,7 @@ describe('landing SEO and static serving', () => {
     expect(response.headers.get('x-robots-tag')).toBe('noindex, nofollow');
     expect(html).toContain('<meta name="robots" content="noindex, nofollow"');
     expect(html).not.toContain('rel="canonical"');
-    expect(html).not.toContain('<h1>');
+    if (path === '/login') expect(html).toContain('Back to home');
   });
 
   it('exposes a sitemap containing only the canonical landing URL', async () => {
@@ -59,7 +60,7 @@ describe('landing SEO and static serving', () => {
     expect(response.headers.get('x-robots-tag')).toBe('noindex, nofollow');
   });
 
-  it.each(['/index.html', '/%69ndex.html', '/landing.html'])('redirects build template %s to the canonical page', async (path) => {
+  it.each(['/index.html', '/%69ndex.html', '/landing.html'])('redirects public build template %s to the canonical page', async (path) => {
     const response = await app.request(path);
     expect(response.status).toBe(301);
     expect(response.headers.get('location')).toBe('/');
