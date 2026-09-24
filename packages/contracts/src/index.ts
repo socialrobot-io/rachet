@@ -133,10 +133,13 @@ export type WorkflowDefinition = z.infer<typeof workflowDefinitionSchema>;
 
 export const workflowCreateSchema = z.object({ workspaceId: workspaceIdSchema, name: z.string().min(1).max(120), intent: z.string().min(1).max(5000), definition: workflowDefinitionSchema });
 export const workflowPublishSchema = z.object({ workspaceId: workspaceIdSchema, workflowId: z.uuid(), expectedRevision: z.number().int().positive() });
+/** Deleting a workflow also removes its published versions and completed enrollment history. */
+export const workflowDeleteSchema = z.object({ workspaceId: workspaceIdSchema, workflowId: z.uuid(), dangerouslyDeleteWorkflow: z.literal(true) });
 export const workflowSimulateSchema = z.object({ workspaceId: workspaceIdSchema, definition: workflowDefinitionSchema, contact: z.record(z.string(), z.unknown()).default({}), variables: z.record(z.string(), z.unknown()).default({}), receivedEvents: z.array(z.string()).default([]) });
 export const contactUpsertSchema = z.object({ workspaceId: workspaceIdSchema, externalId: z.string().min(1).max(200).optional(), email: z.email(), timezone: timeZoneSchema.optional(), fields: z.record(z.string(), z.unknown()).default({}) });
 export const enrollmentCreateSchema = z.object({ workspaceId: workspaceIdSchema, workflowVersionId: z.uuid(), contactId: z.uuid(), variables: z.record(z.string(), z.unknown()).default({}), idempotencyKey: z.string().min(1).max(200) });
 export const enrollmentControlSchema = z.object({ workspaceId: workspaceIdSchema, enrollmentId: z.uuid() });
+export const enrollmentDeleteSchema = z.object({ workspaceId: workspaceIdSchema, enrollmentId: z.uuid() });
 export const eventEmitSchema = z.object({ workspaceId: workspaceIdSchema, enrollmentId: z.uuid(), eventId: z.string().min(1).max(200), eventType: z.string().min(1).max(120), data: z.record(z.string(), z.unknown()).default({}) });
 export type Principal = { userId: string; workspaceIds: string[]; workspaceRoles: Record<string, 'owner' | 'admin' | 'author' | 'sender' | 'operator' | 'viewer'>; deploymentAdmin: boolean; scopes: string[] };
 export type OperationContext = { principal: Principal; requestId: string };

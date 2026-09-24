@@ -36,7 +36,7 @@ export function EmailPreviewSheet({
 }) {
   return (
     <Sheet open={preview !== null} onOpenChange={(open) => !open && onClose()}>
-      <SheetContent className="flex w-full flex-col gap-0 p-0 sm:max-w-2xl">
+      <SheetContent className="flex w-full flex-col gap-0 p-0 sm:w-[min(56rem,calc(100vw-4rem))] sm:max-w-none">
         <SheetHeader className="border-b px-5 py-4">
           <SheetTitle className="flex items-center gap-2 text-base">
             <Mail className="size-4 text-muted-foreground" />
@@ -75,7 +75,7 @@ export function EmailPreviewSheet({
               title={preview.subject}
               sandbox=""
               srcDoc={preview.html}
-              className="h-full w-full border-0"
+              className="h-full w-full border-0 bg-white"
             />
           )}
         </div>

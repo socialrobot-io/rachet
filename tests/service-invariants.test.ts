@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { eq } from 'drizzle-orm';
-import { auditEvents, contacts, enrollmentEvents, enrollments, outbox, workspaces } from '../apps/server/src/db/schema.js';
+import { auditEvents, contacts, enrollmentEvents, enrollments, outbox, sendIntents, sequenceVersions, sequences, workspaces } from '../apps/server/src/db/schema.js';
 import type { WorkflowDefinition } from '../packages/contracts/src/index.js';
 import { ReflowError } from '../apps/server/src/domain/errors.js';
 import { adminContext, probeDbRuntime, roleContext, type DbRuntime } from './helpers/db-runtime.js';
@@ -358,5 +358,65 @@ describe.skipIf(!runtime)('service invariants (postgres)', () => {
     });
     await expect(boot.service.templateArchive(admin, { workspaceId, templateId: created.id }))
       .rejects.toMatchObject({ code: 'TEMPLATE_IN_USE' });
+  });
+
+  it('blocks workflow deletion while people are in progress and removes finished workflow history', async () => {
+    const { published } = await publishHtmlTemplate(`delete-${crypto.randomUUID().slice(0, 6)}`);
+    const workflow = await boot.service.workflowCreate(admin, {
+      workspaceId,
+      name: `delete-wf-${crypto.randomUUID().slice(0, 6)}`,
+      intent: 'delete workflow',
+      definition: definitionPinning(published.id),
+    });
+    const version = await boot.service.workflowPublish(admin, {
+      workspaceId, workflowId: workflow.id, expectedRevision: workflow.revision,
+    });
+    if (!version) throw new Error('workflow publish failed');
+    const contact = await boot.service.contactUpsert(admin, {
+      workspaceId, email: `delete-${crypto.randomUUID().slice(0, 6)}@example.com`, fields: {},
+    });
+    const enrollment = await boot.service.enrollmentCreate(admin, {
+      workspaceId, workflowVersionId: version.id, contactId: contact.id, variables: {}, idempotencyKey: `delete-${crypto.randomUUID()}`,
+    });
+    if (!enrollment) throw new Error('enrollment create failed');
+
+    await expect(boot.service.workflowDelete(admin, {
+      workspaceId, workflowId: workflow.id, dangerouslyDeleteWorkflow: true,
+    })).rejects.toMatchObject({ code: 'WORKFLOW_HAS_ACTIVE_ENROLLMENTS' });
+
+    await boot.db.update(enrollments).set({ state: 'completed' }).where(eq(enrollments.id, enrollment.id));
+    await expect(boot.service.workflowDelete(admin, {
+      workspaceId, workflowId: workflow.id, dangerouslyDeleteWorkflow: true,
+    })).resolves.toEqual({ id: workflow.id, deleted: true });
+
+    await expect(boot.db.select().from(sequences).where(eq(sequences.id, workflow.id))).resolves.toEqual([]);
+    await expect(boot.db.select().from(sequenceVersions).where(eq(sequenceVersions.id, version.id))).resolves.toEqual([]);
+    await expect(boot.db.select().from(enrollments).where(eq(enrollments.id, enrollment.id))).resolves.toEqual([]);
+    await expect(boot.db.select().from(outbox).where(eq(outbox.aggregateId, enrollment.id))).resolves.toEqual([]);
+  });
+
+  it('deletes an enrollment and its queued work', async () => {
+    const { published } = await publishHtmlTemplate(`delete-enrollment-${crypto.randomUUID().slice(0, 6)}`);
+    const workflow = await boot.service.workflowCreate(admin, {
+      workspaceId, name: `delete-enrollment-wf-${crypto.randomUUID().slice(0, 6)}`,
+      intent: 'delete enrollment', definition: definitionPinning(published.id),
+    });
+    const version = await boot.service.workflowPublish(admin, {
+      workspaceId, workflowId: workflow.id, expectedRevision: workflow.revision,
+    });
+    if (!version) throw new Error('workflow publish failed');
+    const contact = await boot.service.contactUpsert(admin, {
+      workspaceId, email: `delete-enrollment-${crypto.randomUUID().slice(0, 6)}@example.com`, fields: {},
+    });
+    const enrollment = await boot.service.enrollmentCreate(admin, {
+      workspaceId, workflowVersionId: version.id, contactId: contact.id, variables: {}, idempotencyKey: `delete-enrollment-${crypto.randomUUID()}`,
+    });
+    if (!enrollment) throw new Error('enrollment create failed');
+
+    await expect(boot.service.enrollmentDelete(admin, { workspaceId, enrollmentId: enrollment.id }))
+      .resolves.toEqual({ id: enrollment.id, deleted: true });
+    await expect(boot.db.select().from(enrollments).where(eq(enrollments.id, enrollment.id))).resolves.toEqual([]);
+    await expect(boot.db.select().from(outbox).where(eq(outbox.aggregateId, enrollment.id))).resolves.toEqual([]);
+    await expect(boot.db.select().from(sendIntents).where(eq(sendIntents.enrollmentId, enrollment.id))).resolves.toEqual([]);
   });
 });

@@ -11,10 +11,10 @@ Every product operation is defined once in `apps/server/src/operations.ts` and e
 | `credential.create`, `credential.list`, `credential.revoke` | Create, inspect, or revoke an organization-bound SDK key. The secret is returned once; creation is HTTP/CLI only and excluded from MCP/model-visible catalogs. |
 | `template.create`, `template.list`, `template.revise`, `template.publish`, `template.archive`, `template.render` | Manage HTML (preferred) or plain templates. CLI `rachet template push --allow-code-execution` renders reviewed local React Email code and **upserts by `--name`** (revise + publish). The server never executes TSX; it only interpolates `{{…}}` placeholders. |
 | `workflow.actions` | List the installed action registry |
-| `workflow.create`, `workflow.list`, `workflow.validate`, `workflow.simulate`, `workflow.publish` | Author, check, trace, persist, and version capability graphs |
+| `workflow.create`, `workflow.list`, `workflow.validate`, `workflow.simulate`, `workflow.publish`, `workflow.delete` | Author, check, trace, persist, version, and permanently delete capability graphs. `workflow.delete` requires `dangerouslyDeleteWorkflow: true` and rejects workflows with active enrollments. |
 | `contact.upsert`, `contact.list` | Manage enrolled contacts |
 | `enrollment.create`, `enrollment.list` | Start and inspect durable executions |
-| `enrollment.pause`, `enrollment.resume`, `enrollment.cancel` | Control one Temporal execution |
+| `enrollment.pause`, `enrollment.resume`, `enrollment.cancel`, `enrollment.delete` | Control or permanently delete one Temporal execution. Deletion terminates an active execution and cannot recall accepted email. |
 | `event.emit` | Durably accept a stable event ID and JSON payload for one enrollment; identical retries are no-ops and transient delivery failures are queued |
 | `message.list`, `webhook_event.list` | Inspect send ledger and verified Resend events |
 

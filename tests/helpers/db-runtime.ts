@@ -18,7 +18,7 @@ export async function probeDbRuntime(temporal?: Client): Promise<DbRuntime | nul
     const config = loadConfig(process.env);
     const database = createDatabase(config);
     await database.pool.query('select 1');
-    const client = temporal ?? ({ workflow: { getHandle: () => ({ signal: async () => undefined }) } } as unknown as Client);
+    const client = temporal ?? ({ workflow: { getHandle: () => ({ signal: async () => undefined, terminate: async () => undefined }) } } as unknown as Client);
     const auth = {} as ReflowAuth;
     return {
       service: new ReflowService(database.db, client, auth),

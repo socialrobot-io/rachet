@@ -56,6 +56,12 @@ For multi-day delays, keep a **fast-test twin** (same branches, `timeoutSeconds`
 
 Use `event_emit` with a stable caller event ID to satisfy workflow event waits. Pause, resume, and cancel operate on an enrollment's Temporal execution. A pause takes effect at the next workflow gate and cannot recall an already accepted send.
 
+## Delete safely
+
+Before `workflow_delete`, show the workflow name and ID, explain that published versions and completed enrollment history will be removed, and ask for confirmation. Send `dangerouslyDeleteWorkflow: true` only after the user confirms. The operation rejects a workflow with active enrollments; cancel or wait for them first.
+
+Before `enrollment_delete`, show the enrollment ID and contact. Ask for confirmation. Deleting an active enrollment terminates its Temporal execution and removes its event, send, and queued-job records. It cannot recall an accepted email.
+
 Inspect enrollment and message lists separately. “Accepted” means the provider admitted a message; “delivered” requires a verified provider event. Hard bounce and complaint webhooks add local suppression. Preserve the same operation input and idempotency key when retrying a timeout.
 
 Use trusted local stdio MCP only with `REFLOW_ACTOR_USER_ID` on the Rachet host. Remote agents should use the OAuth-protected HTTP MCP endpoint.

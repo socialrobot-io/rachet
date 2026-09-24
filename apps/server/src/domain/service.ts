@@ -511,6 +511,38 @@ export class ReflowService {
     });
   }
 
+  async workflowDelete(context: OperationContext, input: { workspaceId: string; workflowId: string; dangerouslyDeleteWorkflow: true }) {
+    this.workspace(context, input.workspaceId, 'author');
+    return this.db.transaction(async (tx) => {
+      const [workflow] = await tx.select().from(sequences)
+        .where(and(eq(sequences.id, input.workflowId), eq(sequences.workspaceId, input.workspaceId))).for('update').limit(1);
+      if (!workflow) throw new ReflowError('NOT_FOUND', 'Workflow not found', 404);
+
+      const versions = await tx.select({ id: sequenceVersions.id }).from(sequenceVersions)
+        .where(and(eq(sequenceVersions.sequenceId, workflow.id), eq(sequenceVersions.workspaceId, input.workspaceId))).for('update');
+      const versionIds = versions.map((version) => version.id);
+      const activeEnrollments = versionIds.length === 0 ? [] : await tx.select({ id: enrollments.id }).from(enrollments)
+        .where(and(eq(enrollments.workspaceId, input.workspaceId), inArray(enrollments.sequenceVersionId, versionIds), inArray(enrollments.state, ['pending_start', 'running', 'waiting', 'paused', 'needs_attention']))).for('update');
+      if (activeEnrollments.length > 0) {
+        throw new ReflowError(
+          'WORKFLOW_HAS_ACTIVE_ENROLLMENTS',
+          'Workflow has enrollments in progress and cannot be deleted.',
+          409,
+          false,
+          { hint: 'Cancel or let every active enrollment finish before deleting this workflow.', details: { activeEnrollmentCount: activeEnrollments.length } },
+        );
+      }
+
+      const enrollmentRows = versionIds.length === 0 ? [] : await tx.select({ id: enrollments.id }).from(enrollments)
+        .where(and(eq(enrollments.workspaceId, input.workspaceId), inArray(enrollments.sequenceVersionId, versionIds))).for('update');
+      await this.deleteEnrollmentRecords(tx, input.workspaceId, enrollmentRows.map((row) => row.id));
+      if (versionIds.length > 0) await tx.delete(sequenceVersions).where(inArray(sequenceVersions.id, versionIds));
+      await tx.delete(sequences).where(eq(sequences.id, workflow.id));
+      await tx.insert(auditEvents).values({ workspaceId: input.workspaceId, actorId: context.principal.userId, action: 'workflow.delete', targetType: 'workflow', targetId: workflow.id });
+      return { id: workflow.id, deleted: true };
+    });
+  }
+
   async workflowValidate(context: OperationContext, input: { workspaceId: string; definition: WorkflowDefinition }) {
     this.workspace(context, input.workspaceId, 'author');
     validateActionNodes(input.definition.nodes);
@@ -668,6 +700,38 @@ export class ReflowService {
     }
     await this.audit(context, `enrollment.${action}`, input.workspaceId, 'enrollment', row.id);
     return { id: row.id, control: action, status: 'requested' };
+  }
+
+  async enrollmentDelete(context: OperationContext, input: { workspaceId: string; enrollmentId: string }) {
+    this.workspace(context, input.workspaceId, 'operate');
+    const [row] = await this.db.select().from(enrollments)
+      .where(and(eq(enrollments.id, input.enrollmentId), eq(enrollments.workspaceId, input.workspaceId))).limit(1);
+    if (!row) throw new ReflowError('NOT_FOUND', 'Enrollment not found', 404);
+    if (['pending_start', 'running', 'waiting', 'paused', 'needs_attention'].includes(row.state)) {
+      try {
+        await this.temporal.workflow.getHandle(row.workflowId).terminate('Enrollment deleted from Rachet');
+      } catch (error) {
+        if (!(error instanceof WorkflowNotFoundError)) throw error;
+      }
+    }
+    return this.db.transaction(async (tx) => {
+      const [current] = await tx.select({ id: enrollments.id }).from(enrollments)
+        .where(and(eq(enrollments.id, input.enrollmentId), eq(enrollments.workspaceId, input.workspaceId))).for('update').limit(1);
+      if (!current) throw new ReflowError('NOT_FOUND', 'Enrollment not found', 404);
+      await this.deleteEnrollmentRecords(tx, input.workspaceId, [current.id]);
+      await tx.insert(auditEvents).values({ workspaceId: input.workspaceId, actorId: context.principal.userId, action: 'enrollment.delete', targetType: 'enrollment', targetId: current.id });
+      return { id: current.id, deleted: true };
+    });
+  }
+
+  private async deleteEnrollmentRecords(tx: Pick<Database, 'select' | 'delete'>, workspaceId: string, enrollmentIds: string[]) {
+    if (enrollmentIds.length === 0) return;
+    const events = await tx.select({ id: enrollmentEvents.id }).from(enrollmentEvents)
+      .where(and(eq(enrollmentEvents.workspaceId, workspaceId), inArray(enrollmentEvents.enrollmentId, enrollmentIds)));
+    const aggregateIds = [...enrollmentIds, ...events.map((event) => event.id)];
+    await tx.delete(outbox).where(inArray(outbox.aggregateId, aggregateIds));
+    await tx.delete(sendIntents).where(and(eq(sendIntents.workspaceId, workspaceId), inArray(sendIntents.enrollmentId, enrollmentIds)));
+    await tx.delete(enrollments).where(and(eq(enrollments.workspaceId, workspaceId), inArray(enrollments.id, enrollmentIds)));
   }
 
   /** Run against an enrollment execution, mapping a missing Temporal workflow to a clean conflict. */

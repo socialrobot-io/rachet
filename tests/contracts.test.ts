@@ -5,6 +5,8 @@ import {
   contactUpsertSchema,
   templateCreateSchema,
   templateReviseSchema,
+  workflowDeleteSchema,
+  enrollmentDeleteSchema,
   valueSourceSchema,
   workflowDefinitionSchema,
   triggerSchema,
@@ -31,6 +33,20 @@ describe('timezone-aware operation contracts shared by CLI and MCP', () => {
     const contact = { workspaceId, email: 'contact@example.com', timezone: 'Europe/Amsterdam' };
     expect(contactUpsertSchema.safeParse(contact).success).toBe(true);
     expect(contactUpsertSchema.safeParse({ ...contact, timezone: 'UTC+2' }).success).toBe(false);
+  });
+});
+
+describe('deletion operation contracts', () => {
+  it('requires an explicit dangerous workflow deletion acknowledgement', () => {
+    const input = { workspaceId, workflowId: '00000000-0000-4000-8000-000000000002', dangerouslyDeleteWorkflow: true };
+    expect(workflowDeleteSchema.parse(input)).toEqual(input);
+    expect(() => workflowDeleteSchema.parse({ ...input, dangerouslyDeleteWorkflow: false })).toThrow();
+    expect(() => workflowDeleteSchema.parse({ workspaceId, workflowId: input.workflowId })).toThrow();
+  });
+
+  it('accepts a scoped enrollment deletion request', () => {
+    expect(enrollmentDeleteSchema.parse({ workspaceId, enrollmentId: '00000000-0000-4000-8000-000000000003' }))
+      .toMatchObject({ workspaceId });
   });
 });
 

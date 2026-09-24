@@ -1,8 +1,9 @@
 import { z } from 'zod';
 import {
   accountCreateSchema, credentialCreateSchema, credentialListSchema, credentialRevokeSchema, contactUpsertSchema, enrollmentControlSchema, enrollmentCreateSchema,
-  eventEmitSchema, workflowCreateSchema, workflowPublishSchema, workflowSimulateSchema, workflowDefinitionSchema, templateCreateSchema,
+  eventEmitSchema, workflowCreateSchema, workflowDeleteSchema, workflowPublishSchema, workflowSimulateSchema, workflowDefinitionSchema, templateCreateSchema,
   templateArchiveSchema, templatePublishSchema, templateReviseSchema, templateRenderSchema, workspaceIdSchema,
+  enrollmentDeleteSchema,
   type OperationContext,
 } from '@reflow/contracts';
 import type { ReflowService } from './domain/service.js';
@@ -134,6 +135,10 @@ export function createOperations(service: ReflowService): Record<string, Operati
       description: 'Publish an immutable workflow version after resolving installed actions and templates. Fails with TEMPLATE_REFERENCE_INVALID when email.send pins are missing.', input: workflowPublishSchema, readOnly: false,
       invoke: (context, input) => service.workflowPublish(context, workflowPublishSchema.parse(input)),
     },
+    'workflow.delete': {
+      description: 'Permanently delete a workflow, all published versions, and completed enrollment history. Before calling, ask the user to confirm the exact workflow. Set dangerouslyDeleteWorkflow to true. Fails with WORKFLOW_HAS_ACTIVE_ENROLLMENTS when people are still in progress.', input: workflowDeleteSchema, readOnly: false,
+      invoke: (context, input) => service.workflowDelete(context, workflowDeleteSchema.parse(input)),
+    },
     'contact.upsert': {
       description: 'Create or update a contact by normalized email.', input: contactUpsertSchema, readOnly: false,
       invoke: (context, input) => service.contactUpsert(context, contactUpsertSchema.parse(input)),
@@ -162,6 +167,10 @@ export function createOperations(service: ReflowService): Record<string, Operati
     'enrollment.cancel': {
       description: 'Cancel an enrollment; an already admitted email cannot be recalled.', input: enrollmentControlSchema, readOnly: false,
       invoke: (context, input) => service.enrollmentControl(context, enrollmentControlSchema.parse(input), 'cancel'),
+    },
+    'enrollment.delete': {
+      description: 'Permanently delete one enrollment and its event, send, and queued-job records. Before calling, ask the user to confirm the exact enrollment. An active Temporal execution is terminated first; an accepted email cannot be recalled.', input: enrollmentDeleteSchema, readOnly: false,
+      invoke: (context, input) => service.enrollmentDelete(context, enrollmentDeleteSchema.parse(input)),
     },
     'event.emit': {
       description: 'Durably emit an idempotently named domain event into an enrollment. Returns whether it was newly accepted or an existing duplicate, and whether Temporal delivery is complete or queued.', input: eventEmitSchema, readOnly: false,

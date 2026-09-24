@@ -211,9 +211,9 @@ Every operation is defined once and exposed three ways: HTTP `POST /v1/operation
 | `credential.create`, `credential.list`, `credential.revoke` | Organization-bound SDK API keys; secrets are returned only at creation |
 | `template.create`, `template.list`, `template.revise`, `template.publish`, `template.archive`, `template.render` | Manage, render, and publish HTML or plain templates |
 | `workflow.actions` | List the installed action registry |
-| `workflow.create`, `workflow.list`, `workflow.validate`, `workflow.simulate`, `workflow.publish` | Author, check, trace, and version capability graphs |
+| `workflow.create`, `workflow.list`, `workflow.validate`, `workflow.simulate`, `workflow.publish`, `workflow.delete` | Author, check, trace, version, and delete capability graphs. Workflow deletion requires explicit dangerous confirmation and fails while enrollments are in progress. |
 | `contact.upsert`, `contact.list` | Manage enrolled contacts |
-| `enrollment.create`, `enrollment.list`, `enrollment.pause`, `enrollment.resume`, `enrollment.cancel` | Start, inspect, and control durable executions |
+| `enrollment.create`, `enrollment.list`, `enrollment.pause`, `enrollment.resume`, `enrollment.cancel`, `enrollment.delete` | Start, inspect, control, and delete durable executions |
 | `event.emit` | Durably accept a stable event ID; identical retries are no-ops |
 | `message.list`, `webhook_event.list` | Inspect the send ledger and verified Resend events |
 
