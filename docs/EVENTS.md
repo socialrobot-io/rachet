@@ -104,3 +104,5 @@ OAuth/MCP authorization must include `reflow:send`; API keys use the correspondi
 - Provider webhooks such as Resend delivery events are separate. Those arrive at each organization's `/webhooks/resend/<organization-id>` endpoint and update only matching sends; product events use `event.emit`.
 
 See the runnable [welcome + nudge tutorial](../examples/welcome-nudge/) for a complete wait, event, and timeout journey.
+
+See [Event data in workflows](EVENT_DATA.md) to use an event payload in a branch, contact update, or email.

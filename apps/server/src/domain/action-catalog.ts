@@ -43,8 +43,20 @@ export function validateActionNodes(nodes: FlowNode[]): void {
 
 export const resolvedActionInputSchema = z.record(z.string(), z.json());
 
+/** Parse a validated value path without interpreting it as JavaScript. */
+function valuePathSegments(path: string): string[] {
+  const root = /^(contact|variables|event)/.exec(path)?.[0];
+  if (!root) return [];
+  const segments = [root];
+  const suffix = path.slice(root.length);
+  for (const match of suffix.matchAll(/\.([A-Za-z0-9_-]+)|\[("(?:[^"\\]|\\.)*")\]/g)) {
+    segments.push(match[1] ?? JSON.parse(match[2] ?? '""'));
+  }
+  return segments;
+}
+
 export function valueAtPath(root: Record<string, unknown>, path: string): unknown {
-  return path.split('.').reduce<unknown>((value, segment) => {
+  return valuePathSegments(path).reduce<unknown>((value, segment) => {
     if (typeof value !== 'object' || value === null || Array.isArray(value)) return undefined;
     return (value as Record<string, unknown>)[segment];
   }, root);

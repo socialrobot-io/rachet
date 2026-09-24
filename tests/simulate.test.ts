@@ -102,4 +102,23 @@ describe('simulateWorkflow', () => {
     expect(simulateWorkflow(definition, {}, {}, ['product.activated']).result).toBe('yes');
     expect(simulateWorkflow(definition, {}, {}, []).result).toBe('no');
   });
+
+  it('uses data from a dotted event name in a branch', () => {
+    const definition = workflowDefinitionSchema.parse({
+      ...base,
+      entryNodeId: 'check',
+      nodes: [
+        {
+          id: 'check',
+          type: 'branch',
+          condition: { op: 'eq', left: { path: 'event["product.activated"].data.plan' }, right: { literal: 'pro' } },
+          onTrue: 'pro',
+          onFalse: 'free',
+        },
+        { id: 'pro', type: 'end', reason: 'pro' },
+        { id: 'free', type: 'end', reason: 'free' },
+      ],
+    });
+    expect(simulateWorkflow(definition, {}, {}, [{ eventType: 'product.activated', data: { plan: 'pro' } }]).result).toBe('pro');
+  });
 });

@@ -89,9 +89,11 @@ export const triggerSchema = z.discriminatedUnion('type', [
   scheduledTriggerSchema,
 ]);
 const literalValue = z.json();
+const valuePathSegment = String.raw`(?:\.[A-Za-z0-9_-]+|\["(?:[^"\\]|\\.)*"\])`;
+const valuePath = new RegExp(`^(contact|variables|event)${valuePathSegment}+$`);
 export const valueSourceSchema = z.union([
   z.object({ literal: literalValue }),
-  z.object({ path: z.string().regex(/^(contact|variables|event)\.[A-Za-z0-9_.-]+$/), default: literalValue.optional() }),
+  z.object({ path: z.string().regex(valuePath), default: literalValue.optional() }),
 ]);
 export type ValueSource = z.infer<typeof valueSourceSchema>;
 export const conditionSchema = z.union([
@@ -133,7 +135,12 @@ export type WorkflowDefinition = z.infer<typeof workflowDefinitionSchema>;
 
 export const workflowCreateSchema = z.object({ workspaceId: workspaceIdSchema, name: z.string().min(1).max(120), intent: z.string().min(1).max(5000), definition: workflowDefinitionSchema });
 export const workflowPublishSchema = z.object({ workspaceId: workspaceIdSchema, workflowId: z.uuid(), expectedRevision: z.number().int().positive() });
-export const workflowSimulateSchema = z.object({ workspaceId: workspaceIdSchema, definition: workflowDefinitionSchema, contact: z.record(z.string(), z.unknown()).default({}), variables: z.record(z.string(), z.unknown()).default({}), receivedEvents: z.array(z.string()).default([]) });
+export const simulatedEventSchema = z.union([
+  z.string().min(1).max(120),
+  z.object({ eventType: z.string().min(1).max(120), data: z.record(z.string(), z.unknown()).default({}) }),
+]);
+export type SimulatedEvent = z.infer<typeof simulatedEventSchema>;
+export const workflowSimulateSchema = z.object({ workspaceId: workspaceIdSchema, definition: workflowDefinitionSchema, contact: z.record(z.string(), z.unknown()).default({}), variables: z.record(z.string(), z.unknown()).default({}), receivedEvents: z.array(simulatedEventSchema).default([]) });
 export const contactUpsertSchema = z.object({ workspaceId: workspaceIdSchema, externalId: z.string().min(1).max(200).optional(), email: z.email(), timezone: timeZoneSchema.optional(), fields: z.record(z.string(), z.unknown()).default({}) });
 export const enrollmentCreateSchema = z.object({ workspaceId: workspaceIdSchema, workflowVersionId: z.uuid(), contactId: z.uuid(), variables: z.record(z.string(), z.unknown()).default({}), idempotencyKey: z.string().min(1).max(200) });
 export const enrollmentControlSchema = z.object({ workspaceId: workspaceIdSchema, enrollmentId: z.uuid() });

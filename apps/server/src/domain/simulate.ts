@@ -1,5 +1,5 @@
 import { resolveActionInput, resolveValue } from './action-catalog.js';
-import type { FlowCondition, WorkflowDefinition } from '@reflow/contracts';
+import type { FlowCondition, SimulatedEvent, WorkflowDefinition } from '@reflow/contracts';
 
 function evaluate(condition: FlowCondition, root: Record<string, unknown>, receivedEvents: Set<string>): boolean {
   if (condition.op === 'event_received') return receivedEvents.has(condition.eventType);
@@ -16,10 +16,13 @@ function evaluate(condition: FlowCondition, root: Record<string, unknown>, recei
   }
 }
 
-export function simulateWorkflow(definition: WorkflowDefinition, contact: Record<string, unknown>, variables: Record<string, unknown>, events: string[]) {
+export function simulateWorkflow(definition: WorkflowDefinition, contact: Record<string, unknown>, variables: Record<string, unknown>, events: SimulatedEvent[]) {
   const nodes = new Map(definition.nodes.map((node) => [node.id, node]));
-  const received = new Set(events); const trace: Record<string, unknown>[] = [];
-  const root = { contact, variables, event: Object.fromEntries(events.map((name) => [name, {}])) };
+  const normalizedEvents = events.map((event, index) => typeof event === 'string'
+    ? { eventType: event, eventId: `simulation:${index}`, data: {} }
+    : { eventType: event.eventType, eventId: `simulation:${index}`, data: event.data });
+  const received = new Set(normalizedEvents.map((event) => event.eventType)); const trace: Record<string, unknown>[] = [];
+  const root = { contact, variables, event: Object.fromEntries(normalizedEvents.map((event) => [event.eventType, { eventId: event.eventId, data: event.data }])) };
   let current = definition.entryNodeId;
   for (let count = 0; count < definition.nodes.length + 1; count += 1) {
     const node = nodes.get(current); if (!node) throw new Error(`Missing node ${current}`);

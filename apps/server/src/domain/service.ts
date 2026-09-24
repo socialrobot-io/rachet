@@ -8,7 +8,7 @@ import {
   auditEvents, contacts, enrollmentEvents, enrollments, memberships, outbox, profiles, sendIntents,
   sequences, sequenceVersions, templates, templateVersions, webhookEvents, workspaces,
 } from '../db/schema.js';
-import type { OperationContext, Principal, WorkflowDefinition } from '@reflow/contracts';
+import type { OperationContext, Principal, SimulatedEvent, WorkflowDefinition } from '@reflow/contracts';
 import { validateActionNodes } from './action-catalog.js';
 import { simulateWorkflow } from './simulate.js';
 import { ReflowError, isUniqueViolation } from './errors.js';
@@ -518,7 +518,7 @@ export class ReflowService {
     return { valid: true, nodeCount: input.definition.nodes.length };
   }
 
-  workflowSimulate(context: OperationContext, input: { workspaceId: string; definition: WorkflowDefinition; contact: Record<string, unknown>; variables: Record<string, unknown>; receivedEvents: string[] }) {
+  workflowSimulate(context: OperationContext, input: { workspaceId: string; definition: WorkflowDefinition; contact: Record<string, unknown>; variables: Record<string, unknown>; receivedEvents: SimulatedEvent[] }) {
     this.workspace(context, input.workspaceId, 'author'); validateActionNodes(input.definition.nodes);
     return simulateWorkflow(input.definition, input.contact, input.variables, input.receivedEvents);
   }
