@@ -24,7 +24,7 @@ flowchart LR
   Outbox --> T[Temporal]
   T --> W[Workflow / activity workers]
   W --> PG
-  W --> Interpolate[Interpolate {{placeholders}} in stored HTML]
+  W --> Interpolate[Interpolate template placeholders in stored HTML]
   W --> Adapter[Provider adapter]
   Adapter --> Resend[Resend]
   Resend --> Hook[Raw-body webhook verification]
