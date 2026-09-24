@@ -5,13 +5,14 @@ import { WorkflowNotFoundError } from '@temporalio/common';
 import type { ReflowAuth } from '../auth.js';
 import type { Database } from '../db/index.js';
 import {
-  auditEvents, contacts, enrollmentEvents, enrollments, memberships, outbox, profiles, sendIntents,
+  auditEvents, contacts, enrollmentEvents, enrollments, eventTypes, memberships, outbox, profiles, sendIntents,
   sequences, sequenceVersions, templates, templateVersions, webhookEvents, workspaces,
 } from '../db/schema.js';
-import type { OperationContext, Principal, WorkflowDefinition } from '@reflow/contracts';
+import type { OperationContext, Principal, SimulatedEvent, WorkflowDefinition } from '@reflow/contracts';
 import { validateActionNodes } from './action-catalog.js';
 import { simulateWorkflow } from './simulate.js';
 import { ReflowError, isUniqueViolation } from './errors.js';
+import { compileEventSchema, validateEventData } from './event-types.js';
 import { renderEmail } from './render.js';
 import {
   buildTemplateRefIssues,
@@ -405,6 +406,40 @@ export class ReflowService {
     if (issues.length > 0) throwTemplateRefIssues(issues);
   }
 
+  private async assertEventTypes(workspaceId: string, definition: WorkflowDefinition) {
+    const names = new Set<string>();
+    if (definition.trigger.type === 'event') names.add(definition.trigger.eventType);
+    for (const node of definition.nodes) {
+      if (node.type === 'wait_for_event') names.add(node.eventType);
+      if (node.type === 'branch' && node.condition.op === 'event_received') names.add(node.condition.eventType);
+    }
+    if (names.size === 0) return;
+    const rows = await this.db.select().from(eventTypes).where(and(
+      eq(eventTypes.workspaceId, workspaceId),
+      inArray(eventTypes.eventType, [...names]),
+    ));
+    const schemas = new Map(rows.map((row) => [row.eventType, row.schema]));
+    const missing = [...names].filter((name) => !schemas.has(name));
+    if (missing.length > 0) {
+      throw new ReflowError('EVENT_TYPE_NOT_FOUND', `Define event types before using them: ${missing.join(', ')}`, 422, false, {
+        hint: 'Call event_type_define with a JSON Schema for each event type.', details: { eventTypes: missing },
+      });
+    }
+    for (const [eventType, schema] of schemas) compileEventSchema(eventType, schema);
+  }
+
+  private async assertEventData(workspaceId: string, eventType: string, data: Record<string, unknown>) {
+    const [registered] = await this.db.select().from(eventTypes).where(and(
+      eq(eventTypes.workspaceId, workspaceId), eq(eventTypes.eventType, eventType),
+    )).limit(1);
+    if (!registered) {
+      throw new ReflowError('EVENT_TYPE_NOT_FOUND', `Event type ${eventType} is not registered`, 422, false, {
+        hint: 'Call event_type_define before emitting this event.', details: { eventType },
+      });
+    }
+    validateEventData(eventType, registered.schema, data);
+  }
+
   async templatePublish(context: OperationContext, input: { workspaceId: string; templateId: string; expectedRevision: number }) {
     this.workspace(context, input.workspaceId, 'author');
     return this.db.transaction(async (tx) => {
@@ -446,6 +481,7 @@ export class ReflowService {
   async workflowCreate(context: OperationContext, input: { workspaceId: string; name: string; intent: string; definition: WorkflowDefinition }) {
     this.workspace(context, input.workspaceId, 'author');
     validateActionNodes(input.definition.nodes);
+    await this.assertEventTypes(input.workspaceId, input.definition);
     await this.assertTemplateRefs(input.workspaceId, input.definition);
     const [created] = await this.db.insert(sequences).values({ workspaceId: input.workspaceId, name: input.name, definition: { ...input.definition, intent: input.intent } }).returning();
     if (!created) throw new Error('Workflow creation failed');
@@ -502,6 +538,7 @@ export class ReflowService {
       if (draft.revision !== input.expectedRevision) throw new ReflowError('REVISION_CONFLICT', 'Workflow revision changed', 409);
       const definition = draft.definition as WorkflowDefinition;
       validateActionNodes(definition.nodes);
+      await this.assertEventTypes(input.workspaceId, definition);
       await this.assertTemplateRefs(input.workspaceId, definition);
       const countRows = await tx.select({ count: sql<number>`count(*)::int` }).from(sequenceVersions).where(eq(sequenceVersions.sequenceId, draft.id));
       const [version] = await tx.insert(sequenceVersions).values({ workspaceId: input.workspaceId, sequenceId: draft.id, version: Number(countRows[0]?.count ?? 0) + 1, contentHash: hash(definition), definition }).returning();
@@ -546,13 +583,37 @@ export class ReflowService {
   async workflowValidate(context: OperationContext, input: { workspaceId: string; definition: WorkflowDefinition }) {
     this.workspace(context, input.workspaceId, 'author');
     validateActionNodes(input.definition.nodes);
+    await this.assertEventTypes(input.workspaceId, input.definition);
     await this.assertTemplateRefs(input.workspaceId, input.definition);
     return { valid: true, nodeCount: input.definition.nodes.length };
   }
 
-  workflowSimulate(context: OperationContext, input: { workspaceId: string; definition: WorkflowDefinition; contact: Record<string, unknown>; variables: Record<string, unknown>; receivedEvents: string[] }) {
+  async workflowSimulate(context: OperationContext, input: { workspaceId: string; definition: WorkflowDefinition; contact: Record<string, unknown>; variables: Record<string, unknown>; receivedEvents: SimulatedEvent[] }) {
     this.workspace(context, input.workspaceId, 'author'); validateActionNodes(input.definition.nodes);
+    await this.assertEventTypes(input.workspaceId, input.definition);
+    for (const event of input.receivedEvents) await this.assertEventData(input.workspaceId, event.eventType, event.data);
     return simulateWorkflow(input.definition, input.contact, input.variables, input.receivedEvents);
+  }
+
+  async eventTypeDefine(context: OperationContext, input: { workspaceId: string; eventType: string; schema: Record<string, unknown> }) {
+    this.workspace(context, input.workspaceId, 'author');
+    compileEventSchema(input.eventType, input.schema);
+    try {
+      const [created] = await this.db.insert(eventTypes).values(input).returning();
+      if (!created) throw new Error('Event type creation failed');
+      await this.audit(context, 'event_type.define', input.workspaceId, 'event_type', created.id, { eventType: input.eventType });
+      return created;
+    } catch (error) {
+      if (!isUniqueViolation(error)) throw error;
+      throw new ReflowError('EVENT_TYPE_EXISTS', `Event type ${input.eventType} already exists`, 409, false, {
+        hint: 'Event types are immutable. Define a new versioned name for a schema change.', details: { eventType: input.eventType },
+      });
+    }
+  }
+
+  async eventTypeList(context: OperationContext, workspaceId: string) {
+    this.workspace(context, workspaceId);
+    return this.db.select().from(eventTypes).where(eq(eventTypes.workspaceId, workspaceId)).orderBy(asc(eventTypes.eventType));
   }
 
   async contactUpsert(context: OperationContext, input: { workspaceId: string; email: string; externalId?: string | undefined; timezone?: string | undefined; fields: Record<string, unknown> }) {
@@ -759,6 +820,7 @@ export class ReflowService {
     this.workspace(context, input.workspaceId, 'operate');
     const [row] = await this.db.select().from(enrollments).where(and(eq(enrollments.id, input.enrollmentId), eq(enrollments.workspaceId, input.workspaceId))).limit(1);
     if (!row) throw new ReflowError('NOT_FOUND', 'Enrollment not found', 404);
+    await this.assertEventData(input.workspaceId, input.eventType, input.data);
     const payloadHash = stableHash({ eventType: input.eventType, data: input.data });
     const [existing] = await this.db.select().from(enrollmentEvents).where(and(
       eq(enrollmentEvents.enrollmentId, row.id),

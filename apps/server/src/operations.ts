@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import {
   accountCreateSchema, credentialCreateSchema, credentialListSchema, credentialRevokeSchema, contactUpsertSchema, enrollmentControlSchema, enrollmentCreateSchema,
-  eventEmitSchema, workflowCreateSchema, workflowDeleteSchema, workflowPublishSchema, workflowSimulateSchema, workflowDefinitionSchema, templateCreateSchema,
+  eventEmitSchema, eventTypeDefineSchema, workflowCreateSchema, workflowDeleteSchema, workflowPublishSchema, workflowSimulateSchema, workflowDefinitionSchema, templateCreateSchema,
   templateArchiveSchema, templatePublishSchema, templateReviseSchema, templateRenderSchema, workspaceIdSchema,
   enrollmentDeleteSchema,
   type OperationContext,
@@ -171,6 +171,14 @@ export function createOperations(service: ReflowService): Record<string, Operati
     'enrollment.delete': {
       description: 'Permanently delete one enrollment and its event, send, and queued-job records. Before calling, ask the user to confirm the exact enrollment. An active Temporal execution is terminated first; an accepted email cannot be recalled.', input: enrollmentDeleteSchema, readOnly: false,
       invoke: (context, input) => service.enrollmentDelete(context, enrollmentDeleteSchema.parse(input)),
+    },
+    'event_type.define': {
+      description: 'Define an immutable JSON Schema for one workspace event type. Use a new versioned event name for any schema change.', input: eventTypeDefineSchema, readOnly: false,
+      invoke: (context, input) => service.eventTypeDefine(context, eventTypeDefineSchema.parse(input)),
+    },
+    'event_type.list': {
+      description: 'List the immutable event types and JSON Schemas registered in a workspace.', input: workspaceOnly, readOnly: true,
+      invoke: (context, input) => service.eventTypeList(context, workspaceIdSchema.parse(input.workspaceId)),
     },
     'event.emit': {
       description: 'Durably emit an idempotently named domain event into an enrollment. Returns whether it was newly accepted or an existing duplicate, and whether Temporal delivery is complete or queued.', input: eventEmitSchema, readOnly: false,

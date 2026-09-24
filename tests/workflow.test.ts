@@ -17,7 +17,7 @@ const workflow = {
 describe('workflow authoring contract', () => {
   it('validates installed actions and simulates the event path without side effects', () => {
     const parsed = workflowDefinitionSchema.parse(workflow); validateActionNodes(parsed.nodes);
-    const result = simulateWorkflow(parsed, { email: 'person@example.com' }, {}, ['product.activated']);
+    const result = simulateWorkflow(parsed, { email: 'person@example.com' }, {}, [{ eventType: 'product.activated', data: {} }]);
     expect(result.status).toBe('completed'); expect(result.result).toBe('activated');
     expect(result.trace[0]).toMatchObject({ action: 'email.send', sideEffects: 'not_executed' });
   });

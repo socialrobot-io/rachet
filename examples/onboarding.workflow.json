@@ -20,7 +20,7 @@
     {
       "id": "await_activation",
       "type": "wait_for_event",
-      "eventType": "product.activated",
+      "eventType": "product.activated.v1",
       "timeoutSeconds": 259200,
       "onEvent": "converted",
       "onTimeout": "mark_for_nudge"

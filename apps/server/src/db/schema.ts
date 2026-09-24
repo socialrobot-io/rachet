@@ -202,6 +202,15 @@ export const enrollmentEvents = pgTable('enrollment_events', {
   index('enrollment_event_workspace_idx').on(table.workspaceId, table.enrollmentId),
 ]);
 
+/** Immutable JSON Schema contracts for workspace product events. */
+export const eventTypes = pgTable('event_types', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  workspaceId: uuid('workspace_id').notNull().references(() => workspaces.id, { onDelete: 'cascade' }),
+  eventType: text('event_type').notNull(),
+  schema: jsonb('schema').$type<Record<string, unknown>>().notNull(),
+  ...timestamps,
+}, (table) => [uniqueIndex('event_type_name_unique').on(table.workspaceId, table.eventType)]);
+
 export const sendIntents = pgTable('send_intents', {
   id: uuid('id').primaryKey().defaultRandom(),
   workspaceId: uuid('workspace_id').notNull().references(() => workspaces.id, { onDelete: 'cascade' }),

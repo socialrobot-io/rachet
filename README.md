@@ -118,11 +118,25 @@ Rachet's MCP skill guides the agent through discovery, authoring, validation, an
 
 ### Send product events
 
+Define the type once for the workspace. Its JSON Schema is immutable; use a new versioned name when the payload changes.
+
+```sh
+rachet call event_type.define --input '{
+  "eventType": "product.activated.v1",
+  "schema": {
+    "type": "object",
+    "required": ["plan"],
+    "properties": { "plan": { "type": "string" } },
+    "additionalProperties": false
+  }
+}'
+```
+
 ```sh
 rachet call event.emit --input '{
   "enrollmentId": "ENROLLMENT_ID",
   "eventId": "product-activation:ACTIVITY_ID",
-  "eventType": "product.activated",
+  "eventType": "product.activated.v1",
   "data": { "plan": "pro" }
 }'
 ```
@@ -214,6 +228,7 @@ Every operation is defined once and exposed three ways: HTTP `POST /v1/operation
 | `workflow.create`, `workflow.list`, `workflow.validate`, `workflow.simulate`, `workflow.publish`, `workflow.delete` | Author, check, trace, version, and delete capability graphs. Workflow deletion requires explicit dangerous confirmation and fails while enrollments are in progress. |
 | `contact.upsert`, `contact.list` | Manage enrolled contacts |
 | `enrollment.create`, `enrollment.list`, `enrollment.pause`, `enrollment.resume`, `enrollment.cancel`, `enrollment.delete` | Start, inspect, control, and delete durable executions |
+| `event_type.define`, `event_type.list` | Define and inspect immutable JSON Schema contracts for product events |
 | `event.emit` | Durably accept a stable event ID; identical retries are no-ops |
 | `message.list`, `webhook_event.list` | Inspect the send ledger and verified Resend events |
 
