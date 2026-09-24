@@ -16,7 +16,7 @@ const contact = { firstName: 'Ava', hasUnfinishedWork: true };
 function path(index: number, events: string[] = [], fields = contact) {
   const journey = journeys[index];
   if (!journey) throw new Error(`Missing demo journey at index ${index}`);
-  return simulateWorkflow(journey.definition, fields, {}, events);
+  return simulateWorkflow(journey.definition, fields, {}, events.map((eventType) => ({ eventType, data: {} })));
 }
 
 describe('local demo journeys', () => {
@@ -34,24 +34,24 @@ describe('local demo journeys', () => {
   });
 
   it('onboards only after the app emits product events, with a finite timeout path', () => {
-    expect(path(0, ['project.created', 'teammate.invited']).result).toBe('First project shared with a teammate');
-    expect(path(0, ['project.created']).result).toBe('Project created; collaboration tip sent');
+    expect(path(0, ['project.created.v1', 'teammate.invited.v1']).result).toBe('First project shared with a teammate');
+    expect(path(0, ['project.created.v1']).result).toBe('Project created; collaboration tip sent');
     expect(path(0).result).toBe('No project created after help');
     expect(path(0).trace.filter((step) => step.action === 'email.send')).toHaveLength(2);
   });
 
   it('stops trial mail after conversion and distinguishes active from inactive workspaces', () => {
-    expect(path(1, ['subscription.activated']).trace.filter((step) => step.action === 'email.send')).toHaveLength(0);
-    expect(path(1, ['workspace.active', 'subscription.activated']).result).toBe('Paid subscription activated');
-    expect(path(1, ['workspace.active']).trace.find((step) => step.nodeId === 'send_trial_value')).toBeDefined();
+    expect(path(1, ['subscription.activated.v1']).trace.filter((step) => step.action === 'email.send')).toHaveLength(0);
+    expect(path(1, ['workspace.active.v1', 'subscription.activated.v1']).result).toBe('Paid subscription activated');
+    expect(path(1, ['workspace.active.v1']).trace.find((step) => step.nodeId === 'send_trial_value')).toBeDefined();
     expect(path(1).result).toBe('Trial ended without conversion');
     expect(path(1).trace.filter((step) => step.action === 'email.send')).toHaveLength(2);
   });
 
   it('personalizes the single winback email and ends without repeated sends', () => {
     expect(path(2).trace.find((step) => step.nodeId === 'send_resume_work')).toBeDefined();
-    expect(path(2, ['session.started'], { firstName: 'Ava', hasUnfinishedWork: false }).trace.find((step) => step.nodeId === 'send_whats_new')).toBeDefined();
-    expect(path(2, ['session.started']).result).toBe('User returned');
+    expect(path(2, ['session.started.v1'], { firstName: 'Ava', hasUnfinishedWork: false }).trace.find((step) => step.nodeId === 'send_whats_new')).toBeDefined();
+    expect(path(2, ['session.started.v1']).result).toBe('User returned');
     expect(path(2).result).toBe('No return; stop messaging');
     expect(path(2).trace.filter((step) => step.action === 'email.send')).toHaveLength(1);
   });

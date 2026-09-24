@@ -18,9 +18,7 @@ function evaluate(condition: FlowCondition, root: Record<string, unknown>, recei
 
 export function simulateWorkflow(definition: WorkflowDefinition, contact: Record<string, unknown>, variables: Record<string, unknown>, events: SimulatedEvent[]) {
   const nodes = new Map(definition.nodes.map((node) => [node.id, node]));
-  const normalizedEvents = events.map((event, index) => typeof event === 'string'
-    ? { eventType: event, eventId: `simulation:${index}`, data: {} }
-    : { eventType: event.eventType, eventId: `simulation:${index}`, data: event.data });
+  const normalizedEvents = events.map((event, index) => ({ eventType: event.eventType, eventId: `simulation:${index}`, data: event.data }));
   const received = new Set(normalizedEvents.map((event) => event.eventType)); const trace: Record<string, unknown>[] = [];
   const root = { contact, variables, event: Object.fromEntries(normalizedEvents.map((event) => [event.eventType, { eventId: event.eventId, data: event.data }])) };
   let current = definition.entryNodeId;

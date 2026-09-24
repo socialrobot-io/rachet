@@ -127,6 +127,15 @@ async function ensureJourneys(
   versions: DemoTemplateVersions,
 ): Promise<Map<string, JourneyPin>> {
   const pins = new Map<string, JourneyPin>();
+  const eventSchema = JSON.stringify({ type: 'object', additionalProperties: true });
+  for (const eventType of ['project.created.v1', 'teammate.invited.v1', 'workspace.active.v1', 'subscription.activated.v1', 'session.started.v1']) {
+    await client.query(
+      `insert into event_types (workspace_id, event_type, schema)
+       values ($1,$2,$3::jsonb)
+       on conflict (workspace_id,event_type) do nothing`,
+      [workspaceId, eventType, eventSchema],
+    );
+  }
   for (const journey of demoJourneys(versions)) {
     const validated = workflowDefinitionSchema.parse(journey.definition);
     validateActionNodes(validated.nodes);
@@ -134,7 +143,9 @@ async function ensureJourneys(
       throw new Error(`A template pin is missing from ${journey.name}`);
     }
     simulateWorkflow(validated, { firstName: 'Ava', hasUnfinishedWork: true }, {}, []);
-    simulateWorkflow(validated, { firstName: 'Ava', hasUnfinishedWork: false }, {}, ['project.created', 'teammate.invited', 'workspace.active', 'subscription.activated', 'session.started']);
+    simulateWorkflow(validated, { firstName: 'Ava', hasUnfinishedWork: false }, {}, [
+      'project.created.v1', 'teammate.invited.v1', 'workspace.active.v1', 'subscription.activated.v1', 'session.started.v1',
+    ].map((eventType) => ({ eventType, data: {} })));
     const definition = { ...validated, demoFixtureVersion: 2, demoIntent: journey.intent };
     const existing = await client.query<{ id: string; demo: boolean }>(
       "select id, (definition->>'demoFixtureVersion')='2' as demo from sequences where workspace_id=$1 and name=$2",

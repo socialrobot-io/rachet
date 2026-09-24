@@ -83,9 +83,11 @@ const scheduledTriggerSchema = z.object({
   }
 });
 
+export const eventTypeNameSchema = z.string().min(1).max(120).regex(/^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$/);
+
 export const triggerSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('manual') }),
-  z.object({ type: z.literal('event'), eventType: z.string().min(1).max(120) }),
+  z.object({ type: z.literal('event'), eventType: eventTypeNameSchema }),
   scheduledTriggerSchema,
 ]);
 const literalValue = z.json();
@@ -99,14 +101,14 @@ export type ValueSource = z.infer<typeof valueSourceSchema>;
 export const conditionSchema = z.union([
   z.object({ op: z.enum(['eq', 'neq', 'gt', 'gte', 'lt', 'lte', 'contains']), left: valueSourceSchema, right: valueSourceSchema }),
   z.object({ op: z.literal('exists'), value: valueSourceSchema }),
-  z.object({ op: z.literal('event_received'), eventType: z.string().min(1).max(120) }),
+  z.object({ op: z.literal('event_received'), eventType: eventTypeNameSchema }),
 ]);
 export type FlowCondition = z.infer<typeof conditionSchema>;
 
 export const flowNodeSchema = z.discriminatedUnion('type', [
   z.object({ id: z.string().min(1).max(100), type: z.literal('action'), action: z.string().regex(/^[a-z][a-z0-9_]*\.[a-z][a-z0-9_]*$/), input: z.record(z.string(), valueSourceSchema).default({}), next: z.string().min(1), onError: z.enum(['fail', 'attention', 'continue']).default('fail') }),
   z.object({ id: z.string().min(1).max(100), type: z.literal('delay'), durationSeconds: z.number().int().min(1).max(180 * 24 * 60 * 60), next: z.string().min(1) }),
-  z.object({ id: z.string().min(1).max(100), type: z.literal('wait_for_event'), eventType: z.string().min(1).max(120), timeoutSeconds: z.number().int().min(1).max(180 * 24 * 60 * 60), onEvent: z.string().min(1), onTimeout: z.string().min(1) }),
+  z.object({ id: z.string().min(1).max(100), type: z.literal('wait_for_event'), eventType: eventTypeNameSchema, timeoutSeconds: z.number().int().min(1).max(180 * 24 * 60 * 60), onEvent: z.string().min(1), onTimeout: z.string().min(1) }),
   z.object({ id: z.string().min(1).max(100), type: z.literal('branch'), condition: conditionSchema, onTrue: z.string().min(1), onFalse: z.string().min(1) }),
   z.object({ id: z.string().min(1).max(100), type: z.literal('end'), reason: z.string().min(1).max(120) }),
 ]);
@@ -135,15 +137,14 @@ export type WorkflowDefinition = z.infer<typeof workflowDefinitionSchema>;
 
 export const workflowCreateSchema = z.object({ workspaceId: workspaceIdSchema, name: z.string().min(1).max(120), intent: z.string().min(1).max(5000), definition: workflowDefinitionSchema });
 export const workflowPublishSchema = z.object({ workspaceId: workspaceIdSchema, workflowId: z.uuid(), expectedRevision: z.number().int().positive() });
-export const simulatedEventSchema = z.union([
-  z.string().min(1).max(120),
-  z.object({ eventType: z.string().min(1).max(120), data: z.record(z.string(), z.unknown()).default({}) }),
-]);
+export const simulatedEventSchema = z.object({ eventType: eventTypeNameSchema, data: z.record(z.string(), z.unknown()).default({}) });
 export type SimulatedEvent = z.infer<typeof simulatedEventSchema>;
 export const workflowSimulateSchema = z.object({ workspaceId: workspaceIdSchema, definition: workflowDefinitionSchema, contact: z.record(z.string(), z.unknown()).default({}), variables: z.record(z.string(), z.unknown()).default({}), receivedEvents: z.array(simulatedEventSchema).default([]) });
 export const contactUpsertSchema = z.object({ workspaceId: workspaceIdSchema, externalId: z.string().min(1).max(200).optional(), email: z.email(), timezone: timeZoneSchema.optional(), fields: z.record(z.string(), z.unknown()).default({}) });
 export const enrollmentCreateSchema = z.object({ workspaceId: workspaceIdSchema, workflowVersionId: z.uuid(), contactId: z.uuid(), variables: z.record(z.string(), z.unknown()).default({}), idempotencyKey: z.string().min(1).max(200) });
 export const enrollmentControlSchema = z.object({ workspaceId: workspaceIdSchema, enrollmentId: z.uuid() });
-export const eventEmitSchema = z.object({ workspaceId: workspaceIdSchema, enrollmentId: z.uuid(), eventId: z.string().min(1).max(200), eventType: z.string().min(1).max(120), data: z.record(z.string(), z.unknown()).default({}) });
+export const eventDataSchema = z.record(z.string(), z.unknown());
+export const eventTypeDefineSchema = z.object({ workspaceId: workspaceIdSchema, eventType: eventTypeNameSchema, schema: eventDataSchema });
+export const eventEmitSchema = z.object({ workspaceId: workspaceIdSchema, enrollmentId: z.uuid(), eventId: z.string().min(1).max(200), eventType: eventTypeNameSchema, data: z.record(z.string(), z.unknown()).default({}) });
 export type Principal = { userId: string; workspaceIds: string[]; workspaceRoles: Record<string, 'owner' | 'admin' | 'author' | 'sender' | 'operator' | 'viewer'>; deploymentAdmin: boolean; scopes: string[] };
 export type OperationContext = { principal: Principal; requestId: string };

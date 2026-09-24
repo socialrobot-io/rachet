@@ -12,7 +12,7 @@ describe('action catalog value resolution', () => {
   const root = {
     contact: { email: 'ada@example.com', firstName: 'Ada' },
     variables: { plan: 'pro' },
-    event: { 'product.activated': { eventId: 'activation:1', data: { plan: 'pro' } } },
+    event: { 'product.activated.v1': { eventId: 'activation:1', data: { plan: 'pro' } } },
   };
 
   it('reads nested paths and falls back to defaults', () => {
@@ -20,7 +20,7 @@ describe('action catalog value resolution', () => {
     expect(valueAtPath(root, 'contact.missing')).toBeUndefined();
     expect(resolveValue({ literal: 42 }, root)).toBe(42);
     expect(resolveValue({ path: 'variables.plan' }, root)).toBe('pro');
-    expect(resolveValue({ path: 'event["product.activated"].data.plan' }, root)).toBe('pro');
+    expect(resolveValue({ path: 'event["product.activated.v1"].data.plan' }, root)).toBe('pro');
     expect(resolveValue({ path: 'variables.missing', default: 'free' }, root)).toBe('free');
   });
 

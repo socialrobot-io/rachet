@@ -21,13 +21,20 @@ rachet template preview
 rachet workflow show --name Onboarding
 ```
 
-Signal a live enrollment with a stable event ID:
+Define the versioned event type, then signal a live enrollment with a stable event ID:
+
+```sh
+rachet call event_type.define --input '{
+  "eventType": "product.activated.v1",
+  "schema": { "type": "object", "additionalProperties": false }
+}'
+```
 
 ```sh
 rachet call event.emit --input '{
   "enrollmentId": "ENROLLMENT_ID",
   "eventId": "product-activation:ACTIVITY_ID",
-  "eventType": "product.activated",
+  "eventType": "product.activated.v1",
   "data": {}
 }'
 ```

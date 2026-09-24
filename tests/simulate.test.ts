@@ -99,7 +99,7 @@ describe('simulateWorkflow', () => {
         { id: 'no', type: 'end', reason: 'no' },
       ],
     });
-    expect(simulateWorkflow(definition, {}, {}, ['product.activated']).result).toBe('yes');
+    expect(simulateWorkflow(definition, {}, {}, [{ eventType: 'product.activated', data: {} }]).result).toBe('yes');
     expect(simulateWorkflow(definition, {}, {}, []).result).toBe('no');
   });
 
@@ -111,7 +111,7 @@ describe('simulateWorkflow', () => {
         {
           id: 'check',
           type: 'branch',
-          condition: { op: 'eq', left: { path: 'event["product.activated"].data.plan' }, right: { literal: 'pro' } },
+          condition: { op: 'eq', left: { path: 'event["product.activated.v1"].data.plan' }, right: { literal: 'pro' } },
           onTrue: 'pro',
           onFalse: 'free',
         },
@@ -119,6 +119,6 @@ describe('simulateWorkflow', () => {
         { id: 'free', type: 'end', reason: 'free' },
       ],
     });
-    expect(simulateWorkflow(definition, {}, {}, [{ eventType: 'product.activated', data: { plan: 'pro' } }]).result).toBe('pro');
+    expect(simulateWorkflow(definition, {}, {}, [{ eventType: 'product.activated.v1', data: { plan: 'pro' } }]).result).toBe('pro');
   });
 });

@@ -43,6 +43,7 @@
     "@temporalio/common": "1.23.0",
     "@temporalio/worker": "1.23.0",
     "@temporalio/workflow": "1.23.0",
+    "ajv": "8.20.0",
     "better-auth": "1.7.4",
     "drizzle-orm": "0.45.2",
     "hono": "4.13.7",

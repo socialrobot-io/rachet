@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import {
   accountCreateSchema, credentialCreateSchema, credentialListSchema, credentialRevokeSchema, contactUpsertSchema, enrollmentControlSchema, enrollmentCreateSchema,
-  eventEmitSchema, workflowCreateSchema, workflowPublishSchema, workflowSimulateSchema, workflowDefinitionSchema, templateCreateSchema,
+  eventEmitSchema, eventTypeDefineSchema, workflowCreateSchema, workflowPublishSchema, workflowSimulateSchema, workflowDefinitionSchema, templateCreateSchema,
   templateArchiveSchema, templatePublishSchema, templateReviseSchema, templateRenderSchema, workspaceIdSchema,
   type OperationContext,
 } from '@reflow/contracts';
@@ -162,6 +162,14 @@ export function createOperations(service: ReflowService): Record<string, Operati
     'enrollment.cancel': {
       description: 'Cancel an enrollment; an already admitted email cannot be recalled.', input: enrollmentControlSchema, readOnly: false,
       invoke: (context, input) => service.enrollmentControl(context, enrollmentControlSchema.parse(input), 'cancel'),
+    },
+    'event_type.define': {
+      description: 'Define an immutable JSON Schema for one workspace event type. Use a new versioned event name for any schema change.', input: eventTypeDefineSchema, readOnly: false,
+      invoke: (context, input) => service.eventTypeDefine(context, eventTypeDefineSchema.parse(input)),
+    },
+    'event_type.list': {
+      description: 'List the immutable event types and JSON Schemas registered in a workspace.', input: workspaceOnly, readOnly: true,
+      invoke: (context, input) => service.eventTypeList(context, workspaceIdSchema.parse(input.workspaceId)),
     },
     'event.emit': {
       description: 'Durably emit an idempotently named domain event into an enrollment. Returns whether it was newly accepted or an existing duplicate, and whether Temporal delivery is complete or queued.', input: eventEmitSchema, readOnly: false,
