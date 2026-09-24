@@ -266,6 +266,24 @@ describe.skipIf(!runtime)('service invariants (postgres)', () => {
   });
 
   it('accepts each enrollment event identity once and rejects conflicting reuse', async () => {
+    await boot.service.eventTypeDefine(admin, {
+      workspaceId,
+      eventType: 'social_post_created.v1',
+      schema: {
+        type: 'object',
+        required: ['plan', 'nested'],
+        properties: {
+          plan: { type: 'string' },
+          nested: {
+            type: 'object',
+            required: ['enabled'],
+            properties: { enabled: { type: 'boolean' } },
+            additionalProperties: false,
+          },
+        },
+        additionalProperties: false,
+      },
+    });
     const { published } = await publishHtmlTemplate(`event-${crypto.randomUUID().slice(0, 6)}`);
     const workflow = await boot.service.workflowCreate(admin, {
       workspaceId,
@@ -298,7 +316,7 @@ describe.skipIf(!runtime)('service invariants (postgres)', () => {
       workspaceId,
       enrollmentId: enrollment.id,
       eventId,
-      eventType: 'social_post_created',
+      eventType: 'social_post_created.v1',
       data: { plan: 'pro', nested: { enabled: true } },
     };
     await expect(boot.service.eventEmit(admin, input)).resolves.toMatchObject({
@@ -316,6 +334,13 @@ describe.skipIf(!runtime)('service invariants (postgres)', () => {
     });
     await expect(boot.service.eventEmit(admin, { ...input, data: { plan: 'enterprise' } }))
       .rejects.toMatchObject({ code: 'IDEMPOTENCY_CONFLICT' });
+
+    await expect(boot.service.eventEmit(admin, {
+      ...input, eventId: `invalid:${crypto.randomUUID()}`, data: { plan: 'pro' },
+    })).rejects.toMatchObject({ code: 'EVENT_DATA_INVALID' });
+    await expect(boot.service.eventEmit(admin, {
+      ...input, eventId: `unknown:${crypto.randomUUID()}`, eventType: 'social_post_deleted.v1',
+    })).rejects.toMatchObject({ code: 'EVENT_TYPE_NOT_FOUND' });
 
     const receipts = await boot.db.select().from(enrollmentEvents).where(eq(enrollmentEvents.enrollmentId, enrollment.id));
     expect(receipts).toHaveLength(1);

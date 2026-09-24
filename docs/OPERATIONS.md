@@ -15,6 +15,7 @@ Every product operation is defined once in `apps/server/src/operations.ts` and e
 | `contact.upsert`, `contact.list` | Manage enrolled contacts |
 | `enrollment.create`, `enrollment.list` | Start and inspect durable executions |
 | `enrollment.pause`, `enrollment.resume`, `enrollment.cancel` | Control one Temporal execution |
+| `event_type.define`, `event_type.list` | Define and inspect immutable, versioned JSON Schema contracts for product events |
 | `event.emit` | Durably accept a stable event ID and JSON payload for one enrollment; identical retries are no-ops and transient delivery failures are queued |
 | `message.list`, `webhook_event.list` | Inspect send ledger and verified Resend events |
 
@@ -26,7 +27,7 @@ A workflow has one trigger, an entry node, purpose/topic metadata, and up to 100
 
 For a scheduled trigger, CLI and MCP both require `at` as ISO 8601 with an explicit offset (or `Z`) and `timeZone` as a matching IANA name: `{"type":"schedule","at":"2026-07-01T09:00:00+02:00","timeZone":"Europe/Amsterdam"}`. A time without an offset, a missing timezone, or an offset that disagrees with the named timezone is rejected. Ask the user which timezone they mean when they give a local time; suggest their own timezone, but do not silently guess. Contact `timezone` values also use IANA names. Delay and event timeout values are elapsed seconds; they are not local calendar schedules.
 
-Graphs reject duplicate IDs, missing targets, cycles, unreachable nodes, unknown actions, and missing required action inputs. `workflow.simulate` follows the graph using sample inputs, treats delays as immediate, chooses event or timeout routes from `receivedEvents`, resolves action inputs, and never executes side effects.
+Graphs reject duplicate IDs, missing targets, cycles, unreachable nodes, unknown actions, missing required action inputs, and event types that the workspace has not defined. `workflow.simulate` follows the graph using sample inputs, checks each event payload against its registered schema, treats delays as immediate, chooses event or timeout routes from `receivedEvents`, resolves action inputs, and never executes side effects.
 
 `email.send` requires a literal published template-version UUID at publication. `contact.update` merges a resolved object into contact fields. Future provider and integration adapters register additional actions through the same catalog and executor boundary.
 

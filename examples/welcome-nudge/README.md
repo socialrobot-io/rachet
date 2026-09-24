@@ -76,13 +76,20 @@ reflow call enrollment.create --input '{
 }'
 ```
 
-Optional: within 20 seconds, emit the product event and skip the reminder. Keep `eventId` stable if your application retries the request:
+Optional: define the event type, then emit the product event within 20 seconds to skip the reminder. Keep `eventId` stable if your application retries the request:
 
 ```sh
-reflow call event.emit --input '{
+rachet call event_type.define --input '{
+  "eventType": "product.activated.v1",
+  "schema": { "type": "object", "additionalProperties": false }
+}'
+```
+
+```sh
+rachet call event.emit --input '{
   "enrollmentId": "ENROLLMENT_ID",
   "eventId": "activation-1",
-  "eventType": "product.activated",
+  "eventType": "product.activated.v1",
   "data": {}
 }'
 ```
@@ -92,7 +99,7 @@ For application HTTP and MCP examples, see [Sending product events](../../docs/E
 ## Flow
 
 ```text
-welcome → wait 20s for product.activated
+welcome → wait 20s for product.activated.v1
   → event: end (activated)
   → timeout: reminder → end (nudged)
 ```

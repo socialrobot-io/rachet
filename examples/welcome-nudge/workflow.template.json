@@ -1,9 +1,9 @@
 {
   "name": "Welcome nudge",
-  "intent": "Welcome a contact, wait 20 seconds for product.activated, and send one reminder on timeout.",
+  "intent": "Welcome a contact, wait 20 seconds for product.activated.v1, and send one reminder on timeout.",
   "definition": {
     "schemaVersion": "1",
-    "description": "Welcome email, then wait 20s for product.activated; otherwise send a reminder.",
+    "description": "Welcome email, then wait 20s for product.activated.v1; otherwise send a reminder.",
     "trigger": { "type": "manual" },
     "purpose": "transactional",
     "topic": "onboarding",
@@ -22,7 +22,7 @@
       {
         "id": "await_activation",
         "type": "wait_for_event",
-        "eventType": "product.activated",
+        "eventType": "product.activated.v1",
         "timeoutSeconds": 20,
         "onEvent": "end_activated",
         "onTimeout": "send_reminder"

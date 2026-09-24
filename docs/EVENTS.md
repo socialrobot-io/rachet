@@ -1,16 +1,28 @@
 # Sending product events
 
-Product events resume enrollments waiting at a `wait_for_event` node. The event type must exactly match the node's `eventType`, and the event must target the specific enrollment—not merely the contact or workflow.
+Product events resume enrollments waiting at a `wait_for_event` node. Define each event type and its JSON Schema with `event_type_define` before use. The event type must exactly match the node's `eventType`, and the event must target the specific enrollment—not merely the contact or workflow.
 
 ## Test from the CLI
 
 Interactive CLI login remembers the active workspace, so only the enrollment and event fields are required:
 
 ```sh
+rachet call event_type.define --input '{
+  "eventType": "product.activated.v1",
+  "schema": {
+    "type": "object",
+    "required": ["plan"],
+    "properties": { "plan": { "type": "string" } },
+    "additionalProperties": false
+  }
+}'
+```
+
+```sh
 rachet call event.emit --input '{
   "enrollmentId": "ENROLLMENT_ID",
   "eventId": "product-activation:ACTIVITY_ID",
-  "eventType": "product.activated",
+  "eventType": "product.activated.v1",
   "data": { "plan": "pro" }
 }'
 ```
@@ -55,7 +67,7 @@ const event = {
   workspaceId: process.env.REFLOW_WORKSPACE_ID,
   enrollmentId,
   eventId: `product-activation:${activityId}`,
-  eventType: 'product.activated',
+  eventType: 'product.activated.v1',
   data: { plan },
 };
 
@@ -84,7 +96,7 @@ event_emit({
   workspaceId: "WORKSPACE_ID",
   enrollmentId: "ENROLLMENT_ID",
   eventId: "product-activation:ACTIVITY_ID",
-  eventType: "product.activated",
+  eventType: "product.activated.v1",
   data: { plan: "pro" }
 })
 ```
@@ -104,3 +116,5 @@ OAuth/MCP authorization must include `reflow:send`; API keys use the correspondi
 - Provider webhooks such as Resend delivery events are separate. Those arrive at each organization's `/webhooks/resend/<organization-id>` endpoint and update only matching sends; product events use `event.emit`.
 
 See the runnable [welcome + nudge tutorial](../examples/welcome-nudge/) for a complete wait, event, and timeout journey.
+
+See [Event data in workflows](EVENT_DATA.md) to use an event payload in a branch, contact update, or email.

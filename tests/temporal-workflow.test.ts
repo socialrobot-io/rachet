@@ -212,7 +212,7 @@ describe('Temporal enrollment complex flows', () => {
     const definition: WorkflowDefinition = {
       schemaVersion: '1', description: 'Duplicate event', trigger: { type: 'event', eventType: 'social.posted' }, purpose: 'marketing', topic: 'test', entryNodeId: 'capture',
       nodes: [
-        { id: 'capture', type: 'action', action: 'contact.update', input: { fields: { path: 'event.social.posted.data' } }, next: 'done', onError: 'fail' },
+        { id: 'capture', type: 'action', action: 'contact.update', input: { fields: { path: 'event["social.posted"].data' } }, next: 'done', onError: 'fail' },
         { id: 'done', type: 'end', reason: 'completed' },
       ],
     };

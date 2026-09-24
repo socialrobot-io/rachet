@@ -10,14 +10,14 @@ describe('workflow diagram rendering', () => {
     const diagram = renderMermaidWorkflow(definition);
     expect(diagram).toMatch(/^flowchart TD/);
     expect(diagram).toContain('n0 -->|"next"| n1');
-    expect(diagram).toContain('n1 -->|"on product.activated"| n2');
+    expect(diagram).toContain('n1 -->|"on product.activated.v1"| n2');
   });
 
   it('renders generated Mermaid as a self-contained SVG', () => {
     const svg = renderWorkflowSvg(definition);
     expect(svg).toMatch(/^<svg/);
     expect(svg).toContain('welcome  action · email.send');
-    expect(svg).toContain('product.activated');
+    expect(svg).toContain('product.activated.v1');
 
     expect(svg).not.toContain('@import');
   });

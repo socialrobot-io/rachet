@@ -6,6 +6,8 @@ import {
   templateCreateSchema,
   templateReviseSchema,
   valueSourceSchema,
+  eventTypeDefineSchema,
+  workflowSimulateSchema,
   workflowDefinitionSchema,
   triggerSchema,
 } from '../packages/contracts/src/index.js';
@@ -31,6 +33,31 @@ describe('timezone-aware operation contracts shared by CLI and MCP', () => {
     const contact = { workspaceId, email: 'contact@example.com', timezone: 'Europe/Amsterdam' };
     expect(contactUpsertSchema.safeParse(contact).success).toBe(true);
     expect(contactUpsertSchema.safeParse({ ...contact, timezone: 'UTC+2' }).success).toBe(false);
+  });
+});
+
+describe('typed event contracts', () => {
+  it('requires versioned-style event names and object-shaped simulation input', () => {
+    expect(eventTypeDefineSchema.safeParse({
+      workspaceId,
+      eventType: 'product.activated.v1',
+      schema: { type: 'object' },
+    }).success).toBe(true);
+    expect(eventTypeDefineSchema.safeParse({
+      workspaceId,
+      eventType: 'Product Activated',
+      schema: { type: 'object' },
+    }).success).toBe(false);
+
+    const definition = {
+      schemaVersion: '1', description: 'Wait for activation.', trigger: { type: 'manual' }, entryNodeId: 'wait',
+      nodes: [
+        { id: 'wait', type: 'wait_for_event', eventType: 'product.activated.v1', timeoutSeconds: 30, onEvent: 'done', onTimeout: 'done' },
+        { id: 'done', type: 'end', reason: 'done' },
+      ],
+    };
+    expect(workflowSimulateSchema.safeParse({ workspaceId, definition, receivedEvents: [{ eventType: 'product.activated.v1', data: {} }] }).success).toBe(true);
+    expect(workflowSimulateSchema.safeParse({ workspaceId, definition, receivedEvents: ['product.activated.v1'] }).success).toBe(false);
   });
 });
 
