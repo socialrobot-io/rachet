@@ -40,5 +40,22 @@
         "^build"
       ]
     }
+  },
+  "release": {
+    "projects": [
+      "cli",
+      "sdk"
+    ],
+    "projectsRelationship": "fixed",
+    "releaseTag": {
+      "pattern": "v{version}",
+      "checkAllBranchesWhen": true
+    },
+    "changelog": {
+      "workspaceChangelog": {
+        "file": false,
+        "createRelease": "github"
+      }
+    }
   }
 }

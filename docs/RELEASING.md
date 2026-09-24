@@ -19,13 +19,13 @@ The workflow uses GitHub OIDC and npm provenance. It does not require a long-liv
 
 ## Release procedure
 
-1. Update `packages/cli/package.json` to the release version. The git tag must match that CLI version (`v0.1.3` for CLI `0.1.3`).
-2. Set `packages/sdk/package.json` to the SDK version you want published in the same release (independent of the CLI version when needed).
+1. Run `pnpm nx release version <version> --dry-run`. Both published packages use one version and the tag format is `v<version>`.
+2. Run the command again without `--dry-run`, review the changed manifests, and commit the version change.
 3. Run `make check` from a clean checkout.
 4. Inspect dry-run tarballs and confirm each package only contains its compiled output, README, LICENSE, and package metadata.
-5. Create and push a tag named `v<cli-version>`.
+5. Create and push the `v<version>` tag.
 
-The release workflow runs the full check, verifies the tag matches the CLI version, then publishes both packages with public access and provenance.
+The release workflow runs the full check, verifies the tag, publishes both packages with public access and provenance, then asks Nx to create the GitHub Release and generated notes. A release must be tagged from the commit that contains its version bump.
 
 After the first successful Rachet publish, deprecate the old names from an authenticated npm session:
 

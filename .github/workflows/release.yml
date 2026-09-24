@@ -6,7 +6,7 @@ on:
       - 'v*'
 
 permissions:
-  contents: read
+  contents: write
   id-token: write
 
 jobs:
@@ -16,6 +16,8 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: 24
@@ -36,3 +38,7 @@ jobs:
         run: pnpm --filter @socialrobot-io/rachet publish --no-git-checks --provenance
       - name: Publish SDK with provenance
         run: pnpm --filter @socialrobot-io/rachet-sdk publish --no-git-checks --provenance
+      - name: Create GitHub release
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: pnpm nx release changelog "${GITHUB_REF_NAME#v}"
