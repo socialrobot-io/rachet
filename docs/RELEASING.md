@@ -25,7 +25,7 @@ The workflow uses GitHub OIDC and npm provenance. It does not require a long-liv
 4. Inspect dry-run tarballs and confirm each package only contains its compiled output, README, LICENSE, and package metadata.
 5. Create and push a tag named `v<cli-version>`.
 
-The release workflow runs the full check, verifies the tag matches the CLI version, then publishes both packages with public access and provenance.
+The release workflow runs the full check, verifies the tag matches the CLI version, publishes both packages with public access and provenance, and creates the matching GitHub Release with generated notes.
 
 After the first successful Rachet publish, deprecate the old names from an authenticated npm session:
 
