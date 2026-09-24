@@ -1,6 +1,6 @@
 {
   "name": "@socialrobot-io/rachet-sdk",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Browser-compatible SDK for triggering Rachet workflows",
   "license": "AGPL-3.0-only",
   "type": "module",
