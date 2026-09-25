@@ -21,11 +21,11 @@ The workflow uses GitHub OIDC and npm provenance. It does not require a long-liv
 
 1. Update `packages/cli/package.json` to the release version. The git tag must match that CLI version (`v0.1.3` for CLI `0.1.3`).
 2. Set `packages/sdk/package.json` to the SDK version you want published in the same release (independent of the CLI version when needed).
-3. Run `make check` from a clean checkout.
+3. Run `make check` from a clean checkout. It rebuilds the CLI and checks that its executable reports the package version and requests only `rachet:*` OAuth scopes.
 4. Inspect dry-run tarballs and confirm each package only contains its compiled output, README, LICENSE, and package metadata.
 5. Create and push a tag named `v<cli-version>`.
 
-The release workflow runs the full check, verifies the tag matches the CLI version, publishes both packages with public access and provenance, and creates the matching GitHub Release with generated notes.
+The release workflow runs the full check, verifies the tag matches the CLI version, rebuilds the CLI without Nx cache, verifies its publish artifact, publishes package versions that are not already in npm with public access and provenance, and creates the matching GitHub Release with generated notes.
 
 After the first successful Rachet publish, deprecate the old names from an authenticated npm session:
 

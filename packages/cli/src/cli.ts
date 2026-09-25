@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { readFile } from 'node:fs/promises';
+import { createRequire } from 'node:module';
 import { Command } from 'commander';
 import { ReflowClient, ReflowClientError } from './client.js';
 import { chooseWorkspace, type WorkspaceChoice } from './cli-prompts.js';
@@ -8,6 +9,9 @@ import { loginWithBrowser, refreshOAuth } from './oauth.js';
 import { workflowDefinitionSchema } from '../../contracts/src/index.js';
 import { renderMermaidWorkflow, renderWorkflowSvg } from './tui/workflow-graph.js';
 import { registerTemplateCommands } from './cli-templates.js';
+
+const require = createRequire(import.meta.url);
+const { version: cliVersion } = require('../package.json') as { version: string };
 
 class CliFailure extends Error {
   constructor(message: string, readonly hint?: string) {
@@ -102,7 +106,7 @@ async function openTui(selector?: string): Promise<void> {
   await launchTui(workspace.id, client(context));
 }
 
-const program = new Command().name('rachet').description('Operate Rachet entirely from the command line.').version('0.1.0');
+const program = new Command().name('rachet').description('Operate Rachet entirely from the command line.').version(cliVersion);
 program.command('call').argument('<operation>', 'Operation name, such as workflow.validate').option('-i, --input <json>').option('-f, --file <path>').action(async (operation, options: { input?: string; file?: string }) => {
   const context = await resolveAuthenticatedCliContext();
   const input = await jsonInput(options.input, options.file);

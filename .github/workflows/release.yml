@@ -32,9 +32,20 @@ jobs:
         run: |
           expected="v$(node -p 'require("./packages/cli/package.json").version')"
           test "${GITHUB_REF_NAME}" = "${expected}"
+      - name: Check package versions in npm
+        id: npm_versions
+        run: |
+          cli="@socialrobot-io/rachet@$(node -p 'require("./packages/cli/package.json").version')"
+          sdk="@socialrobot-io/rachet-sdk@$(node -p 'require("./packages/sdk/package.json").version')"
+          if npm view "${cli}" version >/dev/null 2>&1; then echo "cli_published=true" >> "$GITHUB_OUTPUT"; else echo "cli_published=false" >> "$GITHUB_OUTPUT"; fi
+          if npm view "${sdk}" version >/dev/null 2>&1; then echo "sdk_published=true" >> "$GITHUB_OUTPUT"; else echo "sdk_published=false" >> "$GITHUB_OUTPUT"; fi
+      - name: Rebuild and verify CLI publish artifact
+        run: pnpm nx run cli:build --skipNxCache && pnpm --filter @socialrobot-io/rachet verify:artifact
       - name: Publish CLI with provenance
+        if: steps.npm_versions.outputs.cli_published != 'true'
         run: pnpm --filter @socialrobot-io/rachet publish --no-git-checks --provenance
       - name: Publish SDK with provenance
+        if: steps.npm_versions.outputs.sdk_published != 'true'
         run: pnpm --filter @socialrobot-io/rachet-sdk publish --no-git-checks --provenance
       - name: Create GitHub release
         env:
