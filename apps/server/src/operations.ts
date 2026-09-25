@@ -44,7 +44,9 @@ export function createOperations(service: ReflowService): Record<string, Operati
             'Call template.list and workflow.list in the target workspace; reuse before inventing.',
             'For a user-specified clock time without a timezone, ask which IANA timezone they mean; suggest "your own timezone". Never infer it from the host. Scheduled triggers require an offset datetime and matching IANA timeZone; confirm DST ambiguity.',
             'Check examples/ (welcome-nudge, onboarding.workflow.json) for graph patterns.',
-            'After reviewing local TSX, prefer `reflow template push ... --allow-code-execution`; it upserts by --name (revise + publish).',
+            'Prefer React Email via `reflow template push ... --allow-code-execution` (upserts by --name). MCP never executes TSX.',
+            'If React Email is not set up or not detected (CLI auth, deps, or local .tsx), ask the user to set it up; cite benefits: client-ready HTML+plain text, local preview, components, production push path.',
+            'If they decline, warn that MCP hand-written HTML may not be email-client compliant, then use template.create/revise with sourceKind=html and say so. Never fall back silently.',
           ],
           simulate: [
             'Always simulate at least two paths: no events (timeout/false branches) and with key activation events received.',

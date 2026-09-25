@@ -6,7 +6,7 @@
 2. Call `template_list` and `workflow_list`. Reuse before inventing. Check `examples/` for graph patterns (`welcome-nudge/` for the React Email push flow, `onboarding.workflow.json` for a multi-step graph).
 3. Turn the request into a finite graph. Use only catalog actions. Every wait-for-event needs an explicit timeout route, every branch needs true and false routes, and all routes must reach an end node.
    If the user gives a local time without a timezone, ask which IANA timezone to use and suggest "your own timezone". For a schedule, supply `trigger.at` with an explicit offset and `trigger.timeZone` with the matching IANA name. Check DST gaps and folds with the user; delays remain elapsed seconds.
-4. Review the local React Email source, then create/revise it with CLI `reflow template push ... --allow-code-execution` (upserts by `--name`). Put the returned immutable `templateVersionId` in `email.send.input.templateVersionId.literal`. Prefer this over MCP `template_create` for TSX sources; the server never executes TSX.
+4. Prefer React Email via CLI `reflow template push ... --allow-code-execution` (upserts by `--name`). Put the returned immutable `templateVersionId` in `email.send.input.templateVersionId.literal`. The server never executes TSX. If React Email is not set up or not detected (CLI auth, deps, or local `.tsx`), ask the user to set it up and explain the benefits (client-ready HTML + plain text, local preview, components, production push path). If they decline, warn that MCP hand-written HTML may not be email-client compliant, then use `template_create` / `template_revise` with `sourceKind=html` and say so explicitly. Never fall back silently.
 5. Define each event type first with `event_type_define` and an immutable JSON Schema. Call `workflow_validate`. Then call `workflow_simulate` twice: once with `receivedEvents: []`, once with the activation events the product will emit. Use `{ "eventType": "product.activated.v1", "data": { ... } }` when a branch or action reads the payload. Inspect resolved action inputs and both event/timeout scenarios.
 6. Call `workflow_create` with the original natural-language `intent` and validated definition. Publish only when requested. Publishing returns the immutable workflow version used for enrollment.
 7. Upsert contacts and call `enrollment_create` with a stable idempotency key when live execution is authorized.
@@ -18,6 +18,7 @@ The MCP host agent performs the natural-language interpretation. Rachet validate
 - Names are unique per workspace (`template_name_unique`). Re-pushing the same `--name` must revise + publish, not create a sibling.
 - `template.create` on a taken name returns `TEMPLATE_NAME_EXISTS` with a hint. Use `template.revise` then `template.publish`, or `reflow template push`.
 - Archived templates cannot be revised or republished; pick a new name.
+- Setup shortcuts: `reflow template init [dir]`, install packages the CLI lists, `reflow template preview`, then `reflow template push <file.tsx> --name … --subject … --allow-code-execution`.
 
 ## Event vocabulary (product wiring)
 

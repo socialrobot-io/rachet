@@ -14,8 +14,24 @@ Prefer the authenticated MCP endpoint. Use CLI for the same operations or truste
 3. Skim repo examples before inventing a graph:
    - `examples/welcome-nudge/` (React Email templates + push flow, minimal welcome + wait)
    - `examples/onboarding.workflow.json` (multi-step graph with email.send and contact.update)
-4. Author and review React Email locally; publish with `reflow template push ... --allow-code-execution` (upserts by `--name`: revise + publish). TSX runs with the local user's permissions; never opt in for untrusted source. Do not create `… v2` duplicates when a name already exists.
+4. Publish email templates through the React Email path when possible (see **React Email vs MCP** below). Never silently invent hand-written HTML when React Email is expected or available.
 5. Validate → simulate **two** traces (no events + with representative activation event data) → `workflow_create`. Publish/enroll only when the user authorized side effects.
+
+## React Email vs MCP
+
+MCP never executes TSX. The server only stores HTML + plain text and interpolates `{{…}}` at send time. Local React Email render happens only through CLI `reflow template push ... --allow-code-execution` (upserts by `--name`). TSX runs with the local user's permissions; never opt in for untrusted source. Do not create `… v2` name duplicates.
+
+**Detect** React Email readiness before creating a template: CLI authenticated, `react-email` (and preview deps if needed) resolvable in the project that owns the `.tsx`, and a reviewed local template file (or `reflow template init` sample) ready to push. Missing any of these means React Email is not set up.
+
+**If not set up or not detected**, stop and ask the user to set it up. Recommend it with these benefits:
+- Renders to HTML and plain text suited for common email clients
+- Local preview (`reflow template preview`) before anything is published
+- Component layout instead of hand-maintained table HTML
+- Same publish path production uses (`template push` → immutable version pin)
+
+Point them at `reflow template init`, install the missing React Email packages the CLI prints, `reflow auth login` if needed, then `reflow template push … --allow-code-execution`.
+
+**If they still decline**, warn once that MCP will upload hand-written HTML that may not be email-client compliant (broken layout in Outlook/Gmail, weak multipart plain text, fragile CSS). Only then use `template_create` / `template_revise` with `sourceKind=html`, and state in the reply that the template is not React Email.
 
 Translate the user's intent into explicit triggers, actions, delays, event waits, branches, timeouts, and end states. Define each versioned event type with `event_type_define` and a JSON Schema before a graph refers to it. Call `workflow_validate` and `workflow_simulate` with representative contact, variables, and schema-valid event data. Use `{ "eventType": "product.activated.v1", "data": { ... } }` when a graph reads an event payload. Read a dotted event name with `event["product.activated.v1"].data.field`. Show the trace and repair errors before `workflow_create`. Simulation does not wait or run side effects.
 
