@@ -52,7 +52,7 @@ export function createOperations(service: ReflowService): Record<string, Operati
             'receivedEvents is a set for the whole trace. It cannot show a timeout followed by the same event on a later wait.',
           ],
           sideEffects: [
-            'Stop after workflow.create unless the user asked to publish or enroll. workflow.publish does not enroll. enrollment.create can send mail.',
+            'After workflow.create, ask whether to connect the workflow to the app. If yes, workflow.publish, then wire enrollment.create where the journey should start and event.emit for each waited event. If no, leave the draft and warn that waited events must be emitted manually. workflow.publish does not send mail. enrollment.create can.',
             'Keep idempotencyKey stable across retries. event.emit needs enrollmentId and a stable eventId.',
           ],
         },

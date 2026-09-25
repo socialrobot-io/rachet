@@ -18,9 +18,18 @@ Copy this checklist and check items off as you go:
 - [ ] For each new email, call `template_create` with `sourceKind=html` and a plain-text `body`, then `template_publish`. In the same step, call `event_type_define` for each event the graph waits on.
 - [ ] Call `workflow_validate`. Fix the reported errors and validate again.
 - [ ] Call `workflow_simulate` twice. First with `receivedEvents: []`. Then with the activation event and schema-valid `data`.
-- [ ] Call `workflow_create` with the user's intent. Stop.
+- [ ] Call `workflow_create` with the user's intent.
+- [ ] Ask whether to connect this workflow to the app. See **Connect**. Do not publish or change the app before they answer.
 
-Publish the workflow or enroll a contact only when the user asked. Publishing does not enroll. Enrollment can send email.
+## Connect
+
+If they say yes, check these off:
+
+- [ ] Call `workflow_publish`. Keep the returned workflow version id. Publishing does not send email.
+- [ ] Where the product should start this journey, upsert the contact and call `enrollment_create` with that version id and a stable idempotency key. Enrollment can send the first email.
+- [ ] For each `wait_for_event`, call `event_emit` from the product action that means that event. Use the enrollment id, a stable event id, and data that matches the event schema.
+
+If they say no, leave the workflow as a draft. If the graph waits on events, warn that those events will not arrive until the product calls `event_emit` for them.
 
 ## Graph
 

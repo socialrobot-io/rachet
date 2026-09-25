@@ -23,7 +23,7 @@ Read a dotted event name as `event["workflow.created.v1"].data.workflowId`. Brac
 
 ## Enrollment
 
-Call `enrollment_create` only when the user asked to enroll someone. Keep `idempotencyKey` stable across retries, for example `welcome-<userId>`.
+Connect the app only after the user agrees in [SKILL.md](../SKILL.md). Keep `idempotencyKey` stable across retries, for example `welcome-<userId>`.
 
 Pass links as enrollment `variables`. Templates read them as `{{variables.workflowsUrl}}` and `{{variables.replyMailto}}`.
 

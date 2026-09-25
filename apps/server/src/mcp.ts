@@ -113,7 +113,7 @@ export async function createMcpServer(operations: Record<string, Operation>, con
     'Include only the emails, waits, and branches in the intent. contact.update writes contact fields and is not part of the email. Add it only when the intent asks to store a field.',
     'Create HTML templates with template_create and template_publish. Pin each email.send to the published version id.',
     'workflow_validate, then workflow_simulate twice (no events, then the activation event). Fix errors before workflow_create.',
-    'Do not publish or enroll unless the intent asks for that.',
+    'After workflow_create, ask whether to connect the workflow to the app. If yes, publish it and wire enrollment plus any waited events. If no, leave the draft and warn that waited events must be emitted manually.',
   ].join('\n') } }] }));
   return server;
 }
