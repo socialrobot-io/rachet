@@ -9,6 +9,7 @@ import {
   Mail,
   Play,
   Square,
+  UserRound,
   Zap,
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
@@ -83,8 +84,16 @@ function actionTitle(node: Extract<Block, { kind: 'action' }>['node']): string {
   return nodeLabel(node);
 }
 
+function ActionIcon({ action }: { action: string }) {
+  const className = 'size-3.5 shrink-0 text-muted-foreground';
+  if (action === 'contact.update') return <UserRound className={className} aria-hidden />;
+  if (action === 'email.send') return <Mail className={className} aria-hidden />;
+  return <Zap className={className} aria-hidden />;
+}
+
 function ActionRow({
   id,
+  action,
   title,
   hint,
   status,
@@ -94,6 +103,7 @@ function ActionRow({
   onPreview,
 }: {
   id: string;
+  action: string;
   title: string;
   hint?: string | undefined;
   status: BlockStatus;
@@ -131,7 +141,7 @@ function ActionRow({
           : undefined
       }
     >
-      <Mail className="size-3.5 shrink-0 text-muted-foreground" />
+      <ActionIcon action={action} />
       <span className="min-w-0 flex-1 truncate font-medium tracking-tight">{title}</span>
       {hint && (
         <span className="rounded bg-muted px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wide text-muted-foreground">
@@ -309,6 +319,7 @@ function BranchView({ block, paint }: { block: Extract<Block, { kind: 'branch' }
             <div key={arm.id} className={cn(dim && 'opacity-40')}>
               <ActionRow
                 id={arm.id}
+                action={arm.node.action}
                 title={actionTitle(arm.node)}
                 hint={prefix ? arm.id.slice(prefix.length).replaceAll('_', ' ').toUpperCase() : undefined}
                 status={statusOf(arm.id, paint)}
@@ -461,6 +472,7 @@ function BlockView({ block, paint }: { block: Block; paint: Paint }) {
       return (
         <ActionRow
           id={block.id}
+          action={block.node.action}
           title={actionTitle(block.node)}
           status={statusOf(block.id, paint)}
           count={paint.counts?.get(block.id) ?? 0}

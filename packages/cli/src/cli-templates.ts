@@ -190,7 +190,6 @@ export function registerTemplateCommands(
         sourceKind: 'html' as const,
         html: rendered.html,
         body: rendered.plainText,
-        tsxSource,
       };
       const existing = (await client.call<Array<{
         id: string;

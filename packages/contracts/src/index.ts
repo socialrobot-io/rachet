@@ -25,8 +25,6 @@ export const templateCreateSchema = z.object({
   /** Pre-rendered HTML with {{contact.*}} / {{variables.*}} placeholders. Prefer this over plain. */
   html: z.string().max(500_000).optional(),
   sourceKind: z.enum(['plain', 'html']).default('plain'),
-  /** Optional authoring source for provenance only. Never executed by the server. */
-  tsxSource: z.string().max(200_000).optional(),
   propsSchema: z.record(z.string(), z.unknown()).default({}),
 }).superRefine((value, context) => {
   if (value.sourceKind === 'html') {
@@ -46,7 +44,6 @@ export const templateReviseSchema = z.object({
   body: z.string().max(200_000).optional(),
   html: z.string().max(500_000).optional(),
   sourceKind: z.enum(['plain', 'html']).default('plain'),
-  tsxSource: z.string().max(200_000).optional(),
   propsSchema: z.record(z.string(), z.unknown()).default({}),
 }).superRefine((value, context) => {
   if (value.sourceKind === 'html') {

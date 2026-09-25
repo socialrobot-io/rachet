@@ -126,7 +126,6 @@ export const templates = pgTable('templates', {
   body: text('body').notNull(),
   html: text('html'),
   sourceKind: text('source_kind').$type<'plain' | 'html'>().notNull().default('plain'),
-  tsxSource: text('tsx_source'),
   propsSchema: jsonb('props_schema').$type<Record<string, unknown>>().notNull().default({}),
   ...timestamps,
 }, (table) => [uniqueIndex('template_name_unique').on(table.workspaceId, table.name)]);
@@ -142,7 +141,6 @@ export const templateVersions = pgTable('template_versions', {
   body: text('body').notNull(),
   html: text('html'),
   sourceKind: text('source_kind').$type<'plain' | 'html'>().notNull().default('plain'),
-  tsxSource: text('tsx_source'),
   propsSchema: jsonb('props_schema').$type<Record<string, unknown>>().notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 }, (table) => [uniqueIndex('template_version_unique').on(table.templateId, table.version)]);

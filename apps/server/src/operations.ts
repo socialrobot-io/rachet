@@ -41,25 +41,19 @@ export function createOperations(service: ReflowService): Record<string, Operati
         operations: Object.keys(createOperations(service)).filter((name) => name !== 'credential.create'),
         agentCookbook: {
           beforeAuthoring: [
-            'Call template.list and workflow.list in the target workspace; reuse before inventing.',
-            'For a user-specified clock time without a timezone, ask which IANA timezone they mean; suggest "your own timezone". Never infer it from the host. Scheduled triggers require an offset datetime and matching IANA timeZone; confirm DST ambiguity.',
-            'Check examples/ (welcome-nudge, onboarding.workflow.json) for graph patterns.',
-            'Prefer React Email via `reflow template push ... --allow-code-execution` (upserts by --name). MCP never executes TSX.',
-            'If React Email is not set up or not detected (CLI auth, deps, or local .tsx), ask the user to set it up; cite benefits: client-ready HTML+plain text, local preview, components, production push path.',
-            'If they decline, warn that MCP hand-written HTML may not be email-client compliant, then use template.create/revise with sourceKind=html and say so. Never fall back silently.',
+            'Follow skill://reflow/SKILL.md. Use MCP. Do not use the CLI or write template files.',
+            'Call auth.whoami, then template.list and workflow.list. Reuse a live template. Skip archived templates.',
+            'Include only emails, waits, and branches the user named. Do not add contact.update unless they asked to store a contact field. contact.update merges contact fields. It does not change the email.',
+            'Do not insert an extra wait. timeoutSeconds is elapsed seconds. Two days is 172800.',
+            'Before new HTML, read one existing template from template.list and any design notes the project already has. Do not assume a file path. Match that look. Then template.create with HTML (sourceKind=html) plus a plain-text body. Do not upload .tsx. TEMPLATE_NAME_EXISTS means template.revise then template.publish. Do not create a v2 name.',
           ],
           simulate: [
-            'Always simulate at least two paths: no events (timeout/false branches) and with key activation events received.',
-            'Use a fast-test twin (seconds, not days) when validating long delay sequences live.',
+            'workflow.validate, then workflow.simulate twice: receivedEvents=[] and with the activation event. Fix errors before workflow.create.',
+            'receivedEvents is a set for the whole trace. It cannot show a timeout followed by the same event on a later wait.',
           ],
           sideEffects: [
-            'workflow.publish does not enroll. enrollment.create sends mail.',
-            'Keep idempotencyKey stable across retries (welcome-first-week-<userId>).',
-            'event.emit needs enrollmentId + stable eventId; product hooks must signal the enrollment.',
-          ],
-          eventVocabularyHint: [
-            'Prefer dotted product events: account.connected, post.scheduled, posts.queued.',
-            'Align names with the product analytics vocabulary when wiring hooks.',
+            'Stop after workflow.create unless the user asked to publish or enroll. workflow.publish does not enroll. enrollment.create can send mail.',
+            'Keep idempotencyKey stable across retries. event.emit needs enrollmentId and a stable eventId.',
           ],
         },
       }),
@@ -90,7 +84,7 @@ export function createOperations(service: ReflowService): Record<string, Operati
       invoke: (context, input) => service.credentialRevoke(context, credentialRevokeSchema.parse(input)),
     },
     'template.create': {
-      description: 'Create a template draft. Prefer sourceKind=html with pre-rendered html + plain-text body (CLI: `reflow template push` renders React Email locally). Subject/preheader/html/body use {{contact.*}} / {{variables.*}} placeholders. The server never executes TSX. Fails with TEMPLATE_NAME_EXISTS when the name is taken; use template.revise or `reflow template push` (upserts by name).', input: templateCreateSchema, readOnly: false,
+      description: 'Create a template draft from HTML (sourceKind=html, with a plain-text body) or plain text. Subject, preheader, html, and body use {{contact.*}} and {{variables.*}} placeholders. Do not upload .tsx. Fails with TEMPLATE_NAME_EXISTS when the name is taken; use template.revise.', input: templateCreateSchema, readOnly: false,
       invoke: (context, input) => service.templateCreate(context, templateCreateSchema.parse(input)),
     },
     'template.list': {
@@ -98,7 +92,7 @@ export function createOperations(service: ReflowService): Record<string, Operati
       invoke: (context, input) => service.templateList(context, workspaceIdSchema.parse(input.workspaceId)),
     },
     'template.revise': {
-      description: 'Update draft content for an existing template (optimistic lock via expectedRevision). Call template.publish afterward for a new immutable version. Prefer `reflow template push --name` which revise+publish by name.', input: templateReviseSchema, readOnly: false,
+      description: 'Update draft HTML or plain text for an existing template (optimistic lock via expectedRevision). Call template.publish afterward for a new immutable version.', input: templateReviseSchema, readOnly: false,
       invoke: (context, input) => service.templateRevise(context, templateReviseSchema.parse(input)),
     },
     'template.publish': {

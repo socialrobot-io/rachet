@@ -194,7 +194,6 @@ export class ReflowService {
     body?: string | undefined;
     html?: string | undefined;
     sourceKind?: 'plain' | 'html' | undefined;
-    tsxSource?: string | undefined;
     propsSchema?: Record<string, unknown> | undefined;
   }) {
     this.workspace(context, input.workspaceId, 'author');
@@ -216,7 +215,6 @@ export class ReflowService {
         body,
         html,
         sourceKind,
-        tsxSource: input.tsxSource?.trim() || null,
         propsSchema: input.propsSchema ?? {},
       }).returning();
       if (!created) throw new Error('Template creation failed');
@@ -230,14 +228,13 @@ export class ReflowService {
         409,
         false,
         {
-          hint: 'Call template.revise with the existing templateId (from template.list), or use `reflow template push` which upserts by name. Do not create a second template with a "v2" suffix.',
+          hint: 'Call template.revise with the existing templateId (from template.list), then template.publish. Do not create a second template with a "v2" suffix.',
           details: {
             workspaceId: input.workspaceId,
             name: input.name,
             nextSteps: [
               'template.list → find the row with this name',
               'template.revise (update draft content) → template.publish',
-              'Or re-run `reflow template push <file> --name "<same name>"`',
             ],
           },
         },
@@ -254,7 +251,6 @@ export class ReflowService {
     body?: string | undefined;
     html?: string | undefined;
     sourceKind?: 'plain' | 'html' | undefined;
-    tsxSource?: string | undefined;
     propsSchema?: Record<string, unknown> | undefined;
   }) {
     this.workspace(context, input.workspaceId, 'author');
@@ -288,7 +284,6 @@ export class ReflowService {
       body,
       html,
       sourceKind,
-      tsxSource: input.tsxSource?.trim() || null,
       propsSchema: input.propsSchema ?? {},
       revision: draft.revision + 1,
       updatedAt: new Date(),
@@ -448,7 +443,7 @@ export class ReflowService {
       if (draft.revision !== input.expectedRevision) throw new ReflowError('REVISION_CONFLICT', 'Template revision changed', 409);
       if (draft.state === 'archived') throw new ReflowError('VALIDATION_FAILED', 'Archived templates cannot be published; create a new template instead', 409);
       if (draft.sourceKind === 'html' && !draft.html?.trim()) {
-        throw new ReflowError('VALIDATION_FAILED', 'html template is missing html content; re-push with `reflow template push`', 422);
+        throw new ReflowError('VALIDATION_FAILED', 'html template is missing html content; revise it with template.revise before publishing', 422);
       }
       const countRows = await tx.select({ count: sql<number>`count(*)::int` }).from(templateVersions).where(eq(templateVersions.templateId, draft.id));
       const version = Number(countRows[0]?.count ?? 0) + 1;
@@ -463,7 +458,7 @@ export class ReflowService {
           propsSchema: draft.propsSchema,
         }),
         subject: draft.subject, preheader: draft.preheader, body: draft.body, html: draft.html,
-        sourceKind: draft.sourceKind, tsxSource: draft.tsxSource, propsSchema: draft.propsSchema,
+        sourceKind: draft.sourceKind, propsSchema: draft.propsSchema,
       }).returning();
       await tx.update(templates).set({ state: 'published', updatedAt: new Date() }).where(eq(templates.id, draft.id));
       await tx.insert(auditEvents).values({ workspaceId: input.workspaceId, actorId: context.principal.userId, action: 'template.publish', targetType: 'template_version', targetId: published?.id });

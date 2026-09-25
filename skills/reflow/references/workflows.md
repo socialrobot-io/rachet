@@ -1,70 +1,52 @@
-# Rachet workflow paths
+# Schedules, deletion, and recovery
 
-## Author from natural language
+The create order is in [SKILL.md](../SKILL.md). Read this file only for a clock time, a delete, or a live enrollment.
 
-1. Call `auth_whoami` and `system_capabilities` (read `agentCookbook`); read the action catalog and workflow schema resources.
-2. Call `template_list` and `workflow_list`. Reuse before inventing. Check `examples/` for graph patterns (`welcome-nudge/` for the React Email push flow, `onboarding.workflow.json` for a multi-step graph).
-3. Turn the request into a finite graph. Use only catalog actions. Every wait-for-event needs an explicit timeout route, every branch needs true and false routes, and all routes must reach an end node.
-   If the user gives a local time without a timezone, ask which IANA timezone to use and suggest "your own timezone". For a schedule, supply `trigger.at` with an explicit offset and `trigger.timeZone` with the matching IANA name. Check DST gaps and folds with the user; delays remain elapsed seconds.
-4. Prefer React Email via CLI `reflow template push ... --allow-code-execution` (upserts by `--name`). Put the returned immutable `templateVersionId` in `email.send.input.templateVersionId.literal`. The server never executes TSX. If React Email is not set up or not detected (CLI auth, deps, or local `.tsx`), ask the user to set it up and explain the benefits (client-ready HTML + plain text, local preview, components, production push path). If they decline, warn that MCP hand-written HTML may not be email-client compliant, then use `template_create` / `template_revise` with `sourceKind=html` and say so explicitly. Never fall back silently.
-5. Define each event type first with `event_type_define` and an immutable JSON Schema. Call `workflow_validate`. Then call `workflow_simulate` twice: once with `receivedEvents: []`, once with the activation events the product will emit. Use `{ "eventType": "product.activated.v1", "data": { ... } }` when a branch or action reads the payload. Inspect resolved action inputs and both event/timeout scenarios.
-6. Call `workflow_create` with the original natural-language `intent` and validated definition. Publish only when requested. Publishing returns the immutable workflow version used for enrollment.
-7. Upsert contacts and call `enrollment_create` with a stable idempotency key when live execution is authorized.
+## Clock time
 
-The MCP host agent performs the natural-language interpretation. Rachet validates and executes the resulting capability graph; it does not execute generated code.
+Ask which IANA timezone the user means. Offer "your own timezone" as the choice. Do not infer it from the host, locale, contact, or workspace.
 
-## Template edit loop
+A `schedule` trigger needs both:
 
-- Names are unique per workspace (`template_name_unique`). Re-pushing the same `--name` must revise + publish, not create a sibling.
-- `template.create` on a taken name returns `TEMPLATE_NAME_EXISTS` with a hint. Use `template.revise` then `template.publish`, or `reflow template push`.
-- Archived templates cannot be revised or republished; pick a new name.
-- Setup shortcuts: `reflow template init [dir]`, install packages the CLI lists, `reflow template preview`, then `reflow template push <file.tsx> --name … --subject … --allow-code-execution`.
+- `at`: an ISO 8601 datetime with `Z` or an explicit `±HH:MM` offset
+- `timeZone`: the matching IANA name
 
-## Event vocabulary (product wiring)
+Example: `2026-07-01T09:00:00+02:00` with `Europe/Amsterdam`. Confirm the offset on that date, including daylight-saving changes. If the local time happens twice, ask which one they mean.
 
-Prefer dotted, product-stable names so app hooks and workflow branches stay aligned:
+`delay` and `wait_for_event` are elapsed seconds, not a local clock time. A contact `timezone`, when supplied, is an IANA name.
 
-| Event | Meaning |
-|-------|---------|
-| `account.connected` | User connected an external account |
-| `post.scheduled` | User scheduled (non-draft) a post |
-| `posts.queued` | Habit success: enough posts queued (product-defined threshold) |
+## Event payload
 
-Contact fields can mirror progress (`contact.accountConnected`) for enrollment-time state when events have not been emitted yet.
+Read a dotted event name as `event["workflow.created.v1"].data.workflowId`. Brackets keep the event name as one key.
 
-When the product already emits analytics names (e.g. PostHog `post_created`), either map them at the emit boundary or use those exact strings in the graph. Do not mix both without a mapping layer.
+`workflow_simulate` treats received events as a set for the whole trace. An event in `receivedEvents` takes every `onEvent` route for that type. It cannot show "timeout, then the event on the second wait."
 
-To read event data, use `event["product.activated.v1"].data.field`. Brackets keep a dotted event name as one key. Pass the whole `data` object to `email.send.input.props` or `contact.update.input.fields` when the template or contact needs it. See [event data](../../../docs/EVENT_DATA.md).
+## Enrollment
 
-## Enrollment variables
+Call `enrollment_create` only when the user asked to enroll someone. Keep `idempotencyKey` stable across retries, for example `welcome-<userId>`.
 
-Pass deep links as enrollment `variables` (interpolated as `{{variables.*}}` in templates). Typical set:
+Pass links as enrollment `variables`. Templates read them as `{{variables.workflowsUrl}}` and `{{variables.replyMailto}}`.
 
-```json
-{
-  "accountsUrl": "https://app.example.com/accounts",
-  "composeUrl": "https://app.example.com/compose",
-  "calendarUrl": "https://app.example.com/calendar?view=week",
-  "replyMailto": "mailto:founder@example.com?subject=What's%20getting%20in%20the%20way"
-}
-```
+`event_emit` needs the enrollment id and a stable caller `eventId`. The same `eventId` on retry does not create a second event.
 
-Idempotency key pattern: `welcome-first-week-<userId>` (or email when no user id yet).
+For a live test of a multi-day wait, use a second workflow with the same branches and `timeoutSeconds` in the tens of seconds. Do not shorten the workflow the user asked for.
 
-## Long sequences and live QA
+## Delete
 
-For multi-day delays, keep a **fast-test twin** (same branches, `timeoutSeconds` / `durationSeconds` in the tens of seconds) for enrollment smoke tests.
+Copy this checklist and check items off as you go:
 
-## Operate and recover
+- [ ] Show the workflow name and id. Say that published versions and completed enrollment history will be removed.
+- [ ] Ask the user to confirm.
+- [ ] Call `workflow_delete` with `dangerouslyDeleteWorkflow: true`. If an enrollment is in progress, cancel it or wait until it finishes, then retry.
 
-Use `event_emit` with a stable caller event ID to satisfy workflow event waits. Pause, resume, and cancel operate on an enrollment's Temporal execution. A pause takes effect at the next workflow gate and cannot recall an already accepted send.
+For one enrollment:
 
-## Delete safely
+- [ ] Show the enrollment id and contact.
+- [ ] Ask the user to confirm.
+- [ ] Call `enrollment_delete`. This stops an active run and removes its event, send, and queued-job records. It cannot recall an email the provider already accepted.
 
-Before `workflow_delete`, show the workflow name and ID, explain that published versions and completed enrollment history will be removed, and ask for confirmation. Send `dangerouslyDeleteWorkflow: true` only after the user confirms. The operation rejects a workflow with active enrollments; cancel or wait for them first.
+Pause takes effect at the next wait. It cannot recall an accepted email.
 
-Before `enrollment_delete`, show the enrollment ID and contact. Ask for confirmation. Deleting an active enrollment terminates its Temporal execution and removes its event, send, and queued-job records. It cannot recall an accepted email.
+## Message state
 
-Inspect enrollment and message lists separately. “Accepted” means the provider admitted a message; “delivered” requires a verified provider event. Hard bounce and complaint webhooks add local suppression. Preserve the same operation input and idempotency key when retrying a timeout.
-
-Use trusted local stdio MCP only with `REFLOW_ACTOR_USER_ID` on the Rachet host. Remote agents should use the OAuth-protected HTTP MCP endpoint.
+"Accepted" means the provider admitted the message. "Delivered" needs a verified provider event. A hard bounce or complaint adds a local suppression. On a timeout, retry with the same input and the same idempotency key.

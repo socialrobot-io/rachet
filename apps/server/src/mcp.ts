@@ -109,18 +109,11 @@ export async function createMcpServer(operations: Record<string, Operation>, con
     },
   }, async ({ intent, workspaceId }) => ({ messages: [{ role: 'user', content: { type: 'text', text: [
     `Design this workflow for workspace ${workspaceId}: ${intent}`,
-    'Read skill://reflow/SKILL.md (and its listed resources) when available; otherwise call skills/list / skills/get.',
-    'Call system_capabilities and read agentCookbook. Read rachet://workflow/actions and rachet://workflow/schema.',
-    'Call template_list and workflow_list first; reuse existing artifacts. Check examples/welcome-nudge and examples/onboarding.workflow.json before inventing a similar graph.',
-    'Use only installed capabilities. Explain any missing capability instead of inventing an action.',
-    'If the intent contains a clock time without a timezone, ask the user which IANA timezone they mean; offer "your own timezone" as the default. A schedule needs an explicit-offset ISO datetime and matching IANA timeZone. Confirm ambiguous DST times.',
-    'Prefer React Email via CLI `reflow template push ... --allow-code-execution` (upserts by --name). MCP never executes TSX. If React Email is not set up or not detected, ask the user to set it up and explain benefits (client-ready HTML+plain text, local preview, components, production push). If they decline, warn that MCP hand-written HTML may not be email-client compliant, then use template_create/revise with sourceKind=html and say so. Never fall back silently. Avoid duplicate names / "v2" siblings. MCP template_create fails with TEMPLATE_NAME_EXISTS when the name is taken; then template_revise + template_publish.',
-    'Each email.send node must pin input.templateVersionId.literal to a published template version id in this workspace.',
-    'Call workflow_validate, then workflow_simulate twice: receivedEvents=[] and with the activation events the product will emit.',
-    'If workflow_validate returns TEMPLATE_REFERENCE_INVALID, read hint/details, create/revise the missing templates, and retry validation.',
-    'Show the traces and resolve validation errors before calling workflow_create.',
-    'Do not publish or enroll contacts until the user has asked for that side effect.',
-    'Do not archive templates that workflows still reference; template_archive fails with TEMPLATE_IN_USE and explains which workflows pin them.',
+    'Follow skill://reflow/SKILL.md. Do not search the project for samples or use the CLI.',
+    'Include only the emails, waits, and branches in the intent. contact.update writes contact fields and is not part of the email. Add it only when the intent asks to store a field.',
+    'Create HTML templates with template_create and template_publish. Pin each email.send to the published version id.',
+    'workflow_validate, then workflow_simulate twice (no events, then the activation event). Fix errors before workflow_create.',
+    'Do not publish or enroll unless the intent asks for that.',
   ].join('\n') } }] }));
   return server;
 }

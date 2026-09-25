@@ -97,7 +97,7 @@ export function throwTemplateRefIssues(issues: TemplateRefIssue[]): never {
     422,
     false,
     {
-      hint: 'Create/publish reviewed templates with `reflow template push <file.tsx> --allow-code-execution` (renders locally, uploads HTML) or template.create (sourceKind=html) + template.publish, then set each email.send node input.templateVersionId.literal to the published version id.',
+      hint: 'Create and publish templates with template.create (sourceKind=html, html, and a plain-text body) then template.publish. Set each email.send node input.templateVersionId.literal to the published version id.',
       details: {
         issues,
         nextSteps: [

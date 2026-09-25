@@ -115,6 +115,20 @@ describe('templateCreateSchema', () => {
     });
     expect(parsed.sourceKind).toBe('html');
     expect(parsed.html).toContain('Hello');
+    expect(parsed).not.toHaveProperty('tsxSource');
+  });
+
+  it('drops template source code from the create contract', () => {
+    const parsed = templateCreateSchema.parse({
+      workspaceId,
+      name: 'Welcome',
+      subject: 'Hi',
+      sourceKind: 'html',
+      html: '<p>Hello</p>',
+      body: 'Hello',
+      tsxSource: 'export default function Email() { return null }',
+    });
+    expect(parsed).not.toHaveProperty('tsxSource');
   });
 
   it('accepts plain templates with body only', () => {

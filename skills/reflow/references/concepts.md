@@ -10,11 +10,12 @@ One vocabulary across MCP/CLI operations, the operations console, and storage. U
 | Definition | The validated workflow graph JSON passed to `workflow_create`. | The console's "Definition" view renders it as a document. |
 | Node / step | One unit of a definition: action, delay, branch, wait-for-event, or end. | API and graph JSON say "node"; the console says "step". |
 | End | Terminal node with a reason. Every route must reach one. | Renders as "Exit · reason" in the console. |
-| Template | Named, revisable email source. Prefer React Email + `reflow template push`; MCP stores HTML only. | `template_create`, `reflow template push`. |
+| Template | Named, revisable email. HTML plus plain text, or plain text only. | `template_create`, `template_revise`, `template_publish`. |
 | Template version | Immutable published snapshot of a template. `email.send` pins one. | `templateVersionId`. |
 | Enrollment | One contact's live run through a workflow version. | "Currently enrolled" in the console. |
 | Message | One row of the send ledger: a prepared email send. | `message_list` says "message"; the console says "email". Same rows. |
 | Event | Product fact emitted to satisfy waits and branches. | `event_emit`; "Events seen" in the console. |
+| `contact.update` | Merges fields onto the enrolled contact. It does not change the email. | The console shows the action name `contact.update`. |
 
 ## Enrollment states
 
