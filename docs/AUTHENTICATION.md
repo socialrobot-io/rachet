@@ -40,6 +40,8 @@ The dashboard's **Connected apps** page lists grants for the signed-in user and 
 
 Cursor starts OAuth with the standard `profile` scope. Rachet accepts it only to complete identity setup. Reading, changing, publishing, and sending through MCP still require the matching `rachet:read`, `rachet:write`, or `rachet:send` scope.
 
+The MCP resource's allowed scopes are stored in the database. On startup, Rachet updates that resource from its configured scope list, including when an existing deployment moves from `reflow:*` to `rachet:*`. Redeploy after a scope change so the stored policy is updated.
+
 After first sign-in, an organization owner is directed to **Integrations**, where they can choose Resend (Webhooks and Push are marked coming soon). They can skip setup to build and simulate, but cannot send workflow email until an owner or admin saves that organization's sender, API key, and webhook signing secret and Resend accepts a test email. These integration secrets are encrypted with `INTEGRATION_ENCRYPTION_KEY`; they are managed only through authenticated browser endpoints and are never returned by status, CLI, or MCP operations. The Integrations page remains available for rotation.
 
 ## Machine access and stdio

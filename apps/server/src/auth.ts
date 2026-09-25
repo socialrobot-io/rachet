@@ -25,6 +25,9 @@ export function reflowOAuthOptions(config: Config, pool?: Pool): OAuthOptions<Sc
     loginPage: `${config.publicUrl}/auth/login`,
     consentPage: `${config.publicUrl}/auth/consent`,
     scopes: ['openid', 'profile', 'email', 'offline_access', 'rachet:read', 'rachet:write', 'rachet:send'],
+    // The MCP resource already exists in deployed databases. Keep its stored
+    // allowedScopes in sync when the configured scope policy changes.
+    resourceSeedMode: 'merge',
     // Cursor starts an MCP authorization with the standard OIDC `profile`
     // scope. It is an identity/bootstrap scope only: Rachet operations still
     // require their explicit rachet:* scope in authorizeOperation.
