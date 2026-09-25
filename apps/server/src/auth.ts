@@ -25,7 +25,10 @@ export function reflowOAuthOptions(config: Config, pool?: Pool): OAuthOptions<Sc
     loginPage: `${config.publicUrl}/auth/login`,
     consentPage: `${config.publicUrl}/auth/consent`,
     scopes: ['openid', 'profile', 'email', 'offline_access', 'rachet:read', 'rachet:write', 'rachet:send'],
-    resources: process.env.BETTER_AUTH_SCHEMA_GENERATION === 'true' ? [] : [{ identifier: `${config.publicUrl}/mcp`, allowedScopes: ['rachet:read', 'rachet:write', 'rachet:send'], accessTokenTtl: 900 }],
+    // Cursor starts an MCP authorization with the standard OIDC `profile`
+    // scope. It is an identity/bootstrap scope only: Rachet operations still
+    // require their explicit rachet:* scope in authorizeOperation.
+    resources: process.env.BETTER_AUTH_SCHEMA_GENERATION === 'true' ? [] : [{ identifier: `${config.publicUrl}/mcp`, allowedScopes: ['profile', 'rachet:read', 'rachet:write', 'rachet:send'], accessTokenTtl: 900 }],
     allowDynamicClientRegistration: true,
     allowUnauthenticatedClientRegistration: false,
     clientRegistrationDefaultResources: process.env.BETTER_AUTH_SCHEMA_GENERATION === 'true' ? [] : [`${config.publicUrl}/mcp`],

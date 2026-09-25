@@ -38,6 +38,8 @@ Unauthenticated dynamic registration is limited to public clients (`token_endpoi
 
 The dashboard's **Connected apps** page lists grants for the signed-in user and revokes them. The **API keys** page creates, lists, and revokes SDK credentials. A key is shown once, stored hashed, limited to the user's immutable organization and selected scopes, and never returned by list operations. Secret-returning `credential.create` is excluded from the MCP tool catalog and its resource listing.
 
+Cursor starts OAuth with the standard `profile` scope. Rachet accepts it only to complete identity setup. Reading, changing, publishing, and sending through MCP still require the matching `rachet:read`, `rachet:write`, or `rachet:send` scope.
+
 After first sign-in, an organization owner is directed to **Integrations**, where they can choose Resend (Webhooks and Push are marked coming soon). They can skip setup to build and simulate, but cannot send workflow email until an owner or admin saves that organization's sender, API key, and webhook signing secret and Resend accepts a test email. These integration secrets are encrypted with `INTEGRATION_ENCRYPTION_KEY`; they are managed only through authenticated browser endpoints and are never returned by status, CLI, or MCP operations. The Integrations page remains available for rotation.
 
 ## Machine access and stdio
