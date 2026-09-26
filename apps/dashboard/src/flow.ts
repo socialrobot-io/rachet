@@ -34,6 +34,31 @@ const OP_SYMBOL: Record<string, string> = {
   contains: 'contains',
 };
 
+function formatFieldValue(value: unknown): string {
+  if (typeof value === 'string') return value;
+  if (typeof value === 'number' || typeof value === 'boolean' || value === null) return String(value);
+  return JSON.stringify(value);
+}
+
+/** Fields a contact.update step merges, e.g. `onboardingStatus = needs_nudge`. */
+export function contactUpdateSummary(input: Record<string, unknown>): string | undefined {
+  const source = input.fields;
+  if (typeof source !== 'object' || source === null) return undefined;
+  const record = source as Record<string, unknown>;
+  if (typeof record.path === 'string') {
+    const fallback = record.default === undefined ? '' : ` (default ${formatFieldValue(record.default)})`;
+    return `from ${record.path}${fallback}`;
+  }
+  if (!('literal' in record)) return undefined;
+  const literal = record.literal;
+  if (typeof literal !== 'object' || literal === null || Array.isArray(literal)) {
+    return formatFieldValue(literal);
+  }
+  const entries = Object.entries(literal);
+  if (entries.length === 0) return undefined;
+  return entries.map(([key, value]) => `${key} = ${formatFieldValue(value)}`).join(' · ');
+}
+
 function valueSourceLabel(source: unknown): string | undefined {
   if (typeof source !== 'object' || source === null) return undefined;
   const record = source as Record<string, unknown>;

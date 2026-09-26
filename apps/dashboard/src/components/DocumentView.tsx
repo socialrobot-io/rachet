@@ -14,7 +14,7 @@ import {
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
-import { formatDuration, nodeLabel, type EnrollmentPath } from '@/flow';
+import { contactUpdateSummary, formatDuration, nodeLabel, type EnrollmentPath } from '@/flow';
 import { commonPrefix, structureWorkflow, titleize, type Block } from '@/structure';
 import type { WorkflowDefinition } from '@/types';
 
@@ -84,6 +84,11 @@ function actionTitle(node: Extract<Block, { kind: 'action' }>['node']): string {
   return nodeLabel(node);
 }
 
+function actionDetail(node: Extract<Block, { kind: 'action' }>['node']): string | undefined {
+  if (node.action !== 'contact.update') return undefined;
+  return contactUpdateSummary(node.input);
+}
+
 function ActionIcon({ action }: { action: string }) {
   const className = 'size-3.5 shrink-0 text-muted-foreground';
   if (action === 'contact.update') return <UserRound className={className} aria-hidden />;
@@ -95,6 +100,7 @@ function ActionRow({
   id,
   action,
   title,
+  detail,
   hint,
   status,
   count,
@@ -105,6 +111,7 @@ function ActionRow({
   id: string;
   action: string;
   title: string;
+  detail?: string | undefined;
   hint?: string | undefined;
   status: BlockStatus;
   count: number;
@@ -126,7 +133,7 @@ function ActionRow({
         active && 'ring-2 ring-primary/30',
         rowAction && 'cursor-pointer hover:bg-accent',
       )}
-      title={id}
+      title={detail ? `${id}: ${detail}` : id}
       onClick={rowAction ? () => rowAction() : undefined}
       role={rowAction ? 'button' : undefined}
       tabIndex={rowAction ? 0 : undefined}
@@ -142,7 +149,12 @@ function ActionRow({
       }
     >
       <ActionIcon action={action} />
-      <span className="min-w-0 flex-1 truncate font-medium tracking-tight">{title}</span>
+      <span className="min-w-0 flex-1">
+        <span className="block truncate font-medium tracking-tight">{title}</span>
+        {detail && (
+          <span className="block truncate text-xs font-normal text-muted-foreground">{detail}</span>
+        )}
+      </span>
       {hint && (
         <span className="rounded bg-muted px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wide text-muted-foreground">
           {hint}
@@ -321,6 +333,7 @@ function BranchView({ block, paint }: { block: Extract<Block, { kind: 'branch' }
                 id={arm.id}
                 action={arm.node.action}
                 title={actionTitle(arm.node)}
+                detail={actionDetail(arm.node)}
                 hint={prefix ? arm.id.slice(prefix.length).replaceAll('_', ' ').toUpperCase() : undefined}
                 status={statusOf(arm.id, paint)}
                 count={paint.counts?.get(arm.id) ?? 0}
@@ -474,6 +487,7 @@ function BlockView({ block, paint }: { block: Block; paint: Paint }) {
           id={block.id}
           action={block.node.action}
           title={actionTitle(block.node)}
+          detail={actionDetail(block.node)}
           status={statusOf(block.id, paint)}
           count={paint.counts?.get(block.id) ?? 0}
           active={paint.activeStepId === block.id}

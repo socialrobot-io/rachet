@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildExecutionTrace } from './flow';
+import { buildExecutionTrace, contactUpdateSummary } from './flow';
 import type { Enrollment, WorkflowDefinition } from './types';
 
 const definition: WorkflowDefinition = {
@@ -47,6 +47,25 @@ const enrollment: Enrollment = {
   workflowVersion: 1,
   definition,
 };
+
+describe('contactUpdateSummary', () => {
+  it('lists literal fields the step merges', () => {
+    expect(contactUpdateSummary({
+      fields: { literal: { onboardingStatus: 'needs_nudge', tested: true } },
+    })).toBe('onboardingStatus = needs_nudge · tested = true');
+  });
+
+  it('names a path when the fields are copied from an event', () => {
+    expect(contactUpdateSummary({
+      fields: { path: 'event["social.posted"].data', default: { status: 'unknown' } },
+    })).toBe('from event["social.posted"].data (default {"status":"unknown"})');
+  });
+
+  it('returns nothing when the step has no fields', () => {
+    expect(contactUpdateSummary({})).toBeUndefined();
+    expect(contactUpdateSummary({ fields: { literal: {} } })).toBeUndefined();
+  });
+});
 
 describe('buildExecutionTrace received events', () => {
   it('shows emitted events in Events seen before the branch is taken', () => {

@@ -114,8 +114,8 @@ When that organization has a published workflow named `Welcome first workflow`, 
 | `workflowsUrl` | `{PUBLIC_URL}/workflows` |
 | `integrationsUrl` | `{PUBLIC_URL}/settings/integrations` |
 | `replyMailto` | `mailto:` plus the address in `REFLOW_FROM` |
-| `logoUrl` | `{PUBLIC_URL}/brand/rachet-logo.png` (follow-up emails) |
-| `signatureUrl` | `{PUBLIC_URL}/brand/founder-signature.png` (welcome letter) |
+
+Follow-up emails embed `https://rachet.dev/brand/rachet-logo.png`. The welcome letter embeds `https://rachet.dev/brand/founder-signature.png`. Older published versions still read `logoUrl` and `signatureUrl` from the enrollment when those variables are present.
 
 `firstName` on the contact is the person's first name.
 

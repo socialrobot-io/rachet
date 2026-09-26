@@ -13,9 +13,15 @@ const SAMPLE_VALUES: Record<string, unknown> = {
   plan: 'pro',
 };
 
-function sampleFor(path: string): unknown {
+function sampleFor(path: string, origin: string): unknown {
   const key = path.split('.').at(-1)?.toLowerCase() ?? '';
-  return SAMPLE_VALUES[key] ?? titleize(key) ?? 'Sample';
+  const base = origin.replace(/\/$/, '');
+  if (key === 'logourl') return `${base}/brand/rachet-logo.png`;
+  if (key === 'signatureurl') return `${base}/brand/founder-signature.png`;
+  if (key === 'workflowsurl') return `${base}/workflows`;
+  if (key === 'integrationsurl') return `${base}/settings/integrations`;
+  if (key === 'replymailto') return 'mailto:hello@example.com';
+  return SAMPLE_VALUES[key] ?? titleize(path.split('.').at(-1) ?? key) ?? 'Sample';
 }
 
 function setPathValue(root: Record<string, unknown>, path: string, value: unknown): void {
@@ -41,7 +47,10 @@ const MISSING_PROP = /Missing template property: ([\w.-]+)/;
 export async function renderWithSamples(
   render: RenderTemplate,
   baseProps: Record<string, unknown> = {},
+  options: { origin?: string } = {},
 ): Promise<RenderedEmail> {
+  const origin = options.origin
+    ?? (typeof window !== 'undefined' ? window.location.origin : 'https://rachet.dev');
   const props = structuredClone(baseProps);
   for (let attempt = 0; attempt < 10; attempt += 1) {
     try {
@@ -49,7 +58,7 @@ export async function renderWithSamples(
     } catch (error) {
       const match = error instanceof ApiError ? MISSING_PROP.exec(error.message) : null;
       if (!match) throw error;
-      setPathValue(props, match[1], sampleFor(match[1]));
+      setPathValue(props, match[1], sampleFor(match[1], origin));
     }
   }
   throw new Error('Template preview needs more properties than expected');

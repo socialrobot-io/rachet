@@ -15,7 +15,7 @@ One vocabulary across MCP/CLI operations, the operations console, and storage. U
 | Enrollment | One contact's live run through a workflow version. | "Currently enrolled" in the console. |
 | Message | One row of the send ledger: a prepared email send. | `message_list` says "message"; the console says "email". Same rows. |
 | Event | Product fact emitted to satisfy waits and branches. | `event_emit`; "Events seen" in the console. |
-| `contact.update` | Merges fields onto the enrolled contact. It does not change the email. | The console shows the action name `contact.update`. |
+| `contact.update` | Merges fields onto the enrolled contact. It does not change the email. | The console shows `contact.update` and the fields it writes, such as `onboardingStatus = needs_nudge`. |
 
 ## Enrollment states
 

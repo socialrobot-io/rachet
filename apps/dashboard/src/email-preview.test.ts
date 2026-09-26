@@ -44,6 +44,18 @@ describe('renderWithSamples', () => {
     expect(result.subject).toBe('Hi');
   });
 
+  it('uses the deployed brand logo for missing logoUrl previews', async () => {
+    const seen: Record<string, unknown>[] = [];
+    const render = (props: Record<string, unknown>) => {
+      seen.push(structuredClone(props));
+      return fakeRender(['variables.logoUrl'])(props);
+    };
+    await renderWithSamples(render, {}, { origin: 'https://rachet.dev' });
+    expect(seen.at(-1)).toMatchObject({
+      variables: { logoUrl: 'https://rachet.dev/brand/rachet-logo.png' },
+    });
+  });
+
   it('rethrows errors that are not missing-property errors', async () => {
     await expect(
       renderWithSamples(async () => {
