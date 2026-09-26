@@ -95,7 +95,16 @@ Set `REFLOW_DOMAIN`, `PUBLIC_URL`, and `TRUSTED_ORIGINS` to the same HTTPS hostn
 
 Leave `OAUTH_PUBLIC_REDIRECT_ORIGINS` empty for CLI and loopback MCP clients. Cursor's current MCP OAuth flow uses `https://www.cursor.com`; add that exact origin when enabling Cursor against a deployment. `OAUTH_PUBLIC_REDIRECT_SCHEMES` defaults to `cursor`; keep it to the comma-separated native clients installed in your environment. Add only exact HTTPS origins for web MCP clients you have reviewed. Operators authorize clients in the dashboard and can revoke grants from **Connected apps**.
 
-After the stack is healthy, verify `/health/ready`, open the dashboard, and complete the one-time setup page. The onboarding screen provides the exact per-organization Resend webhook URL. Coolify should monitor the `app` health check; separately alert on worker/dispatcher restarts, Temporal backlog, and database volume backups.
+After the stack is healthy, verify `/health/ready`, open the dashboard, and complete the one-time setup page. The onboarding screen provides the exact per-organization Resend webhook URL.
+
+### Health checks
+
+| Probe | Path | Use |
+| --- | --- | --- |
+| Liveness | `GET /health/live` | Process is up; does not query PostgreSQL. |
+| Readiness | `GET /health/ready` | Returns `200` when PostgreSQL answers; `503` otherwise. |
+
+The production image and the Compose `app` service use `docker/healthcheck-ready.js`, which calls readiness on `127.0.0.1:3000`. Coolify deployments should use the repository root `docker-compose.yaml` (which includes `compose.yaml`), attach domains to the `app` service, and enable the HTTP health check: path `/health/ready`, port `3000`, scheme `http`, expected status `200`. A `start_period` of at least 40 seconds avoids false negatives while migrations and Temporal bootstrap finish. Separately alert on worker/dispatcher restarts, Temporal backlog, and database volume backups.
 
 ### Temporal schema troubleshooting
 

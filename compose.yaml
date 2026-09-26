@@ -125,7 +125,12 @@ services:
 
   app:
     <<: *reflow
-    healthcheck: { test: [CMD, node, -e, "fetch('http://localhost:3000/health/ready').then(r=>{if(!r.ok)process.exit(1)})"], interval: 10s, timeout: 5s, retries: 10 }
+    healthcheck:
+      test: [CMD, node, docker/healthcheck-ready.js]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 40s
 
   worker:
     <<: *reflow

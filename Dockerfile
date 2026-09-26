@@ -26,6 +26,9 @@ COPY --from=build --chown=reflow:reflow /app/skills ./skills
 COPY --from=build --chown=reflow:reflow /app/packages/contracts ./packages/contracts
 COPY --from=build --chown=reflow:reflow /app/packages/mcp-ext-skills ./packages/mcp-ext-skills
 COPY --from=build --chown=reflow:reflow /app/packages/sdk ./packages/sdk
+COPY --chown=reflow:reflow docker/healthcheck-ready.js ./docker/healthcheck-ready.js
 USER reflow
 EXPOSE 3000
+HEALTHCHECK --interval=10s --timeout=5s --start-period=40s --retries=10 \
+  CMD ["node", "docker/healthcheck-ready.js"]
 CMD ["node", "dist/apps/server/server.js"]
