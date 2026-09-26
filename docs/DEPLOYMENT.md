@@ -104,7 +104,7 @@ After the stack is healthy, verify `/health/ready`, open the dashboard, and comp
 | Liveness | `GET /health/live` | Process is up; does not query PostgreSQL. |
 | Readiness | `GET /health/ready` | Returns `200` when PostgreSQL answers; `503` otherwise. |
 
-The production image and the Compose `app` service use `docker/healthcheck-ready.js`, which calls readiness on `127.0.0.1:3000`. Coolify deployments should use the repository root `docker-compose.yaml` (which includes `compose.yaml`), attach domains to the `app` service, and enable the HTTP health check: path `/health/ready`, port `3000`, scheme `http`, expected status `200`. A `start_period` of at least 40 seconds avoids false negatives while migrations and Temporal bootstrap finish. Separately alert on worker/dispatcher restarts, Temporal backlog, and database volume backups.
+The production image includes `curl` so platforms such as Coolify can run an in-container HTTP probe. The image `HEALTHCHECK` and the Compose `app` service use `docker/healthcheck-ready.js`, which calls readiness on `127.0.0.1:3000`. Coolify deployments should use the repository root `docker-compose.yaml` (which includes `compose.yaml`), attach domains to the `app` service, and enable the HTTP health check: path `/health/ready`, port `3000`, scheme `http`, host `localhost`, expected status `200`. A `start_period` of at least 40 seconds avoids false negatives while migrations and Temporal bootstrap finish. Separately alert on worker/dispatcher restarts, Temporal backlog, and database volume backups.
 
 ### Temporal schema troubleshooting
 

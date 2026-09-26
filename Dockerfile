@@ -15,7 +15,13 @@ RUN pnpm build
 
 FROM node:22.22.0-bookworm-slim AS runtime
 ENV NODE_ENV=production
-RUN corepack enable && groupadd --system reflow && useradd --system --gid reflow --home /app reflow
+# Coolify's HTTP health probe shells out to curl (or wget) inside the container.
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends curl \
+  && rm -rf /var/lib/apt/lists/* \
+  && corepack enable \
+  && groupadd --system reflow \
+  && useradd --system --gid reflow --home /app reflow
 WORKDIR /app
 COPY --from=build --chown=reflow:reflow /app/package.json /app/pnpm-lock.yaml /app/pnpm-workspace.yaml ./
 COPY --from=build --chown=reflow:reflow /app/node_modules ./node_modules

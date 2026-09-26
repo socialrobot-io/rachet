@@ -60,6 +60,7 @@ describe('container healthcheck wiring', () => {
     const dockerfile = await readFile('Dockerfile', 'utf8');
     expect(dockerfile).toContain('HEALTHCHECK');
     expect(dockerfile).toContain('docker/healthcheck-ready.js');
+    expect(dockerfile).toMatch(/apt-get install -y --no-install-recommends curl/);
   });
 
   it('configures the app service healthcheck in compose', async () => {
