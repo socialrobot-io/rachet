@@ -52,7 +52,7 @@ export function createOperations(service: ReflowService): Record<string, Operati
             'receivedEvents is a set for the whole trace. It cannot show a timeout followed by the same event on a later wait.',
           ],
           sideEffects: [
-            'After workflow.create, ask whether to connect the workflow to the app. If yes, workflow.publish, then wire enrollment.create where the journey should start and event.emit for each waited event. If no, leave the draft and warn that waited events must be emitted manually. workflow.publish does not send mail. enrollment.create can.',
+            'After workflow.create, ask whether to connect the workflow to the app. If yes, workflow.publish, then wire a Node app with @socialrobot-io/rachet-sdk: trigger() where the journey starts, and call("event.emit") for each waited event. If the app is not Node, call those operations over HTTP. If no, leave the draft and warn that waited events must be emitted manually. workflow.publish does not send mail. trigger() can.',
             'Keep idempotencyKey stable across retries. event.emit needs enrollmentId and a stable eventId.',
           ],
         },

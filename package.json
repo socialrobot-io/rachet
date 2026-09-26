@@ -37,6 +37,7 @@
     "@hono/node-server": "1.19.9",
     "@modelcontextprotocol/sdk": "1.30.0",
     "@reflow/contracts": "workspace:*",
+    "@socialrobot-io/rachet-sdk": "workspace:*",
     "@reflow/mcp-ext-skills": "workspace:*",
     "@temporalio/activity": "1.23.0",
     "@temporalio/client": "1.23.0",

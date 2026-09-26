@@ -11,6 +11,7 @@ import { createHash } from 'node:crypto';
 import type { Pool } from 'pg';
 import type { Config } from './config.js';
 import { Resend } from 'resend';
+import { runWelcomeStarter } from './welcome.js';
 
 export function isGitHubCallback(context: {
   path?: string | undefined;
@@ -151,6 +152,19 @@ export function createAuth(config: Config, pool: Pool) {
               throw new APIError('FORBIDDEN', { code: 'REGISTRATION_NOT_AUTHORIZED', message: 'Registration is not authorized or has expired' });
             }
             return { data: user };
+          },
+          after: async (user) => {
+            if (!user.id || !user.email) return;
+            try {
+              await runWelcomeStarter({ id: user.id, email: user.email, name: user.name });
+            } catch (error) {
+              console.error(JSON.stringify({
+                level: 'error',
+                message: 'Welcome enrollment failed',
+                userId: user.id,
+                error: error instanceof Error ? error.message : 'unknown',
+              }));
+            }
           },
         },
       },

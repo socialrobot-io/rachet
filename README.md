@@ -143,6 +143,8 @@ rachet call event.emit --input '{
 
 Keep `eventId` stable across retries. Production applications call the same `event.emit` operation over HTTP with a scoped machine credential, and MCP clients use `event_emit`. Complete CLI, HTTP, and MCP examples are in [Sending product events](docs/EVENTS.md).
 
+When `REFLOW_API_KEY` and `REFLOW_WORKSPACE_ID` are set, Rachet uses `@socialrobot-io/rachet-sdk` to enroll each new account in the published workflow named Welcome first workflow, and emits `workflow.created.v1` when that person creates a workflow.
+
 ### Trigger a journey from product code
 
 ```ts
@@ -207,6 +209,7 @@ Server variables, documented in [`.env.example`](.env.example):
 | `TEMPORAL_ADDRESS`, `TEMPORAL_NAMESPACE`, `TEMPORAL_TASK_QUEUE` | Temporal connection and task routing |
 | `INTEGRATION_ENCRYPTION_KEY` | Base64-encoded 32-byte key for encrypting organization integrations; required in production and must be backed up |
 | `AUTH_RESEND_API_KEY`, `AUTH_EMAIL_FROM` | Separate Resend account/key and explicit verified sender used only for magic links; both are required to enable magic links |
+| `REFLOW_API_KEY`, `REFLOW_WORKSPACE_ID` | Optional send-scoped API key and organization for the product welcome. Set both, or neither. |
 | `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET` | Optional GitHub sign-in provider |
 | `OAUTH_PROVIDER_ID`, `OAUTH_DISCOVERY_URL`, `OAUTH_CLIENT_ID`, `OAUTH_CLIENT_SECRET` | Optional human OAuth/OIDC provider |
 

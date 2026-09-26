@@ -9,9 +9,11 @@ coverage/
 .DS_Store
 .env
 .env.*
+.replicate.env
 !.env.example
 !.env.dev.example
 secrets/
+brag-output/
 data/
 backups/
 *.log

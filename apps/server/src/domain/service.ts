@@ -21,6 +21,7 @@ import {
   throwTemplateRefIssues,
 } from './template-refs.js';
 import { cancelEnrollment, enrollmentEvent, pauseEnrollment, resumeEnrollment } from '../temporal/shared.js';
+import { runWelcomeWorkflowCreated } from '../welcome.js';
 
 function hash(value: unknown): string {
   return createHash('sha256').update(JSON.stringify(value)).digest('hex');
@@ -481,6 +482,7 @@ export class ReflowService {
     const [created] = await this.db.insert(sequences).values({ workspaceId: input.workspaceId, name: input.name, definition: { ...input.definition, intent: input.intent } }).returning();
     if (!created) throw new Error('Workflow creation failed');
     await this.audit(context, 'workflow.create', input.workspaceId, 'workflow', created.id);
+    await runWelcomeWorkflowCreated(context.principal.userId, created.id);
     return created;
   }
 

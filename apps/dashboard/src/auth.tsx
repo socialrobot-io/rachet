@@ -100,7 +100,7 @@ export function AppShell() {
   const [signOutError, setSignOutError] = useState<string | null>(null);
 
   return (
-    <div className="min-h-dvh">
+    <div className="flex min-h-dvh flex-col">
       <header className="sticky top-0 z-20 border-b bg-background/90 backdrop-blur-md">
         <div className="mx-auto flex min-h-16 w-full max-w-7xl flex-wrap items-center justify-between gap-x-6 gap-y-2 px-4 py-2 sm:px-6 lg:px-8">
           <div className="flex items-center gap-8">
@@ -143,14 +143,22 @@ export function AppShell() {
           </nav>
         </div>
       </header>
-      {signOutError && (
-        <div className="mx-auto w-full max-w-6xl px-4 pt-4 sm:px-6">
-          <Alert variant="destructive">
-            <AlertDescription>{signOutError}</AlertDescription>
-          </Alert>
+      <div className="flex-1">
+        {signOutError && (
+          <div className="mx-auto w-full max-w-6xl px-4 pt-4 sm:px-6">
+            <Alert variant="destructive">
+              <AlertDescription>{signOutError}</AlertDescription>
+            </Alert>
+          </div>
+        )}
+        <Outlet />
+      </div>
+      <footer className="border-t">
+        <div className="mx-auto flex w-full max-w-7xl flex-wrap items-center justify-between gap-x-6 gap-y-3 px-4 py-12 sm:px-6 lg:px-8">
+          <p className="font-mono text-xs text-muted-foreground">Open source. Yours to run.</p>
+          <p className="font-mono text-xs text-muted-foreground">Rachet</p>
         </div>
-      )}
-      <Outlet />
+      </footer>
     </div>
   );
 }

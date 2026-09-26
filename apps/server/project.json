@@ -4,7 +4,7 @@
   "root": "apps/server",
   "sourceRoot": "apps/server/src",
   "projectType": "application",
-  "implicitDependencies": ["contracts", "mcp-ext-skills"],
+  "implicitDependencies": ["contracts", "mcp-ext-skills", "sdk"],
   "targets": {
     "build": {
       "executor": "nx:run-commands",

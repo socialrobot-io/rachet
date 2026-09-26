@@ -1,5 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { Link, Navigate, Outlet, useNavigate, useSearchParams } from 'react-router-dom';
+import { Check, Copy } from 'lucide-react';
 import { api, ApiError } from '@/api';
 import { useAuth } from '@/auth';
 import type { ResendConnectionStatus } from '@/types';
@@ -74,6 +75,7 @@ export function IntegrationsPage({ onboarding = false }: { onboarding?: boolean 
       <h1 className="mt-2 text-3xl font-semibold tracking-tight">Integrations</h1>
       <p className="mt-2 text-muted-foreground">Connect the services your workflows use. Each organization manages its own credentials.</p>
     </div>
+    {workspaceId && <OrganizationId workspaceId={workspaceId} />}
     {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
       <Card><CardHeader><CardTitle>Email</CardTitle><CardDescription>Send workflow emails through a provider you connect.</CardDescription></CardHeader><CardContent className="flex flex-col gap-3">
@@ -86,6 +88,22 @@ export function IntegrationsPage({ onboarding = false }: { onboarding?: boolean 
     {onboarding && canManage && <div className="flex items-center justify-between gap-4"><p className="text-sm text-muted-foreground">You can explore and simulate workflows without connecting Resend. Email sending stays disabled until a connection test is accepted.</p><Button type="button" variant="outline" disabled={saving} onClick={() => { void skip(); }}>{saving ? 'Continuing…' : 'Skip for now'}</Button></div>}
     <div id="mcp-setup"><DeveloperSetup /></div>
   </main>;
+}
+
+function OrganizationId({ workspaceId }: { workspaceId: string }) {
+  const [message, setMessage] = useState('');
+  return <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-card px-4 py-3 ring-1 ring-foreground/10">
+    <div className="min-w-0">
+      <p className="font-mono text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">Organization ID</p>
+      <p className="mt-1 break-all font-mono text-sm">{workspaceId}</p>
+      <p className="mt-1 text-xs text-muted-foreground">Use this id as <span className="font-mono">REFLOW_WORKSPACE_ID</span>.</p>
+    </div>
+    <Button type="button" variant="outline" size="sm" onClick={() => {
+      void navigator.clipboard.writeText(workspaceId).then(() => setMessage('Copied')).catch(() => setMessage('Select and copy the text manually.'));
+    }}>{message === 'Copied' ? <Check data-icon="inline-start" /> : <Copy data-icon="inline-start" />}{message === 'Copied' ? 'Copied' : 'Copy'}</Button>
+    {message === 'Copied' && <p role="status" className="sr-only">Copied</p>}
+    {message && message !== 'Copied' && <p role="status" className="w-full text-xs text-muted-foreground">{message}</p>}
+  </div>;
 }
 
 export function ResendIntegrationPage({ onboarding = false }: { onboarding?: boolean }) {

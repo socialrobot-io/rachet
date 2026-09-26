@@ -103,6 +103,26 @@ event_emit({
 
 OAuth/MCP authorization must include `rachet:send`; API keys use the corresponding `send` scope. Workspace role checks still apply.
 
+## Account welcome
+
+Set `REFLOW_API_KEY` and `REFLOW_WORKSPACE_ID` together. The key needs the `send` scope in that organization. Rachet then uses `@socialrobot-io/rachet-sdk` against its own API.
+
+When that organization has a published workflow named `Welcome first workflow`, each new account is enrolled in its latest published version. The call is `trigger()`. The enrollment idempotency key is `welcome-<userId>`.
+
+| Variable | Value |
+| --- | --- |
+| `workflowsUrl` | `{PUBLIC_URL}/workflows` |
+| `integrationsUrl` | `{PUBLIC_URL}/settings/integrations` |
+| `replyMailto` | `mailto:` plus the address in `REFLOW_FROM` |
+| `logoUrl` | `{PUBLIC_URL}/brand/rachet-logo.png` (follow-up emails) |
+| `signatureUrl` | `{PUBLIC_URL}/brand/founder-signature.png` (welcome letter) |
+
+`firstName` on the contact is the person's first name.
+
+When that person creates a workflow, Rachet calls `event.emit` for `workflow.created.v1`. The event id is `workflow.created.v1:<workflowId>` and the data is `{ "workflowId": "<workflowId>" }`. Creating the workflow still succeeds if that enrollment is missing or already finished.
+
+If the key is unset, or that workflow is not published, registration and workflow creation do nothing extra.
+
 ## Event behavior
 
 - Events are accepted only for an existing enrollment in the same workspace.

@@ -26,6 +26,9 @@ importers:
       '@reflow/mcp-ext-skills':
         specifier: workspace:*
         version: link:packages/mcp-ext-skills
+      '@socialrobot-io/rachet-sdk':
+        specifier: workspace:*
+        version: link:packages/sdk
       '@temporalio/activity':
         specifier: 1.23.0
         version: 1.23.0

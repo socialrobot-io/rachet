@@ -83,6 +83,7 @@ Coolify can deploy the checked-in `compose.yaml` directly. Leave the `caddy` pro
 | `BETTER_AUTH_SECRET` | `openssl rand -base64 32` output |
 | `REFLOW_SETUP_SECRET` | separate `openssl rand -base64 32` output |
 | `INTEGRATION_ENCRYPTION_KEY` | separate `openssl rand -base64 32` output; back up securely |
+| `REFLOW_API_KEY`, `REFLOW_WORKSPACE_ID` | Optional. A send-scoped API key and its organization, used by the product welcome SDK client. Set both, or leave both empty. |
 | `AUTH_RESEND_API_KEY` | magic-link key from a Resend account separate from workflow delivery |
 | `AUTH_EMAIL_FROM` | explicit sender on a domain verified in the authentication Resend account; required for magic links |
 | `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET` | GitHub OAuth app credentials (alternative or additional sign-in) |

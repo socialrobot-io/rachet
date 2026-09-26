@@ -28,6 +28,8 @@ const schema = z.object({
   OAUTH_CLIENT_SECRET: z.string().optional(),
   OAUTH_PUBLIC_REDIRECT_ORIGINS: z.string().default(''),
   OAUTH_PUBLIC_REDIRECT_SCHEMES: z.string().default('cursor'),
+  REFLOW_API_KEY: z.string().optional(),
+  REFLOW_WORKSPACE_ID: z.string().optional(),
 });
 
 export function loadConfig(source: NodeJS.ProcessEnv = process.env) {
@@ -54,6 +56,14 @@ export function loadConfig(source: NodeJS.ProcessEnv = process.env) {
   }
   if (resendApiKey && authResendApiKey && resendApiKey === authResendApiKey) {
     throw new Error('AUTH_RESEND_API_KEY must use a separate credential from RESEND_API_KEY');
+  }
+  const welcomeApiKey = parsed.REFLOW_API_KEY?.trim() || undefined;
+  const welcomeWorkspaceId = parsed.REFLOW_WORKSPACE_ID?.trim() || undefined;
+  if (Boolean(welcomeApiKey) !== Boolean(welcomeWorkspaceId)) {
+    throw new Error('REFLOW_API_KEY and REFLOW_WORKSPACE_ID must be configured together');
+  }
+  if (welcomeWorkspaceId && !z.string().uuid().safeParse(welcomeWorkspaceId).success) {
+    throw new Error('REFLOW_WORKSPACE_ID must be a UUID');
   }
   if (parsed.NODE_ENV === 'production') {
     if (!publicUrl.startsWith('https://')) throw new Error('PUBLIC_URL must use https:// in production');
@@ -102,6 +112,8 @@ export function loadConfig(source: NodeJS.ProcessEnv = process.env) {
       .map((scheme) => scheme.trim().toLowerCase().replace(/:$/, ''))
       .filter(Boolean)
       .map((scheme) => `${scheme}:`),
+    welcomeApiKey,
+    welcomeWorkspaceId,
   } as const;
 }
 

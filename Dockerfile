@@ -6,6 +6,7 @@ COPY apps/dashboard/package.json ./apps/dashboard/
 COPY packages/cli/package.json ./packages/cli/
 COPY packages/contracts/package.json ./packages/contracts/
 COPY packages/mcp-ext-skills/package.json ./packages/mcp-ext-skills/
+COPY packages/sdk/package.json ./packages/sdk/
 # The build needs TypeScript, tsx, and other devDependencies even when the
 # deployment platform exposes NODE_ENV=production while building.
 RUN pnpm install --frozen-lockfile --prod=false
@@ -24,6 +25,7 @@ COPY --from=build --chown=reflow:reflow /app/apps/dashboard/dist ./apps/dashboar
 COPY --from=build --chown=reflow:reflow /app/skills ./skills
 COPY --from=build --chown=reflow:reflow /app/packages/contracts ./packages/contracts
 COPY --from=build --chown=reflow:reflow /app/packages/mcp-ext-skills ./packages/mcp-ext-skills
+COPY --from=build --chown=reflow:reflow /app/packages/sdk ./packages/sdk
 USER reflow
 EXPOSE 3000
 CMD ["node", "dist/apps/server/server.js"]
