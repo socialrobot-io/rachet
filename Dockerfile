@@ -59,9 +59,9 @@ COPY --chown=reflow:reflow docker/healthcheck-ready.js ./docker/healthcheck-read
 USER reflow
 EXPOSE 3000
 
-# No image HEALTHCHECK. Coolify scans the whole Dockerfile and waits for a
-# healthy status on every app built from this file, including worker and
-# dispatcher targets that do not serve HTTP. Compose and Coolify attach the
-# readiness probe to the app service only.
+# Readiness is not declared in this file. Coolify treats that keyword anywhere
+# in the Dockerfile as a probe for every build target, then fails the deploy
+# when a worker or dispatcher container has no health status. Compose and the
+# Coolify HTTP check attach the probe to the app service only.
 FROM runtime-app AS app
 CMD ["node", "dist/apps/server/server.js"]

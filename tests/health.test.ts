@@ -61,7 +61,7 @@ describe('container healthcheck wiring', () => {
     expect(dockerfile).toMatch(/AS worker/);
     expect(dockerfile).toMatch(/AS dispatcher/);
     expect(dockerfile).toMatch(/AS app/);
-    expect(dockerfile).not.toMatch(/^HEALTHCHECK/m);
+    expect(dockerfile).not.toContain('HEALTHCHECK');
     expect(dockerfile).toContain('docker/healthcheck-ready.js');
     expect(dockerfile).toMatch(/AS runtime-app[\s\S]*apt-get install -y --no-install-recommends curl/);
   });
