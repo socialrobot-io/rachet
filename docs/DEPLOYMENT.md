@@ -104,7 +104,19 @@ After the stack is healthy, verify `/health/ready`, open the dashboard, and comp
 | Liveness | `GET /health/live` | Process is up; does not query PostgreSQL. |
 | Readiness | `GET /health/ready` | Returns `200` when PostgreSQL answers; `503` otherwise. |
 
-The production image includes `curl` so platforms such as Coolify can run an in-container HTTP probe. The image `HEALTHCHECK` and the Compose `app` service use `docker/healthcheck-ready.js`, which calls readiness on `127.0.0.1:3000`. Coolify deployments should use the repository root `docker-compose.yaml` (which includes `compose.yaml`), attach domains to the `app` service, and enable the HTTP health check: path `/health/ready`, port `3000`, scheme `http`, host `localhost`, expected status `200`. A `start_period` of at least 40 seconds avoids false negatives while migrations and Temporal bootstrap finish. Separately alert on worker/dispatcher restarts, Temporal backlog, and database volume backups.
+The production **app** image includes `curl` and `docker/healthcheck-ready.js`, which calls readiness on `127.0.0.1:3000`. The Dockerfile does **not** declare an image `HEALTHCHECK`. Coolify treats any `HEALTHCHECK` line in that file as required for every application built from it, including worker and dispatcher targets, and will roll back a deploy that never reports `healthy`. The Compose `app` service sets the probe instead. Worker and dispatcher images have no probe.
+
+For a **single Compose stack**, use the repository root `docker-compose.yaml` (which includes `compose.yaml`), attach domains to the `app` service, and enable the HTTP health check on `app` only: path `/health/ready`, port `3000`, scheme `http`, host `localhost`, expected status `200`. A `start_period` of at least 40 seconds avoids false negatives while migrations and Temporal bootstrap finish.
+
+For **split Coolify applications** (separate resources for API, worker, and dispatcher), create three Dockerfile-based apps from `socialrobot-io/rachet` on the same server and Docker network. Copy environment variables from the API app to worker and dispatcher. Set **Docker build stage target** on each resource:
+
+| Coolify application | Dockerfile target | Domains | Coolify HTTP health check |
+| --- | --- | --- | --- |
+| API (e.g. `ratchet-app`) | `app` | Your public hostname | Enabled (`/health/ready` on port `3000`) |
+| `ratchet-worker` | `worker` | None | Disabled (no image-level probe) |
+| `ratchet-dispatcher` | `dispatcher` | None | Disabled |
+
+Run database migrations on the API app only (`node dist/apps/server/db/migrate.js` as pre-deployment command). Deploy all three from the same commit on each release so the workflow bundle matches the API. Monitor worker and dispatcher through runtime logs and restart counts, Temporal backlog, and database volume backups.
 
 ### Temporal schema troubleshooting
 

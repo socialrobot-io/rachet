@@ -1,8 +1,6 @@
 name: reflow
 
 x-reflow: &reflow
-  image: reflow:${REFLOW_VERSION:-local}
-  build: .
   restart: unless-stopped
   environment:
     NODE_ENV: production
@@ -119,12 +117,16 @@ services:
 
   migrate:
     <<: *reflow
+    image: reflow-worker:${REFLOW_VERSION:-local}
+    build: { context: ., target: worker }
     restart: 'no'
     command: [node, dist/apps/server/db/migrate.js]
     depends_on: { postgres: { condition: service_healthy } }
 
   app:
     <<: *reflow
+    image: reflow-app:${REFLOW_VERSION:-local}
+    build: { context: ., target: app }
     healthcheck:
       test: [CMD, node, docker/healthcheck-ready.js]
       interval: 10s
@@ -134,11 +136,13 @@ services:
 
   worker:
     <<: *reflow
-    command: [node, dist/apps/server/worker.js]
+    image: reflow-worker:${REFLOW_VERSION:-local}
+    build: { context: ., target: worker }
 
   dispatcher:
     <<: *reflow
-    command: [node, dist/apps/server/dispatcher.js]
+    image: reflow-dispatcher:${REFLOW_VERSION:-local}
+    build: { context: ., target: dispatcher }
 
   # Opt-in TLS ingress for bare hosts. Off by default so Coolify (or any
   # external proxy) can terminate TLS and route to app:3000 without binding

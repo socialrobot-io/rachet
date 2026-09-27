@@ -56,17 +56,34 @@ describe('health endpoints', () => {
 });
 
 describe('container healthcheck wiring', () => {
-  it('ships a Dockerfile HEALTHCHECK that probes readiness', async () => {
+  it('ships process targets and keeps HEALTHCHECK out of the shared Dockerfile', async () => {
     const dockerfile = await readFile('Dockerfile', 'utf8');
-    expect(dockerfile).toContain('HEALTHCHECK');
+    expect(dockerfile).toMatch(/AS worker/);
+    expect(dockerfile).toMatch(/AS dispatcher/);
+    expect(dockerfile).toMatch(/AS app/);
+    expect(dockerfile).not.toMatch(/^HEALTHCHECK/m);
     expect(dockerfile).toContain('docker/healthcheck-ready.js');
-    expect(dockerfile).toMatch(/apt-get install -y --no-install-recommends curl/);
+    expect(dockerfile).toMatch(/AS runtime-app[\s\S]*apt-get install -y --no-install-recommends curl/);
+  });
+
+  it('builds worker and dispatcher images without duplicating app-only assets in runtime-base', async () => {
+    const dockerfile = await readFile('Dockerfile', 'utf8');
+    const runtimeBase = dockerfile.split('FROM runtime-base AS worker')[0];
+    expect(runtimeBase).not.toContain('apps/dashboard/dist');
+    expect(runtimeBase).not.toContain('healthcheck-ready.js');
   });
 
   it('configures the app service healthcheck in compose', async () => {
     const compose = await readFile('compose.yaml', 'utf8');
     expect(compose).toContain('docker/healthcheck-ready.js');
     expect(compose).toContain('start_period');
+  });
+
+  it('points worker and dispatcher builds at dedicated Dockerfile targets', async () => {
+    const compose = await readFile('compose.yaml', 'utf8');
+    expect(compose).toContain('target: worker');
+    expect(compose).toContain('target: dispatcher');
+    expect(compose).toContain('target: app');
   });
 
   it('exposes docker-compose.yaml for Coolify', async () => {
