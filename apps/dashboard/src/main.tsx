@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { ApiKeysPage, AppShell, AuthProvider, ConnectedAppsPage, ConsentPage, LoginPage, RequireAuth, useAuth } from '@/auth';
 import { EnrollmentDetailPage, WorkflowDetailPage, WorkflowsPage } from '@/pages';
+import { UsersPage } from '@/admin-users';
 import { IntegrationsPage, RequireResendOnboarding, ResendIntegrationPage } from '@/resend-integration';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { LandingPage } from '@/landing';
@@ -30,6 +31,7 @@ createRoot(document.getElementById('root')!).render(
               <Route element={<AppShell />}>
                 <Route path="/onboarding/integrations" element={<IntegrationsPage onboarding />} />
                 <Route path="/onboarding/integrations/resend" element={<ResendIntegrationPage onboarding />} />
+                <Route path="/admin/users" element={<UsersPage />} />
                 <Route path="/settings/integrations" element={<IntegrationsPage />} />
                 <Route path="/settings/integrations/resend" element={<ResendIntegrationPage />} />
                 <Route element={<RequireResendOnboarding />}>

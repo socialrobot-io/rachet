@@ -173,7 +173,7 @@ rachet call enrollment.list
 rachet call message.list
 ```
 
-The operations console at [rachet.dev](https://rachet.dev) shows journey graphs, live enrollments, timelines, messages, OAuth consent, and connected apps.
+The operations console at [rachet.dev](https://rachet.dev) shows journey graphs, live enrollments, timelines, messages, OAuth consent, and connected apps. Deployment administrators also get a Users page at `/admin/users`.
 
 The public landing page is at `/` and `/welcome`. Signed-in users go to `/workflows`. Run `pnpm dev:dashboard` to work on the landing page. Sign-in and the operations console need the full development stack.
 
@@ -234,6 +234,7 @@ Every operation is defined once and exposed three ways: HTTP `POST /v1/operation
 | `event_type.define`, `event_type.list` | Define and inspect immutable JSON Schema contracts for product events |
 | `event.emit` | Durably accept a stable event ID; identical retries are no-ops |
 | `message.list`, `webhook_event.list` | Inspect the send ledger and verified Resend events |
+| `account.list` | Deployment administrator lists signed-up accounts with workflow and enrollment counts |
 
 MCP also serves `rachet://operations`, `rachet://workflow/schema`, and `rachet://workflow/actions`, plus the `design-workflow` authoring prompt and the first-party agent skill. The full contract is in [Operations and MCP contract](docs/OPERATIONS.md).
 

@@ -125,6 +125,17 @@ export type SessionUser = {
   name: string;
 };
 
+export type AccountSummary = {
+  id: string;
+  name: string;
+  email: string;
+  createdAt: string;
+  disabled: boolean;
+  workflowCount: number;
+  enrolledCount: number;
+  organizations: Array<{ id: string; name: string }>;
+};
+
 export type SetupStatus = {
   requiresSetup: boolean;
   registrationEnabled: boolean;

@@ -16,6 +16,7 @@ import { normalizeOrganizationSlug, validEmail } from '@/registration-form';
 type AuthState = {
   user: SessionUser | null;
   loading: boolean;
+  deploymentAdmin: boolean;
   workspaces: Workspace[];
   workspaceId: string | null;
   logout: () => Promise<void>;
@@ -28,6 +29,7 @@ const WORKSPACE_KEY = 'reflow.workspaceId';
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<SessionUser | null>(null);
   const [loading, setLoading] = useState(true);
+  const [deploymentAdmin, setDeploymentAdmin] = useState(false);
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
   const [workspaceId, setWorkspaceIdState] = useState<string | null>(
     () => localStorage.getItem(WORKSPACE_KEY),
@@ -42,10 +44,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const session = await getSession();
     setUser(session);
     if (!session) {
+      setDeploymentAdmin(false);
       setWorkspaces([]);
       setLoading(false);
       return;
     }
+    const principal = await api.whoami().catch(() => ({ deploymentAdmin: false }));
+    setDeploymentAdmin(principal.deploymentAdmin);
     const rows = await api.workspaces();
     setWorkspaces(rows);
     const preferred = localStorage.getItem(WORKSPACE_KEY);
@@ -63,11 +68,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     () => ({
       user,
       loading,
+      deploymentAdmin,
       workspaces,
       workspaceId,
       logout: async () => {
         const result = await signOut();
         setUser(null);
+        setDeploymentAdmin(false);
         setWorkspaces([]);
         setWorkspaceIdState(null);
         localStorage.removeItem(WORKSPACE_KEY);
@@ -75,7 +82,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       },
       refresh,
     }),
-    [user, loading, workspaces, workspaceId],
+    [user, loading, deploymentAdmin, workspaces, workspaceId],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
@@ -95,7 +102,7 @@ export function RequireAuth() {
 }
 
 export function AppShell() {
-  const { user, workspaces, workspaceId, logout } = useAuth();
+  const { user, deploymentAdmin, workspaces, workspaceId, logout } = useAuth();
   const [signingOut, setSigningOut] = useState(false);
   const [signOutError, setSignOutError] = useState<string | null>(null);
 
@@ -110,6 +117,7 @@ export function AppShell() {
               <Link to="/settings/integrations" className="rounded-full px-3 py-1.5 text-sm font-medium hover:bg-accent">Integrations</Link>
               <Link to="/settings/connected-apps" className="rounded-full px-3 py-1.5 text-sm font-medium hover:bg-accent">Connected apps</Link>
               <Link to="/settings/api-keys" className="rounded-full px-3 py-1.5 text-sm font-medium hover:bg-accent">API keys</Link>
+              {deploymentAdmin && <Link to="/admin/users" className="rounded-full px-3 py-1.5 text-sm font-medium hover:bg-accent">Users</Link>}
             </nav>
           </div>
           <div className="flex items-center gap-2 sm:gap-3">
@@ -140,6 +148,7 @@ export function AppShell() {
             <Link to="/settings/integrations" className="shrink-0 rounded-full px-3 py-1.5 text-sm font-medium hover:bg-accent">Integrations</Link>
             <Link to="/settings/connected-apps" className="shrink-0 rounded-full px-3 py-1.5 text-sm font-medium hover:bg-accent">Apps</Link>
             <Link to="/settings/api-keys" className="shrink-0 rounded-full px-3 py-1.5 text-sm font-medium hover:bg-accent">API keys</Link>
+            {deploymentAdmin && <Link to="/admin/users" className="shrink-0 rounded-full px-3 py-1.5 text-sm font-medium hover:bg-accent">Users</Link>}
           </nav>
         </div>
       </header>

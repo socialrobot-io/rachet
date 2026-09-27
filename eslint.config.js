@@ -2,7 +2,7 @@ import eslint from '@eslint/js';
 import tseslint from 'typescript-eslint';
 
 export default tseslint.config(
-  { ignores: ['**/dist/**', '.nx/**', 'coverage/**', 'eslint.config.js', 'drizzle.config.ts', 'migrations/**', 'examples/**', 'emails/**', 'apps/dashboard/**', '.agents/**'] },
+  { ignores: ['**/dist/**', '.nx/**', 'coverage/**', 'eslint.config.js', 'drizzle.config.ts', 'migrations/**', 'examples/**', 'emails/**', 'apps/dashboard/**', '.agents/**', 'brag-output/**', 'docker/**'] },
   eslint.configs.recommended,
   ...tseslint.configs.strictTypeChecked,
   {

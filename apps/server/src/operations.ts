@@ -189,5 +189,9 @@ export function createOperations(service: ReflowService): Record<string, Operati
       description: 'List verified Resend webhook events as a deployment administrator.', input: z.object({}), readOnly: true,
       invoke: (context) => service.webhookEventList(context),
     },
+    'account.list': {
+      description: 'List signed-up accounts as a deployment administrator, with each account’s organizations, workflow count, and distinct enrolled contacts.', input: z.object({}), readOnly: true,
+      invoke: (context) => service.accountList(context),
+    },
   };
 }

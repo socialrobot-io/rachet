@@ -1,4 +1,4 @@
-import type { ApiCredential, CreatedApiCredential, Enrollment, Message, OAuthClient, OAuthConsent, RenderedEmail, ResendConnectionStatus, SessionUser, SetupStatus, Workflow, Workspace } from './types';
+import type { AccountSummary, ApiCredential, CreatedApiCredential, Enrollment, Message, OAuthClient, OAuthConsent, RenderedEmail, ResendConnectionStatus, SessionUser, SetupStatus, Workflow, Workspace } from './types';
 import { authClient } from './auth-client';
 
 export class ApiError extends Error {
@@ -196,6 +196,8 @@ export const api = {
     integrationRequest<{ onboardingComplete: true }>('resend/skip', jsonPost({ workspaceId })),
   testResendConnection: (workspaceId: string) =>
     integrationRequest<{ accepted: true }>('resend/test', jsonPost({ workspaceId })),
+  whoami: () => callOperation<{ deploymentAdmin: boolean }>('auth.whoami'),
+  accounts: () => callOperation<AccountSummary[]>('account.list'),
   workspaces: () => callOperation<Workspace[]>('workspace.list'),
   workflows: (workspaceId: string) => callOperation<Workflow[]>('workflow.list', { workspaceId }),
   enrollments: (workspaceId: string) => callOperation<Enrollment[]>('enrollment.list', { workspaceId }),

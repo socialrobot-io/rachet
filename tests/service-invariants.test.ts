@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { eq } from 'drizzle-orm';
-import { auditEvents, contacts, enrollmentEvents, enrollments, outbox, sendIntents, sequenceVersions, sequences, workspaces } from '../apps/server/src/db/schema.js';
+import { sql } from 'drizzle-orm';
+import { auditEvents, contacts, enrollmentEvents, enrollments, memberships, outbox, sendIntents, sequenceVersions, sequences, workspaces } from '../apps/server/src/db/schema.js';
 import type { WorkflowDefinition } from '../packages/contracts/src/index.js';
 import { ReflowError } from '../apps/server/src/domain/errors.js';
 import { adminContext, probeDbRuntime, roleContext, type DbRuntime } from './helpers/db-runtime.js';
@@ -112,6 +113,7 @@ describe.skipIf(!runtime)('service invariants (postgres)', () => {
       await expect(boot.service.enrollmentList(member, foreignWorkspace.id)).rejects.toMatchObject({ code: 'FORBIDDEN' });
       await expect(boot.service.messageList(member, foreignWorkspace.id)).rejects.toMatchObject({ code: 'FORBIDDEN' });
       await expect(boot.service.webhookEventList(member)).rejects.toMatchObject({ code: 'FORBIDDEN' });
+      await expect(boot.service.accountList(member)).rejects.toMatchObject({ code: 'FORBIDDEN' });
       await expect(boot.service.contactUpsert(member, { workspaceId: foreignWorkspace.id, email: 'cross@example.com', fields: {} }))
         .rejects.toMatchObject({ code: 'FORBIDDEN' });
     } finally {
@@ -443,5 +445,77 @@ describe.skipIf(!runtime)('service invariants (postgres)', () => {
     await expect(boot.db.select().from(enrollments).where(eq(enrollments.id, enrollment.id))).resolves.toEqual([]);
     await expect(boot.db.select().from(outbox).where(eq(outbox.aggregateId, enrollment.id))).resolves.toEqual([]);
     await expect(boot.db.select().from(sendIntents).where(eq(sendIntents.enrollmentId, enrollment.id))).resolves.toEqual([]);
+  });
+
+  it('lists signed-up accounts with organization workflow and enrollment counts', async () => {
+    const userId = `acct-${crypto.randomUUID()}`;
+    const email = `${userId}@example.com`;
+    const [other] = await boot.db.insert(workspaces).values({
+      name: 'Other account org',
+      slug: `acct-other-${crypto.randomUUID().slice(0, 8)}`,
+    }).returning();
+    if (!other) throw new Error('workspace create failed');
+    await boot.db.insert(sequences).values({
+      workspaceId: other.id,
+      name: `acct-other-wf-${crypto.randomUUID().slice(0, 8)}`,
+      definition: { schemaVersion: '1' },
+    });
+    await boot.db.execute(sql`
+      insert into registration_intents (email_key, name, organization_name, method, kind, expires_at)
+      values (${email}, ${'Ada Count'}, ${'Ada org'}, 'magic-link', 'invite', now() + interval '1 day')
+    `);
+    await boot.db.execute(sql`
+      insert into "user" (id, name, email, "emailVerified", "createdAt", "updatedAt")
+      values (${userId}, ${'Ada Count'}, ${email}, true, now(), now())
+    `);
+    const [membership] = await boot.db.select().from(memberships).where(eq(memberships.userId, userId)).limit(1);
+    if (!membership) throw new Error('registration did not create a membership');
+    const homeId = membership.workspaceId;
+    const [sequence] = await boot.db.insert(sequences).values({
+      workspaceId: homeId,
+      name: `acct-wf-${crypto.randomUUID().slice(0, 8)}`,
+      definition: { schemaVersion: '1' },
+    }).returning();
+    if (!sequence) throw new Error('sequence create failed');
+    const [version] = await boot.db.insert(sequenceVersions).values({
+      workspaceId: homeId, sequenceId: sequence.id, version: 1, contentHash: 'acct', definition: { schemaVersion: '1' },
+    }).returning();
+    const [contact] = await boot.db.insert(contacts).values({
+      workspaceId: homeId, email: `enrolled-${userId}@example.com`, emailKey: `enrolled-${userId}@example.com`,
+    }).returning();
+    await boot.db.insert(contacts).values({
+      workspaceId: homeId, email: `bystander-${userId}@example.com`, emailKey: `bystander-${userId}@example.com`,
+    });
+    if (!version || !contact) throw new Error('fixture create failed');
+    const enrollmentId = crypto.randomUUID();
+    try {
+      await boot.db.insert(enrollments).values({
+        id: enrollmentId,
+        workspaceId: homeId,
+        sequenceVersionId: version.id,
+        contactId: contact.id,
+        workflowId: `test/${enrollmentId}`,
+        idempotencyKey: `acct-${enrollmentId}`,
+      });
+      const rows = await boot.service.accountList(admin);
+      const row = rows.find((item) => item.email === email);
+      expect(row).toMatchObject({
+        name: 'Ada Count',
+        workflowCount: 1,
+        enrolledCount: 1,
+      });
+      expect(row?.organizations.map((organization) => organization.id)).toEqual([homeId]);
+    } finally {
+      await boot.db.delete(enrollments).where(eq(enrollments.workspaceId, homeId));
+      await boot.db.delete(contacts).where(eq(contacts.workspaceId, homeId));
+      await boot.db.delete(sequenceVersions).where(eq(sequenceVersions.workspaceId, homeId));
+      await boot.db.delete(sequences).where(eq(sequences.workspaceId, homeId));
+      await boot.db.delete(memberships).where(eq(memberships.userId, userId));
+      await boot.db.execute(sql`delete from profiles where user_id = ${userId}`);
+      await boot.db.delete(workspaces).where(eq(workspaces.id, homeId));
+      await boot.db.delete(workspaces).where(eq(workspaces.id, other.id));
+      await boot.db.execute(sql`delete from "user" where id = ${userId}`);
+      await boot.db.execute(sql`delete from registration_intents where email_key = ${email}`);
+    }
   });
 });

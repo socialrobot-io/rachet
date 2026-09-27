@@ -6,6 +6,8 @@ Rachet uses Better Auth 1.7.4 for browser sessions, OAuth 2.1 authorization, API
 
 When the database contains no users, `/auth/login` becomes the one-time administrator registration page. It requires `REFLOW_SETUP_SECRET`, plus the administrator name, email, and organization name. The secret is compared without exposing it in URLs or logs. Database locking and constraints ensure concurrent attempts can create only one deployment administrator. The user, profile, immutable default organization, owner membership, and initialization marker are provisioned in the same database transaction.
 
+The deployment administrator can open **Users** at `/admin/users`. That page lists every signed-up account, the organizations that account belongs to, the number of workflows in those organizations, and the number of distinct contacts with an enrollment. `account.list` is the only way to read that list. Only a deployment administrator can open it.
+
 Later account invitations are authorized with the authenticated `account.create` operation. `ALLOW_REGISTRATION=false` is the default. When registration is explicitly enabled, a new verified non-admin user gets a new isolated organization as owner. The current product exposes exactly that default organization and has no create/switch organization flow.
 
 ## Dashboard sessions

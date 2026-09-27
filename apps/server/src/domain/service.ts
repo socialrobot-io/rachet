@@ -914,4 +914,60 @@ export class ReflowService {
     if (!context.principal.deploymentAdmin) throw new ReflowError('FORBIDDEN', 'Deployment administrator required', 403);
     return this.db.select().from(webhookEvents).orderBy(asc(webhookEvents.createdAt));
   }
+
+  async accountList(context: OperationContext) {
+    if (!context.principal.deploymentAdmin) throw new ReflowError('FORBIDDEN', 'Deployment administrator required', 403);
+    const result = await this.db.execute<{
+      id: string;
+      name: string;
+      email: string;
+      createdAt: Date | string;
+      disabled: boolean;
+      workflowCount: number;
+      enrolledCount: number;
+      organizations: Array<{ id: string; name: string }> | string;
+    }>(sql`
+      select
+        u.id,
+        u.name,
+        u.email,
+        u."createdAt" as "createdAt",
+        coalesce(p.disabled, false) as disabled,
+        coalesce(stats.workflow_count, 0)::int as "workflowCount",
+        coalesce(stats.enrolled_count, 0)::int as "enrolledCount",
+        coalesce(stats.organizations, '[]'::jsonb) as organizations
+      from "user" u
+      left join profiles p on p.user_id = u.id
+      left join lateral (
+        select
+          count(distinct s.id)::int as workflow_count,
+          count(distinct e.contact_id)::int as enrolled_count,
+          coalesce(
+            jsonb_agg(distinct jsonb_build_object('id', w.id, 'name', w.name)) filter (where w.id is not null),
+            '[]'::jsonb
+          ) as organizations
+        from memberships m
+        join workspaces w on w.id = m.workspace_id
+        left join sequences s on s.workspace_id = w.id
+        left join enrollments e on e.workspace_id = w.id
+        where m.user_id = u.id
+      ) stats on true
+      order by u."createdAt" asc
+    `);
+    return result.rows.map((row) => {
+      const organizations = typeof row.organizations === 'string'
+        ? JSON.parse(row.organizations) as Array<{ id: string; name: string }>
+        : row.organizations;
+      return {
+        id: row.id,
+        name: row.name,
+        email: row.email,
+        createdAt: row.createdAt instanceof Date ? row.createdAt.toISOString() : new Date(row.createdAt).toISOString(),
+        disabled: row.disabled,
+        workflowCount: Number(row.workflowCount),
+        enrolledCount: Number(row.enrolledCount),
+        organizations: [...organizations].sort((left, right) => left.name.localeCompare(right.name)),
+      };
+    });
+  }
 }

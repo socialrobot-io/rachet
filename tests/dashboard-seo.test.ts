@@ -35,7 +35,7 @@ describe('landing SEO and static serving', () => {
     expect(JSON.parse(json ?? '{}')).toMatchObject({ '@type': 'WebSite', name: 'Rachet', url: 'https://rachet.example.test/' });
   });
 
-  it.each(['/login', '/auth/login', '/auth/consent?client_id=example', '/workflows', '/workflows/wf-123', '/enrollments/enr-123', '/settings/api-keys', '/settings/connected-apps', '/settings/integrations', '/onboarding/integrations/resend'])('excludes app route %s from indexing', async (path) => {
+  it.each(['/login', '/auth/login', '/auth/consent?client_id=example', '/admin/users', '/workflows', '/workflows/wf-123', '/enrollments/enr-123', '/settings/api-keys', '/settings/connected-apps', '/settings/integrations', '/onboarding/integrations/resend'])('excludes app route %s from indexing', async (path) => {
     const response = await app.request(path);
     const html = await response.text();
     expect(response.status).toBe(200);

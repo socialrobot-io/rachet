@@ -86,7 +86,7 @@ description: A demo skill.
     expect(got.skill.frontmatter.description).toContain('Rachet workflows');
 
     const body = await client.readResource({ uri: 'skill://reflow/references/workflows.md' });
-    expect(String((body.contents[0] as { text?: string }).text)).toContain('Author from natural language');
+    expect(String((body.contents[0] as { text?: string }).text)).toContain('Schedules, deletion, and recovery');
 
     await client.close();
     await mcp.close();

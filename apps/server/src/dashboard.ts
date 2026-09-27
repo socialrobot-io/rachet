@@ -3,7 +3,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { Hono } from 'hono';
 
-const appRoutes = /^\/(?:login|auth\/(?:login|consent)|workflows(?:\/[^/]+)?|enrollments\/[^/]+|(?:settings|onboarding)\/integrations(?:\/resend)?|settings\/(?:connected-apps|api-keys))\/?$/;
+const appRoutes = /^\/(?:login|auth\/(?:login|consent)|admin\/users|workflows(?:\/[^/]+)?|enrollments\/[^/]+|(?:settings|onboarding)\/integrations(?:\/resend)?|settings\/(?:connected-apps|api-keys))\/?$/;
 
 export function mountDashboard(app: Hono, root: string, publicUrl: string, googleAnalyticsId?: string) {
   if (!existsSync(join(root, 'index.html'))) return false;
