@@ -1,0 +1,101 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900" role="img" aria-labelledby="title desc">
+  <title id="title">Rachet system architecture</title>
+  <desc id="desc">Agents, product code, and operators use MCP, CLI, HTTP, or dashboard entry points. Shared operations enforce authorization, store state in PostgreSQL, hand durable work to Temporal, and send email through Resend.</desc>
+  <defs>
+    <pattern id="grid" width="44" height="44" patternUnits="userSpaceOnUse"><path d="M44 0H0V44" fill="none" stroke="#281916" stroke-opacity=".045"/></pattern>
+    <symbol id="robot" viewBox="0 0 82 74">
+      <g stroke="#281916" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M11 28Q5 27 4 34V47Q5 53 11 52L15 48 16 32Z" fill="#ffd43b" stroke-width="2.8"/>
+        <path d="M70 27Q77 26 79 33V46Q78 53 72 52L68 48 67 32Z" fill="#ffd43b" stroke-width="2.8"/>
+        <path d="M17 22Q22 15 33 14L53 13Q64 14 69 21L73 28Q76 34 75 45L74 52Q72 60 62 61L22 61Q12 60 10 52L9 37Q9 28 17 22Z" fill="#fffaf1" stroke-width="2.8"/>
+        <path d="M27 16Q31 13 40 13L55 13Q60 14 64 17L61 21Q53 22 43 22L32 21Z" fill="#ffd43b" stroke-width="2.4"/>
+        <path d="M23 28Q27 24 35 24L53 23Q62 24 66 30Q69 34 68 45Q67 53 59 55L29 55Q20 55 17 48Q15 40 18 33Q20 30 23 28Z" fill="#281916" stroke="none"/>
+        <path d="M26 43Q28 37 32 36Q37 35 41 43M47 42Q49 36 53 36Q58 36 60 42" fill="none" stroke="#ffd43b" stroke-width="4.7"/>
+      </g>
+    </symbol>
+    <style>
+      .ink{fill:#281916}.muted{fill:#756b65}.body{font-family:Arial,Helvetica,sans-serif}.mono{font-family:monospace;letter-spacing:2px}.line{fill:none;stroke:#281916;stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round}.card{fill:#fffdf8;stroke:#281916;stroke-opacity:.24;stroke-width:2}
+    </style>
+  </defs>
+  <rect width="1600" height="900" fill="#fffaf1"/>
+  <rect width="1600" height="900" fill="url(#grid)"/>
+  <text x="67" y="71" class="mono muted" font-size="16">HOW RACHET RUNS</text>
+  <text x="66" y="137" class="body ink" font-size="51" font-weight="800" letter-spacing="-2">One engine, every surface.</text>
+  <path d="M67 160H1535" class="line" opacity=".17"/>
+
+  <text x="73" y="207" class="mono muted" font-size="15">WHO USES IT</text>
+  <rect x="64" y="230" width="228" height="474" rx="22" class="card"/>
+  <rect x="81" y="257" width="194" height="114" rx="16" fill="#ffe27a" stroke="#281916" stroke-opacity=".22" stroke-width="2"/>
+  <use href="#robot" x="98" y="276" width="70" height="63"/>
+  <text x="180" y="328" class="body ink" font-size="23" font-weight="700">Agent</text>
+  <rect x="81" y="393" width="194" height="114" rx="16" fill="#f6c9e4" stroke="#281916" stroke-opacity=".22" stroke-width="2"/>
+  <text x="104" y="461" class="mono ink" font-size="31">&lt;/&gt;</text>
+  <text x="169" y="461" class="body ink" font-size="20" font-weight="700">Product</text>
+  <text x="169" y="487" class="body ink" font-size="20" font-weight="700">code</text>
+  <rect x="81" y="529" width="194" height="114" rx="16" fill="#bfead0" stroke="#281916" stroke-opacity=".22" stroke-width="2"/>
+  <circle cx="129" cy="566" r="13" class="line"/>
+  <path d="M102 615q1-30 27-30 27 0 28 30z" class="line"/>
+  <text x="169" y="601" class="body ink" font-size="20" font-weight="700">Operator</text>
+
+  <path d="M293 466h47m-11-11 11 11-11 11" class="line" stroke-width="3.5"/>
+  <text x="354" y="207" class="mono muted" font-size="15">ENTRY POINTS</text>
+  <rect x="345" y="230" width="228" height="474" rx="22" class="card"/>
+  <rect x="363" y="258" width="192" height="86" rx="13" fill="#fffaf1" stroke="#281916" stroke-opacity=".2" stroke-width="2"/>
+  <text x="389" y="312" class="body ink" font-size="25" font-weight="700">MCP</text>
+  <circle cx="524" cy="301" r="8" fill="#58aa82"/>
+  <rect x="363" y="363" width="192" height="86" rx="13" fill="#fffaf1" stroke="#281916" stroke-opacity=".2" stroke-width="2"/>
+  <text x="389" y="417" class="body ink" font-size="25" font-weight="700">CLI</text>
+  <path d="m504 391 14 15-14 15m21 0h13" class="line"/>
+  <rect x="363" y="468" width="192" height="86" rx="13" fill="#fffaf1" stroke="#281916" stroke-opacity=".2" stroke-width="2"/>
+  <text x="389" y="522" class="body ink" font-size="25" font-weight="700">HTTP</text>
+  <circle cx="521" cy="511" r="16" class="line"/>
+  <path d="M505 511h32m-16-16q12 16 0 32m0-32q-12 16 0 32" class="line" stroke-width="1.5"/>
+  <rect x="363" y="573" width="192" height="86" rx="13" fill="#fffaf1" stroke="#281916" stroke-opacity=".2" stroke-width="2"/>
+  <text x="389" y="627" class="body ink" font-size="25" font-weight="700">Dashboard</text>
+  <path d="M574 466h47m-11-11 11 11-11 11" class="line" stroke-width="3.5"/>
+
+  <text x="634" y="207" class="mono muted" font-size="15">ONE SHARED CONTRACT</text>
+  <rect x="626" y="259" width="324" height="390" rx="23" fill="#281916" opacity=".08" transform="translate(7 9)"/>
+  <rect x="626" y="259" width="324" height="390" rx="23" fill="#fffdf8" stroke="#281916" stroke-opacity=".45" stroke-width="2.5"/>
+  <rect x="653" y="287" width="270" height="72" rx="14" fill="#ffe27a"/>
+  <text x="676" y="332" class="body ink" font-size="27" font-weight="800">Shared operations</text>
+  <path d="M655 385H921" class="line" opacity=".15"/>
+  <circle cx="679" cy="425" r="13" fill="#bfead0"/>
+  <path d="m673 425 5 5 9-11" class="line" stroke="#1f744e" stroke-width="2.5"/>
+  <text x="704" y="432" class="body ink" font-size="22" font-weight="700">Authorization</text>
+  <circle cx="679" cy="481" r="13" fill="#bfead0"/>
+  <path d="m673 481 5 5 9-11" class="line" stroke="#1f744e" stroke-width="2.5"/>
+  <text x="704" y="488" class="body ink" font-size="22" font-weight="700">Workspace policy</text>
+  <circle cx="679" cy="537" r="13" fill="#bfead0"/>
+  <path d="m673 537 5 5 9-11" class="line" stroke="#1f744e" stroke-width="2.5"/>
+  <text x="704" y="544" class="body ink" font-size="22" font-weight="700">Idempotent writes</text>
+  <text x="656" y="615" class="mono muted" font-size="13">SAME OPERATIONS EVERYWHERE</text>
+
+  <text x="1007" y="207" class="mono muted" font-size="15">STATE + EXECUTION</text>
+  <path d="M951 385h40m-10-10 10 10-10 10" class="line" stroke-width="3.5"/>
+  <rect x="997" y="258" width="264" height="192" rx="21" class="card"/>
+  <ellipse cx="1129" cy="306" rx="42" ry="15" fill="#bfead0" stroke="#281916" stroke-opacity=".55" stroke-width="2"/>
+  <path d="M1087 306v42c0 9 19 16 42 16s42-7 42-16v-42" class="line"/>
+  <path d="M1087 327c0 9 19 16 42 16s42-7 42-16" class="line" opacity=".4"/>
+  <text x="1042" y="402" class="body ink" font-size="26" font-weight="800">PostgreSQL</text>
+  <text x="1035" y="429" class="mono muted" font-size="13">STATE + SEND INTENTS</text>
+  <path d="M1129 451v50m-10-12 10 12 10-12" class="line" stroke-width="3"/>
+  <rect x="1042" y="461" width="174" height="31" rx="15" fill="#f6c9e4"/>
+  <text x="1072" y="482" class="mono ink" font-size="12">OUTBOX</text>
+  <rect x="997" y="511" width="264" height="193" rx="21" class="card"/>
+  <circle cx="1129" cy="567" r="27" fill="#ffe27a" stroke="#281916" stroke-opacity=".6" stroke-width="2"/>
+  <path d="M1129 550v18l13 9" class="line" stroke-width="3"/>
+  <text x="1069" y="641" class="body ink" font-size="27" font-weight="800">Temporal</text>
+  <text x="1051" y="672" class="mono muted" font-size="13">DURABLE WAITS + WORKERS</text>
+
+  <path d="M1261 609h55m-12-11 12 11-12 11" class="line" stroke-width="3.5"/>
+  <text x="1324" y="207" class="mono muted" font-size="15">EMAIL DELIVERY</text>
+  <rect x="1322" y="511" width="215" height="193" rx="21" class="card"/>
+  <rect x="1389" y="546" width="79" height="53" rx="7" fill="#f6c9e4" stroke="#281916" stroke-opacity=".6" stroke-width="2"/>
+  <path d="m1390 550 39 31 38-31" class="line"/>
+  <text x="1371" y="646" class="body ink" font-size="29" font-weight="800">Resend</text>
+  <text x="1354" y="674" class="mono muted" font-size="13">PROVIDER ADAPTER</text>
+  <path d="M67 768H1535" class="line" opacity=".17"/>
+  <text x="67" y="811" class="body ink" font-size="24" font-weight="700">One set of operations. Durable progress. A recorded send intent before delivery.</text>
+  <text x="68" y="851" class="mono muted" font-size="14">MCP / CLI / HTTP / DASHBOARD    →    POSTGRESQL    →    TEMPORAL    →    RESEND</text>
+</svg>

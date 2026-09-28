@@ -17,7 +17,7 @@
 </p>
 
 <p align="center">
-  <a href="#quick-start"><img src="https://img.shields.io/badge/Get_started-168363?style=for-the-badge" alt="Get started" /></a>
+  <a href="#quick-start"><img src="https://img.shields.io/badge/Get_started-281916?style=for-the-badge" alt="Get started" /></a>
 </p>
 
 <p align="center">
@@ -34,7 +34,7 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-AGPL_v3-blue.svg" alt="License: AGPL v3" /></a>
 </p>
 
-![Claude / Cursor chat connected over MCP: the agent creates a welcome template from the design system, builds the journey, validates both paths, and shows the graph](docs/assets/hero-composition.png)
+![An agent turns a welcome request into a template and a validated journey, ready for review](docs/assets/hero-composition.svg)
 
 <p align="center">
   <sub>Your agent authors and validates. You decide what goes live.</sub>
@@ -44,7 +44,7 @@
 
 Tell your agent what the journey should do. It can inspect templates and workflows, create the graph, and simulate each path before you publish.
 
-![From a sentence to an email template and a durable journey graph](docs/assets/prompt-to-production.png)
+![A welcome request becomes an email template and a durable journey graph](docs/assets/prompt-to-production.svg)
 
 | Agent authored | Built to keep running | You stay in control |
 | --- | --- | --- |
@@ -181,7 +181,7 @@ The public landing page is at `/` and `/welcome`. Signed-in users go to `/workfl
 
 ## Architecture
 
-![Rachet architecture: MCP, CLI, HTTP, and dashboard over shared operations and authorization, backed by PostgreSQL and Temporal, sending through Resend](docs/assets/architecture.png)
+![Rachet architecture: MCP, CLI, HTTP, and dashboard share operations and authorization, with PostgreSQL, Temporal, and Resend](docs/assets/architecture.svg)
 
 | Concept | Meaning |
 | --- | --- |

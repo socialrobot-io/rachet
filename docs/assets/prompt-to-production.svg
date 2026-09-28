@@ -1,0 +1,80 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1440 900" role="img" aria-labelledby="title desc">
+  <title id="title">A prompt produces a welcome email and a durable journey</title>
+  <desc id="desc">A request to welcome new customers becomes an email and a journey that waits up to 24 hours, ending on activation or sending one reminder.</desc>
+  <defs>
+    <pattern id="grid" width="44" height="44" patternUnits="userSpaceOnUse"><path d="M44 0H0V44" fill="none" stroke="#281916" stroke-opacity=".045"/></pattern>
+    <symbol id="robot" viewBox="0 0 82 74">
+      <g stroke="#281916" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M11 28Q5 27 4 34V47Q5 53 11 52L15 48 16 32Z" fill="#ffd43b" stroke-width="2.8"/>
+        <path d="M70 27Q77 26 79 33V46Q78 53 72 52L68 48 67 32Z" fill="#ffd43b" stroke-width="2.8"/>
+        <path d="M17 22Q22 15 33 14L53 13Q64 14 69 21L73 28Q76 34 75 45L74 52Q72 60 62 61L22 61Q12 60 10 52L9 37Q9 28 17 22Z" fill="#fffaf1" stroke-width="2.8"/>
+        <path d="M27 16Q31 13 40 13L55 13Q60 14 64 17L61 21Q53 22 43 22L32 21Z" fill="#ffd43b" stroke-width="2.4"/>
+        <path d="M23 28Q27 24 35 24L53 23Q62 24 66 30Q69 34 68 45Q67 53 59 55L29 55Q20 55 17 48Q15 40 18 33Q20 30 23 28Z" fill="#281916" stroke="none"/>
+        <path d="M26 43Q28 37 32 36Q37 35 41 43M47 42Q49 36 53 36Q58 36 60 42" fill="none" stroke="#ffd43b" stroke-width="4.7"/>
+      </g>
+    </symbol>
+    <style>
+      .ink{fill:#281916}.muted{fill:#756b65}.body{font-family:Arial,Helvetica,sans-serif}.mono{font-family:monospace;letter-spacing:2px}.line{fill:none;stroke:#281916;stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round}.card{fill:#fffdf8;stroke:#281916;stroke-opacity:.24;stroke-width:2}
+    </style>
+  </defs>
+  <rect width="1440" height="900" fill="#fffaf1"/>
+  <rect width="1440" height="900" fill="url(#grid)"/>
+  <text x="62" y="66" class="mono muted" font-size="16">ONE PROMPT, TWO DURABLE PARTS</text>
+  <path d="M62 88H1378" class="line" opacity=".15"/>
+
+  <rect x="71" y="126" width="1296" height="139" rx="24" fill="#281916" opacity=".07" transform="translate(7 8) rotate(-.35 719 195)"/>
+  <rect x="71" y="126" width="1296" height="139" rx="24" fill="#ffe27a" stroke="#281916" stroke-opacity=".5" stroke-width="2" transform="rotate(-.35 719 195)"/>
+  <text x="105" y="166" class="mono ink" font-size="14">YOU ASK</text>
+  <text x="105" y="218" class="body ink" font-size="30" font-weight="700">“Welcome new customers. Nudge them after a day, but stop if they activate.”</text>
+  <path d="M720 266v32m-9-10 9 10 9-10" class="line" stroke-width="3"/>
+  <use href="#robot" x="683" y="290" width="74" height="66"/>
+  <text x="771" y="337" class="body ink" font-size="31" font-weight="800">Rachet</text>
+
+  <rect x="63" y="373" width="614" height="451" rx="24" fill="#281916" opacity=".07" transform="translate(6 7)"/>
+  <rect x="63" y="373" width="614" height="451" rx="24" class="card"/>
+  <rect x="91" y="398" width="558" height="54" rx="12" fill="#f6c9e4"/>
+  <text x="113" y="434" class="mono ink" font-size="16">01  /  WELCOME EMAIL</text>
+  <rect x="91" y="471" width="558" height="321" rx="17" fill="#fffaf1" stroke="#281916" stroke-opacity=".18" stroke-width="2"/>
+  <path d="M91 523H649" class="line" opacity=".15"/>
+  <circle cx="119" cy="497" r="6" fill="#f6c9e4"/>
+  <circle cx="139" cy="497" r="6" fill="#ffe27a"/>
+  <circle cx="159" cy="497" r="6" fill="#bfead0"/>
+  <text x="111" y="558" class="mono muted" font-size="15">SUBJECT</text>
+  <text x="214" y="558" class="body ink" font-size="22" font-weight="700">Welcome aboard</text>
+  <path d="M113 582H627" class="line" opacity=".13"/>
+  <text x="114" y="635" class="body ink" font-size="42" font-weight="800" letter-spacing="-1.5">Welcome!</text>
+  <text x="114" y="676" class="body muted" font-size="22">You are in. Let's get started.</text>
+  <rect x="114" y="709" width="182" height="53" rx="27" fill="#281916"/>
+  <text x="150" y="743" class="body" fill="#fffaf1" font-size="19" font-weight="700">Get started  →</text>
+  <path d="M565 743l14-20m3 22 22-10m-17 25 21 6" class="line" stroke="#e9aa20" stroke-width="4"/>
+
+  <rect x="704" y="373" width="673" height="451" rx="24" fill="#281916" opacity=".07" transform="translate(6 7)"/>
+  <rect x="704" y="373" width="673" height="451" rx="24" class="card"/>
+  <rect x="733" y="398" width="615" height="54" rx="12" fill="#bfead0"/>
+  <text x="755" y="434" class="mono ink" font-size="16">02  /  JOURNEY GRAPH</text>
+
+  <rect x="734" y="482" width="170" height="60" rx="13" class="card"/>
+  <circle cx="760" cy="511" r="8" fill="#58aa82"/>
+  <text x="779" y="519" class="body ink" font-size="18" font-weight="700">New account</text>
+  <path d="M904 511h27m-9-9 9 9-9 9" class="line"/>
+  <rect x="932" y="482" width="183" height="60" rx="13" fill="#f6c9e4" stroke="#281916" stroke-opacity=".22" stroke-width="2"/>
+  <text x="947" y="519" class="body ink" font-size="18" font-weight="700">Send welcome</text>
+  <path d="M1115 511h26m-9-9 9 9-9 9" class="line"/>
+  <rect x="1142" y="482" width="204" height="60" rx="13" fill="#ffe27a" stroke="#281916" stroke-opacity=".22" stroke-width="2"/>
+  <text x="1161" y="508" class="body ink" font-size="16" font-weight="700">Wait for activation</text>
+  <text x="1161" y="530" class="body ink" font-size="15">up to 24 hours</text>
+  <path d="M1244 542v61m0 0H907m337 0h0m-337 0v25m337-25v25" class="line"/>
+  <path d="m899 620 8 8 8-8m321 0 8 8 8-8" class="line"/>
+  <text x="757" y="597" class="mono muted" font-size="12">ACTIVATED</text>
+  <text x="1121" y="597" class="mono muted" font-size="12">NO ACTIVATION</text>
+  <rect x="766" y="628" width="280" height="69" rx="14" fill="#bfead0" stroke="#281916" stroke-opacity=".2" stroke-width="2"/>
+  <text x="865" y="671" class="body ink" font-size="23" font-weight="700">End</text>
+  <rect x="1102" y="628" width="243" height="69" rx="14" class="card"/>
+  <text x="1125" y="671" class="body ink" font-size="20" font-weight="700">Send reminder</text>
+  <path d="M1224 697v26m-8-8 8 8 8-8" class="line"/>
+  <rect x="1158" y="724" width="132" height="57" rx="13" fill="#bfead0" stroke="#281916" stroke-opacity=".2" stroke-width="2"/>
+  <text x="1203" y="759" class="body ink" font-size="19" font-weight="700">End</text>
+
+  <path d="M63 860H1377" class="line" opacity=".15"/>
+  <text x="66" y="886" class="mono muted" font-size="13">THE WAIT SURVIVES RESTARTS. THE REMINDER RUNS ONLY IF THE TIMER WINS.</text>
+</svg>

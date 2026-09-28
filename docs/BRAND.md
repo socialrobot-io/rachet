@@ -39,6 +39,6 @@ Sources: [Inter Tight](https://fonts.google.com/specimen/Inter+Tight), [Fontsour
 ## Color
 
 - Wordmark ink: `#281916`
-- Forward mark: `#FFD43B`
+- Robot accent: `#FFD43B`
 - Inverse wordmark: `#FFFAF1`
 - Interface surfaces and accents: the existing cream, yellow, pink, and mint tokens in `apps/dashboard/src/index.css`.
