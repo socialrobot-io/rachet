@@ -10,6 +10,7 @@ function discoveryApp() {
     issuer: 'http://localhost:3000/api/auth',
     requestedPath: new URL(request.url).pathname,
   }));
+  const getSession = vi.fn(async () => null);
   const config = {
     publicUrl: 'http://localhost:3000',
     trustedOrigins: ['http://localhost:3000'],
@@ -20,7 +21,7 @@ function discoveryApp() {
     auth: {
       handler,
       api: {
-        getSession: async () => null,
+        getSession,
         verifyApiKey: async () => ({ valid: false, key: null }),
       },
     } as unknown as ReflowAuth,
@@ -28,7 +29,7 @@ function discoveryApp() {
     service: {} as ReflowService,
     operations: {},
   });
-  return { app, handler };
+  return { app, handler, getSession };
 }
 
 describe('MCP OAuth discovery', () => {
@@ -87,5 +88,33 @@ describe('MCP OAuth discovery', () => {
       expect(response.status).toBe(401);
       expect(response.headers.get('www-authenticate')).toContain('Bearer');
     }
+  });
+
+  it('returns a retryable error when a session lookup fails', async () => {
+    const { app, getSession } = discoveryApp();
+    getSession.mockRejectedValueOnce(new Error('database unavailable'));
+
+    const response = await app.request('/mcp', { method: 'POST' });
+
+    expect(response.status).toBe(503);
+    expect(response.headers.get('www-authenticate')).toBeNull();
+    await expect(response.json()).resolves.toMatchObject({ code: 'AUTH_UNAVAILABLE', retryable: true });
+  });
+
+  it.each([
+    [429, 'RATE_LIMITED', 429],
+    [500, 'AUTH_UNAVAILABLE', 503],
+  ] as const)('does not turn an OAuth %i into a 401 challenge', async (authStatus, code, expectedStatus) => {
+    const { app, handler } = discoveryApp();
+    handler.mockResolvedValueOnce(Response.json({}, { status: authStatus }));
+
+    const response = await app.request('/mcp', {
+      method: 'POST',
+      headers: { authorization: 'Bearer test-token' },
+    });
+
+    expect(response.status).toBe(expectedStatus);
+    expect(response.headers.get('www-authenticate')).toBeNull();
+    await expect(response.json()).resolves.toMatchObject({ code, retryable: true });
   });
 });

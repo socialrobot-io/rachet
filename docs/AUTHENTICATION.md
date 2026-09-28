@@ -36,6 +36,8 @@ The published CLI intentionally does not expose a generic `/api/auth/*` proxy. A
 
 HTTP MCP is an OAuth protected resource at `/mcp`. Rachet publishes protected-resource, OAuth authorization-server, and OpenID discovery metadata. Public MCP clients use PKCE and the same dashboard login/consent pages as the CLI.
 
+MCP requests use a stateless HTTP transport. The server does not issue an MCP session ID. Better Auth stores browser sessions, OAuth client registrations, grants, refresh tokens, and signing keys in PostgreSQL. A deploy closes active HTTP connections, but a client can reconnect with its saved grant. Keep `DATABASE_URL`, `BETTER_AUTH_SECRET`, and `PUBLIC_URL` stable across deploys. If authentication is temporarily unavailable, `/mcp` returns a retryable error rather than an OAuth challenge; a `401` means the client must authenticate again.
+
 Unauthenticated dynamic registration is limited to public clients (`token_endpoint_auth_method=none`) and rejects client credentials. Redirects are limited to loopback HTTP, native schemes explicitly listed in `OAUTH_PUBLIC_REDIRECT_SCHEMES` (default: `cursor`), and exact HTTPS origins listed in `OAUTH_PUBLIC_REDIRECT_ORIGINS`. Every dynamically registered client requires consent; there is no consent bypass.
 
 The dashboard's **Connected apps** page lists grants for the signed-in user and revokes them. The **API keys** page creates, lists, and revokes SDK credentials. A key is shown once, stored hashed, limited to the user's immutable organization and selected scopes, and never returned by list operations. Secret-returning `credential.create` is excluded from the MCP tool catalog and its resource listing.

@@ -326,6 +326,8 @@ export function createApp(dependencies: Dependencies) {
     const authorization = request.headers.get('authorization');
     if (authorization?.startsWith('Bearer ')) {
       const response = await auth.handler(new Request(`${config.publicUrl}/api/auth/reflow-token`, { headers: request.headers }));
+      if (response.status === 429) throw new ReflowError('RATE_LIMITED', 'Authentication rate limit reached', 429, true);
+      if (response.status >= 500) throw new ReflowError('AUTH_UNAVAILABLE', 'Authentication temporarily unavailable', 503, true);
       if (!response.ok) throw new ReflowError('UNAUTHENTICATED', 'Invalid OAuth access token', 401);
       const token = await response.json() as { aud?: string | string[]; sub?: string; client_id?: string; scope?: string };
       const audience = Array.isArray(token.aud) ? token.aud : [token.aud];
@@ -363,11 +365,18 @@ export function createApp(dependencies: Dependencies) {
   app.all('/mcp', async (context) => {
     let execution;
     try { execution = await operationContext(context.req.raw); }
-    catch {
+    catch (error) {
+      if (error instanceof ReflowError) {
+        if (error.status !== 401) return context.json(errorPayload(error), error.status as 400);
+      } else {
+        console.error('MCP authentication failed', error instanceof Error ? error.name : 'unknown');
+        return context.json(errorPayload(new ReflowError('AUTH_UNAVAILABLE', 'Authentication temporarily unavailable', 503, true)), 503);
+      }
       return context.json({ error: 'unauthorized' }, 401, {
         'WWW-Authenticate': `Bearer realm="reflow", resource_metadata="${config.publicUrl}/.well-known/oauth-protected-resource/mcp"`,
       });
     }
+    // A fresh transport per request leaves MCP transport sessions disabled.
     const transport = new WebStandardStreamableHTTPServerTransport({ enableJsonResponse: true });
     const mcp = await createMcpServer(operations, execution);
     await mcp.connect(transport);
