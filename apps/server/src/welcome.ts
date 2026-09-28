@@ -60,7 +60,7 @@ export function welcomeVariables(publicUrl: string, from: string) {
     workflowsUrl: `${base}/workflows`,
     integrationsUrl: `${base}/settings/integrations`,
     replyMailto: `mailto:${address}`,
-    logoUrl: `${base}/brand/rachet-logo.png`,
+    logoUrl: `${base}/brand/rachet-logo.png?v=robot-1`,
     signatureUrl: `${base}/brand/founder-signature.png`,
   };
 }

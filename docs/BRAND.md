@@ -16,6 +16,7 @@ Transparent PNG exports are also available. Prefer SVG in interfaces and print.
 The wordmark uses outlined Inter Tight ExtraBold (800) paths. Keep its aspect ratio, leave clear space equal to half the cap height, and use at least 120px width in interfaces. Use the full-body mascot at 80px high or larger so its ink detail stays clear.
 
 Use the shared `RachetLogo` component in the dashboard. The favicon uses the robot head on the dark brand color.
+Brand image URLs carry a version so cached copies update when the artwork changes. Change the URL version when replacing a deployed asset at the same path.
 
 ## Social preview and search
 

@@ -52,7 +52,7 @@ describe('renderWithSamples', () => {
     };
     await renderWithSamples(render, {}, { origin: 'https://rachet.dev' });
     expect(seen.at(-1)).toMatchObject({
-      variables: { logoUrl: 'https://rachet.dev/brand/rachet-logo.png' },
+      variables: { logoUrl: 'https://rachet.dev/brand/rachet-logo.png?v=robot-1' },
     });
   });
 

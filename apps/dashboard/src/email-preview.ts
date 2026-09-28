@@ -16,7 +16,7 @@ const SAMPLE_VALUES: Record<string, unknown> = {
 function sampleFor(path: string, origin: string): unknown {
   const key = path.split('.').at(-1)?.toLowerCase() ?? '';
   const base = origin.replace(/\/$/, '');
-  if (key === 'logourl') return `${base}/brand/rachet-logo.png`;
+  if (key === 'logourl') return `${base}/brand/rachet-logo.png?v=robot-1`;
   if (key === 'signatureurl') return `${base}/brand/founder-signature.png`;
   if (key === 'workflowsurl') return `${base}/workflows`;
   if (key === 'integrationsurl') return `${base}/settings/integrations`;

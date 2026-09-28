@@ -29,7 +29,7 @@ describe('welcome helpers', () => {
       workflowsUrl: 'https://rachet.dev/workflows',
       integrationsUrl: 'https://rachet.dev/settings/integrations',
       replyMailto: 'mailto:hello@rachet.dev',
-      logoUrl: 'https://rachet.dev/brand/rachet-logo.png',
+      logoUrl: 'https://rachet.dev/brand/rachet-logo.png?v=robot-1',
       signatureUrl: 'https://rachet.dev/brand/founder-signature.png',
     });
   });
