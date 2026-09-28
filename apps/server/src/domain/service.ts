@@ -1,13 +1,19 @@
 import { createHash } from 'node:crypto';
-import { and, asc, eq, inArray, sql } from 'drizzle-orm';
+import { and, asc, eq, inArray, ne, sql } from 'drizzle-orm';
 import type { Client } from '@temporalio/client';
 import { WorkflowNotFoundError } from '@temporalio/common';
 import type { ReflowAuth } from '../auth.js';
+import { planLimits } from '../billing/plans.js';
+import { admitContactUsage } from '../billing/admit.js';
+import { drainHeldEnrollments, maybeSendAlerts, reportOverageForWorkspace } from '../billing/jobs.js';
+import { ensureOverageSubscriptionItem } from '../billing/overage.js';
+import { currentYearMonth, usageSummary } from '../billing/usage.js';
 import type { Database } from '../db/index.js';
 import {
-  auditEvents, contacts, enrollmentEvents, enrollments, eventTypes, memberships, outbox, profiles, sendIntents,
-  sequences, sequenceVersions, templates, templateVersions, webhookEvents, workspaces,
+  auditEvents, contacts, enrollmentEvents, enrollments, eventTypes, heldEnrollments, memberships, outbox, profiles, sendIntents,
+  sequences, sequenceVersions, templates, templateVersions, webhookEvents, workspaceUsageMonths, workspaces,
 } from '../db/schema.js';
+import type { Config } from '../config.js';
 import type { OperationContext, Principal, SimulatedEvent, WorkflowDefinition } from '@reflow/contracts';
 import { validateActionNodes } from './action-catalog.js';
 import { simulateWorkflow } from './simulate.js';
@@ -43,12 +49,26 @@ function stableHash(value: unknown): string {
   return createHash('sha256').update(stableJson(value)).digest('hex');
 }
 
+export type ReflowServiceOptions = {
+  /** When false (default), plan limits and metering are not enforced. Self-host default. */
+  billingEnabled?: boolean;
+  /** Used for overage meter events and usage alert email when billing is on. */
+  billingConfig?: Pick<Config, 'stripeSecretKey' | 'stripeMeterEventName' | 'stripePriceOverage' | 'authResendApiKey' | 'authFrom' | 'publicUrl'>;
+};
+
 export class ReflowService {
+  private readonly billingEnabled: boolean;
+  private readonly billingConfig: ReflowServiceOptions['billingConfig'];
+
   constructor(
     private readonly db: Database,
     private readonly temporal: Client,
     private readonly auth: ReflowAuth,
-  ) {}
+    options: ReflowServiceOptions = {},
+  ) {
+    this.billingEnabled = options.billingEnabled === true;
+    this.billingConfig = options.billingConfig;
+  }
 
   async principalFor(userId: string): Promise<Principal> {
     const [profile] = await this.db.select().from(profiles).where(eq(profiles.userId, userId)).limit(1);
@@ -73,13 +93,14 @@ export class ReflowService {
     };
   }
 
-  private workspace(context: OperationContext, workspaceId: string, permission: 'read' | 'author' | 'send' | 'operate' = 'read') {
+  private workspace(context: OperationContext, workspaceId: string, permission: 'read' | 'author' | 'send' | 'operate' | 'admin' = 'read') {
     if (context.principal.deploymentAdmin) return;
     const role = context.principal.workspaceRoles[workspaceId];
     const allowed = permission === 'read'
       ? ['owner', 'admin', 'author', 'sender', 'operator', 'viewer']
       : permission === 'author' ? ['owner', 'admin', 'author']
       : permission === 'send' ? ['owner', 'admin', 'sender']
+      : permission === 'admin' ? ['owner', 'admin']
       : ['owner', 'admin', 'sender', 'operator'];
     if (!role || !allowed.includes(role)) throw new ReflowError('FORBIDDEN', `Workspace ${permission} permission denied`, 403);
   }
@@ -491,16 +512,21 @@ export class ReflowService {
       .from(profiles).where(eq(profiles.userId, context.principal.userId)).limit(1);
     if (profile?.defaultWorkspaceId) {
       if (!context.principal.deploymentAdmin && !context.principal.workspaceRoles[profile.defaultWorkspaceId]) return [];
-      const [workspace] = await this.db.select({ id: workspaces.id, name: workspaces.name, slug: workspaces.slug })
-        .from(workspaces).where(eq(workspaces.id, profile.defaultWorkspaceId)).limit(1);
+      const [workspace] = await this.db.select({
+        id: workspaces.id, name: workspaces.name, slug: workspaces.slug, plan: workspaces.plan,
+      }).from(workspaces).where(eq(workspaces.id, profile.defaultWorkspaceId)).limit(1);
       if (!workspace) return [];
       return [{ ...workspace, role: context.principal.workspaceRoles[workspace.id] ?? 'deployment_admin' }];
     }
     if (context.principal.deploymentAdmin) {
-      const rows = await this.db.select({ id: workspaces.id, name: workspaces.name, slug: workspaces.slug }).from(workspaces).orderBy(asc(workspaces.name));
+      const rows = await this.db.select({
+        id: workspaces.id, name: workspaces.name, slug: workspaces.slug, plan: workspaces.plan,
+      }).from(workspaces).orderBy(asc(workspaces.name));
       return rows.map((row) => ({ ...row, role: context.principal.workspaceRoles[row.id] ?? 'deployment_admin' }));
     }
-    return this.db.select({ id: workspaces.id, name: workspaces.name, slug: workspaces.slug, role: memberships.role })
+    return this.db.select({
+      id: workspaces.id, name: workspaces.name, slug: workspaces.slug, plan: workspaces.plan, role: memberships.role,
+    })
       .from(workspaces)
       .innerJoin(memberships, and(eq(memberships.workspaceId, workspaces.id), eq(memberships.userId, context.principal.userId)))
       .orderBy(asc(workspaces.name));
@@ -537,6 +563,28 @@ export class ReflowService {
       validateActionNodes(definition.nodes);
       await this.assertEventTypes(input.workspaceId, definition);
       await this.assertTemplateRefs(input.workspaceId, definition);
+      if (this.billingEnabled && draft.state !== 'published') {
+        const [workspace] = await tx.select({ plan: workspaces.plan }).from(workspaces)
+          .where(eq(workspaces.id, input.workspaceId)).limit(1);
+        const limit = planLimits(workspace?.plan ?? 'free').liveJourneys;
+        if (limit !== null) {
+          const [countRow] = await tx.select({ count: sql<number>`count(*)::int` }).from(sequences)
+            .where(and(
+              eq(sequences.workspaceId, input.workspaceId),
+              eq(sequences.state, 'published'),
+              ne(sequences.id, draft.id),
+            ));
+          if (Number(countRow?.count ?? 0) >= limit) {
+            throw new ReflowError(
+              'PLAN_LIMIT',
+              `The Free plan allows ${limit} live journeys. Upgrade to publish more.`,
+              402,
+              false,
+              { hint: 'Upgrade the organization plan, or archive an existing live journey first.', details: { limit, plan: workspace?.plan ?? 'free' } },
+            );
+          }
+        }
+      }
       const countRows = await tx.select({ count: sql<number>`count(*)::int` }).from(sequenceVersions).where(eq(sequenceVersions.sequenceId, draft.id));
       const [version] = await tx.insert(sequenceVersions).values({ workspaceId: input.workspaceId, sequenceId: draft.id, version: Number(countRows[0]?.count ?? 0) + 1, contentHash: hash(definition), definition }).returning();
       await tx.update(sequences).set({ state: 'published', updatedAt: new Date() }).where(eq(sequences.id, draft.id));
@@ -651,7 +699,7 @@ export class ReflowService {
           if (existing.contactId !== input.contactId || existing.sequenceVersionId !== input.workflowVersionId || stableHash(existing.input) !== stableHash(input.variables)) {
             throw new ReflowError('IDEMPOTENCY_CONFLICT', 'Idempotency key was used with different input', 409);
           }
-          return existing;
+          return { enrollment: existing, admission: null as Awaited<ReturnType<typeof admitContactUsage>> | null };
         }
         const [recent] = await tx.select({ count: sql<number>`count(*)` }).from(enrollments)
           .where(and(eq(enrollments.workspaceId, input.workspaceId), sql`${enrollments.createdAt} >= now() - interval '1 minute'`));
@@ -659,18 +707,195 @@ export class ReflowService {
         const [active] = await tx.select({ count: sql<number>`count(*)` }).from(enrollments)
           .where(and(eq(enrollments.workspaceId, input.workspaceId), inArray(enrollments.state, ['pending_start', 'running', 'waiting', 'paused', 'needs_attention'])));
         if (Number(active?.count ?? 0) >= 1000) throw new ReflowError('WORKSPACE_CAPACITY', 'This organization has reached 1000 active workflows', 429, true);
+
+        let admission: Awaited<ReturnType<typeof admitContactUsage>> | null = null;
+        if (this.billingEnabled) {
+          admission = await admitContactUsage(tx, {
+            workspaceId: input.workspaceId,
+            contactId: input.contactId,
+            workflowVersionId: input.workflowVersionId,
+            variables: input.variables,
+            idempotencyKey: input.idempotencyKey,
+          });
+          if (admission.kind === 'held') {
+            return { enrollment: null, admission };
+          }
+        }
+
         const rows = await tx.insert(enrollments).values({ id, workspaceId: input.workspaceId, sequenceVersionId: input.workflowVersionId, contactId: input.contactId, workflowId, input: input.variables, idempotencyKey: input.idempotencyKey }).returning();
         await tx.insert(outbox).values({ kind: 'enrollment.start', aggregateId: id, payload: { enrollmentId: id } });
         await tx.insert(auditEvents).values({ workspaceId: input.workspaceId, actorId: context.principal.userId, action: 'enrollment.create', targetType: 'enrollment', targetId: id });
-        return rows[0];
+        return { enrollment: rows[0], admission };
       });
-      return created;
+
+      if (created.admission?.kind === 'held') {
+        throw new ReflowError(
+          'ENROLLMENT_HELD',
+          created.admission.reason === 'overage_cap'
+            ? 'This enrollment is held because the monthly overage spend cap was reached.'
+            : 'This enrollment is held because the monthly unique-contact limit was reached.',
+          402,
+          false,
+          {
+            hint: 'It will start when you upgrade, turn on overage, or when the month resets. Discard held enrollments from Billing settings if they are no longer needed.',
+            details: { heldId: created.admission.heldId, reason: created.admission.reason },
+          },
+        );
+      }
+
+      if (created.admission?.kind === 'admit' && this.billingConfig) {
+        if (created.admission.asOverage) {
+          await reportOverageForWorkspace(this.db, this.billingConfig, input.workspaceId, id).catch((error: unknown) => {
+            console.error(JSON.stringify({
+              level: 'error',
+              message: 'Failed to report overage meter event',
+              workspaceId: input.workspaceId,
+              error: error instanceof Error ? error.message : 'unknown',
+            }));
+          });
+        }
+        if (created.admission.alert80 || created.admission.alert100) {
+          await maybeSendAlerts(this.db, this.billingConfig, input.workspaceId, created.admission).catch(() => undefined);
+        }
+      }
+
+      if (!created.enrollment) {
+        throw new ReflowError('INTERNAL', 'Enrollment create returned no row', 500);
+      }
+      return created.enrollment;
     } catch (error) {
+      if (error instanceof ReflowError) throw error;
       if (!isUniqueViolation(error)) throw error;
       const [existing] = await this.db.select().from(enrollments).where(and(eq(enrollments.workspaceId, input.workspaceId), eq(enrollments.idempotencyKey, input.idempotencyKey))).limit(1);
       if (!existing || existing.contactId !== input.contactId || existing.sequenceVersionId !== input.workflowVersionId || stableHash(existing.input) !== stableHash(input.variables)) throw new ReflowError('IDEMPOTENCY_CONFLICT', 'Idempotency key was used with different input', 409);
       return existing;
     }
+  }
+
+  async billingUsage(context: OperationContext, workspaceId: string) {
+    this.workspace(context, workspaceId);
+    if (!this.billingEnabled) {
+      return { billingEnabled: false as const };
+    }
+    const yearMonth = currentYearMonth();
+    const [workspace] = await this.db.select({
+      plan: workspaces.plan,
+      overageEnabled: workspaces.overageEnabled,
+      overageCapCents: workspaces.overageCapCents,
+    }).from(workspaces).where(eq(workspaces.id, workspaceId)).limit(1);
+    if (!workspace) throw new ReflowError('NOT_FOUND', 'Organization not found', 404);
+    const [month] = await this.db.select().from(workspaceUsageMonths).where(and(
+      eq(workspaceUsageMonths.workspaceId, workspaceId),
+      eq(workspaceUsageMonths.yearMonth, yearMonth),
+    )).limit(1);
+    const [held] = await this.db.select({ count: sql<number>`count(*)` }).from(heldEnrollments)
+      .where(eq(heldEnrollments.workspaceId, workspaceId));
+    return {
+      billingEnabled: true as const,
+      ...usageSummary({
+        plan: workspace.plan,
+        uniqueContacts: month?.uniqueContacts ?? 0,
+        overageContacts: month?.overageContacts ?? 0,
+        overageEnabled: workspace.overageEnabled,
+        overageCapCents: workspace.overageCapCents,
+        heldCount: Number(held?.count ?? 0),
+      }),
+    };
+  }
+
+  async billingUpdateOverage(
+    context: OperationContext,
+    input: { workspaceId: string; overageEnabled: boolean; overageCapCents: number | null },
+  ) {
+    this.workspace(context, input.workspaceId, 'admin');
+    if (!this.billingEnabled) {
+      throw new ReflowError('BILLING_DISABLED', 'Billing is not enabled on this deployment', 400);
+    }
+    const [workspace] = await this.db.select({ plan: workspaces.plan }).from(workspaces)
+      .where(eq(workspaces.id, input.workspaceId)).limit(1);
+    if (!workspace) throw new ReflowError('NOT_FOUND', 'Organization not found', 404);
+    if (input.overageEnabled && !planLimits(workspace.plan).overage) {
+      throw new ReflowError('PLAN_LIMIT', 'Overage is only available on paid plans', 402, false, {
+        hint: 'Upgrade to Solo, Growth, or Scale before enabling overage.',
+      });
+    }
+    if (input.overageCapCents !== null && (!Number.isInteger(input.overageCapCents) || input.overageCapCents < 0)) {
+      throw new ReflowError('VALIDATION_FAILED', 'overageCapCents must be a non-negative integer or null', 422);
+    }
+
+    await this.db.update(workspaces).set({
+      overageEnabled: input.overageEnabled,
+      overageCapCents: input.overageEnabled ? input.overageCapCents : null,
+      updatedAt: new Date(),
+    }).where(eq(workspaces.id, input.workspaceId));
+
+    if (input.overageEnabled && this.billingConfig?.stripeSecretKey && this.billingConfig.stripePriceOverage) {
+      const sub = await this.db.execute<{ stripeSubscriptionId: string | null }>(sql`
+        select s."stripeSubscriptionId" as "stripeSubscriptionId"
+        from subscription s
+        where s."referenceId" = ${input.workspaceId}
+          and s.status in ('active', 'trialing')
+        order by s."periodStart" desc nulls last
+        limit 1
+      `);
+      const stripeSubscriptionId = sub.rows[0]?.stripeSubscriptionId;
+      if (stripeSubscriptionId) {
+        await ensureOverageSubscriptionItem({
+          config: this.billingConfig,
+          stripeSubscriptionId,
+        }).catch((error: unknown) => {
+          console.error(JSON.stringify({
+            level: 'error',
+            message: 'Failed to attach overage price to subscription',
+            workspaceId: input.workspaceId,
+            error: error instanceof Error ? error.message : 'unknown',
+          }));
+        });
+      }
+      if (this.billingConfig) {
+        await drainHeldEnrollments(this.db, { billingEnabled: true, ...this.billingConfig }, input.workspaceId).catch(() => undefined);
+      }
+    }
+
+    return this.billingUsage(context, input.workspaceId);
+  }
+
+  async billingHeldList(context: OperationContext, workspaceId: string) {
+    this.workspace(context, workspaceId);
+    if (!this.billingEnabled) return [];
+    return this.db.select({
+      id: heldEnrollments.id,
+      contactId: heldEnrollments.contactId,
+      sequenceVersionId: heldEnrollments.sequenceVersionId,
+      reason: heldEnrollments.reason,
+      idempotencyKey: heldEnrollments.idempotencyKey,
+      createdAt: heldEnrollments.createdAt,
+      contactEmail: contacts.email,
+    })
+      .from(heldEnrollments)
+      .innerJoin(contacts, eq(contacts.id, heldEnrollments.contactId))
+      .where(eq(heldEnrollments.workspaceId, workspaceId))
+      .orderBy(asc(heldEnrollments.createdAt));
+  }
+
+  async billingHeldDiscard(context: OperationContext, input: { workspaceId: string; heldId: string }) {
+    this.workspace(context, input.workspaceId, 'admin');
+    if (!this.billingEnabled) {
+      throw new ReflowError('BILLING_DISABLED', 'Billing is not enabled on this deployment', 400);
+    }
+    const [row] = await this.db.delete(heldEnrollments).where(and(
+      eq(heldEnrollments.id, input.heldId),
+      eq(heldEnrollments.workspaceId, input.workspaceId),
+    )).returning({ id: heldEnrollments.id });
+    if (!row) throw new ReflowError('NOT_FOUND', 'Held enrollment not found', 404);
+    await this.db.insert(auditEvents).values({
+      workspaceId: input.workspaceId,
+      actorId: context.principal.userId,
+      action: 'enrollment.discard_held',
+      targetType: 'held_enrollment',
+      targetId: row.id,
+    });
+    return { id: row.id, discarded: true };
   }
 
   async enrollmentList(context: OperationContext, workspaceId: string) {

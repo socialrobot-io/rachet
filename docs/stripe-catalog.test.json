@@ -1,0 +1,44 @@
+{
+  "account": "rachet.dev",
+  "livemode": false,
+  "stripe_context": "acct_1UJYnkLCt7kotVjH",
+  "webhook": {
+    "id": "we_1UKZlILCt7kotVjHvWgDwfCm",
+    "url": "https://rachet.dev/api/auth/stripe/webhook",
+    "events": [
+      "checkout.session.completed",
+      "customer.subscription.created",
+      "customer.subscription.updated",
+      "customer.subscription.deleted",
+      "invoice.paid",
+      "invoice.payment_failed"
+    ]
+  },
+  "portal_configuration_id": "bpc_1UKZljLCt7kotVjHfnOtBkra",
+  "products": {
+    "solo": {
+      "product_id": "prod_VLGH0pBcfXgcoi",
+      "price_id": "price_1UKZkoLCt7kotVjH3gTmj8Ji",
+      "lookup_key": "rachet_solo_monthly",
+      "unit_amount_eur_cents": 1200
+    },
+    "growth": {
+      "product_id": "prod_VLGHAHAqhAJCJq",
+      "price_id": "price_1UKZkoLCt7kotVjHosxsplHp",
+      "lookup_key": "rachet_growth_monthly",
+      "unit_amount_eur_cents": 2900
+    },
+    "scale": {
+      "product_id": "prod_VLGHCwAWAgyj0v",
+      "price_id": "price_1UKZkqLCt7kotVjHXU7xQlHG",
+      "lookup_key": "rachet_scale_monthly",
+      "unit_amount_eur_cents": 5900
+    },
+    "overage": {
+      "product_id": "prod_VLGHSMKwwRYD1r",
+      "price_id": null,
+      "lookup_key": "rachet_contact_overage",
+      "note": "Create meter + metered price with: node --env-file=.env.local --import tsx scripts/stripe-overage-meter.ts"
+    }
+  }
+}

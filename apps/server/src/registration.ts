@@ -38,6 +38,7 @@ export async function registrationStatus(db: Database, config: Config) {
   return {
     requiresSetup: row?.initialized !== true && userCount === 0,
     registrationEnabled: config.allowRegistration,
+    billingEnabled: config.billingEnabled,
     methods: {
       magicLink: Boolean(config.authResendApiKey && config.authFrom),
       github: Boolean(config.githubClientId && config.githubClientSecret),

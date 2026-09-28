@@ -13,7 +13,7 @@ const server = await createServer({
   appType: 'custom',
 });
 try {
-  const { renderLanding } = await server.ssrLoadModule('/src/landing-render.tsx');
+  const { renderLanding, renderPricing } = await server.ssrLoadModule('/src/landing-render.tsx');
   const { renderLoginPrerender } = await server.ssrLoadModule('/src/app-prerender-render.tsx');
   const assets = await readdir(new URL('../dist/assets/', import.meta.url));
   const font = assets.find((name) => /^inter-tight-latin-wght-normal-.*\.woff2$/.test(name));
@@ -21,6 +21,7 @@ try {
   if (font) shell = shell.replace('</head>', `<link rel="preload" as="font" href="/assets/${font}" type="font/woff2" crossorigin />\n</head>`);
   await writeFile(new URL('../dist/index.html', import.meta.url), shell);
   await writeFile(new URL('../dist/landing.html', import.meta.url), shell.replace('<div id="root"></div>', () => `<div id="root">${renderLanding()}</div>`));
+  await writeFile(new URL('../dist/pricing.html', import.meta.url), shell.replace('<div id="root"></div>', () => `<div id="root">${renderPricing()}</div>`));
   await writeFile(new URL('../dist/login.html', import.meta.url), shell.replace('<div id="root"></div>', () => `<div id="root">${renderLoginPrerender()}</div>`));
 } finally {
   await server.close();

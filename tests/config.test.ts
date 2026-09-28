@@ -36,6 +36,47 @@ describe('production configuration', () => {
     expect(loadConfig({ ...base, ALLOW_REGISTRATION: 'true' }).allowRegistration).toBe(true);
   });
 
+  it('defaults billing off and ignores Stripe env when disabled', () => {
+    const config = loadConfig(base);
+    expect(config.billingEnabled).toBe(false);
+    expect(config.stripeSecretKey).toBeUndefined();
+    expect(loadConfig({
+      ...base,
+      STRIPE_SECRET_KEY: 'sk_test_unused',
+    }).billingEnabled).toBe(false);
+  });
+
+  it('requires Stripe credentials when billing is enabled', () => {
+    expect(() => loadConfig({ ...base, BILLING_ENABLED: 'true' })).toThrow(/STRIPE_SECRET_KEY/);
+    expect(() => loadConfig({
+      ...base,
+      BILLING_ENABLED: 'true',
+      STRIPE_SECRET_KEY: 'sk_test',
+    })).toThrow(/STRIPE_WEBHOOK_SECRET/);
+    expect(() => loadConfig({
+      ...base,
+      BILLING_ENABLED: 'true',
+      STRIPE_SECRET_KEY: 'sk_test',
+      STRIPE_WEBHOOK_SECRET: 'whsec_test',
+      STRIPE_PRICE_SOLO: 'price_solo',
+      STRIPE_PRICE_GROWTH: 'price_growth',
+    })).toThrow(/STRIPE_PRICE_SCALE/);
+  });
+
+  it('accepts a complete Cloud billing configuration', () => {
+    const config = loadConfig({
+      ...base,
+      BILLING_ENABLED: 'true',
+      STRIPE_SECRET_KEY: 'sk_test',
+      STRIPE_WEBHOOK_SECRET: 'whsec_test',
+      STRIPE_PRICE_SOLO: 'price_solo',
+      STRIPE_PRICE_GROWTH: 'price_growth',
+      STRIPE_PRICE_SCALE: 'price_scale',
+    });
+    expect(config.billingEnabled).toBe(true);
+    expect(config.stripePriceSolo).toBe('price_solo');
+  });
+
   it('requires a strong setup secret', () => {
     expect(() => loadConfig({ ...base, REFLOW_SETUP_SECRET: 'short' })).toThrow(/REFLOW_SETUP_SECRET/);
   });

@@ -12,7 +12,17 @@ const config = loadConfig();
 const { db, pool } = createDatabase(config);
 const auth = createAuth(config, pool);
 const temporal = await createTemporalClient(config);
-const service = new ReflowService(db, temporal, auth);
+const service = new ReflowService(db, temporal, auth, {
+  billingEnabled: config.billingEnabled,
+  billingConfig: {
+    stripeSecretKey: config.stripeSecretKey,
+    stripeMeterEventName: config.stripeMeterEventName,
+    stripePriceOverage: config.stripePriceOverage,
+    authResendApiKey: config.authResendApiKey,
+    authFrom: config.authFrom,
+    publicUrl: config.publicUrl,
+  },
+});
 const welcomeWorkspaceId = config.welcomeWorkspaceId;
 if (config.welcomeApiKey && welcomeWorkspaceId) {
   const sdk = new RachetSdk({

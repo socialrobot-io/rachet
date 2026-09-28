@@ -9,6 +9,7 @@ const root = mkdtempSync(join(tmpdir(), 'rachet-seo-'));
 const template = readFileSync('apps/dashboard/index.html', 'utf8');
 writeFileSync(join(root, 'index.html'), template);
 writeFileSync(join(root, 'landing.html'), template.replace('<div id="root"></div>', '<div id="root"><h1>Build customer journeys by asking.</h1></div>'));
+writeFileSync(join(root, 'pricing.html'), template.replace('<div id="root"></div>', '<div id="root"><h1>Bring your own key.</h1></div>'));
 writeFileSync(join(root, 'login.html'), template.replace('<div id="root"></div>', '<div id="root"><p>Back to home</p></div>'));
 mkdirSync(join(root, 'brand'));
 writeFileSync(join(root, 'brand/rachet-og.png'), readFileSync('apps/dashboard/public/brand/rachet-og.png'));
@@ -35,6 +36,24 @@ describe('landing SEO and static serving', () => {
     expect(JSON.parse(json ?? '{}')).toMatchObject({ '@type': 'WebSite', name: 'Rachet', url: 'https://rachet.example.test/' });
   });
 
+  it('serves the pricing page with its own canonical URL and metadata', async () => {
+    const response = await analyticsApp.request('https://untrusted.example/pricing');
+    const html = await response.text();
+    expect(response.status).toBe(200);
+    expect(html).toContain('<h1>Bring your own key.</h1>');
+    expect(html).toContain('<title>Rachet | Pricing</title>');
+    expect(html).toContain('<link rel="canonical" href="https://rachet.example.test/pricing"');
+    expect(html).toContain('<meta property="og:url" content="https://rachet.example.test/pricing"');
+    expect(html).toContain('<meta property="og:title" content="Rachet | Pricing"');
+    expect(html).toContain('pay only for running journeys');
+    expect(html).toContain('content="index, follow, max-image-preview:large"');
+    expect(html).toContain("gtag('config', 'G-X7CL1NYLSM')");
+    expect(html).not.toMatch(/__RACHET_PUBLIC_URL__|untrusted\.example/);
+    const redirect = await app.request('/pricing.html');
+    expect(redirect.status).toBe(301);
+    expect(redirect.headers.get('location')).toBe('/pricing');
+  });
+
   it.each(['/login', '/auth/login', '/auth/consent?client_id=example', '/admin/users', '/workflows', '/workflows/wf-123', '/enrollments/enr-123', '/settings/api-keys', '/settings/connected-apps', '/settings/integrations', '/onboarding/integrations/resend'])('excludes app route %s from indexing', async (path) => {
     const response = await app.request(path);
     const html = await response.text();
@@ -45,10 +64,10 @@ describe('landing SEO and static serving', () => {
     if (path === '/login') expect(html).toContain('Back to home');
   });
 
-  it('exposes a sitemap containing only the canonical landing URL', async () => {
+  it('exposes a sitemap containing the canonical public URLs', async () => {
     const sitemap = await app.request('/sitemap.xml');
     expect(sitemap.headers.get('content-type')).toContain('application/xml');
-    expect(await sitemap.text()).toContain('<url><loc>https://rachet.example.test/</loc></url>');
+    expect(await sitemap.text()).toContain('<url><loc>https://rachet.example.test/</loc></url><url><loc>https://rachet.example.test/pricing</loc></url>');
     const robots = await (await app.request('/robots.txt')).text();
     expect(robots).toContain('Sitemap: https://rachet.example.test/sitemap.xml');
     expect(robots).not.toContain('Disallow: /login');

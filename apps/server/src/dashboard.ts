@@ -3,7 +3,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { Hono } from 'hono';
 
-const appRoutes = /^\/(?:login|auth\/(?:login|consent)|admin\/users|workflows(?:\/[^/]+)?|enrollments\/[^/]+|(?:settings|onboarding)\/integrations(?:\/resend)?|settings\/(?:connected-apps|api-keys))\/?$/;
+const appRoutes = /^\/(?:login|auth\/(?:login|consent)|admin\/users|workflows(?:\/[^/]+)?|enrollments\/[^/]+|(?:settings|onboarding)\/integrations(?:\/resend)?|settings\/(?:connected-apps|api-keys|billing))\/?$/;
 
 export function mountDashboard(app: Hono, root: string, publicUrl: string, googleAnalyticsId?: string) {
   if (!existsSync(join(root, 'index.html'))) return false;
@@ -14,6 +14,10 @@ export function mountDashboard(app: Hono, root: string, publicUrl: string, googl
   const landing = existsSync(landingPath)
     ? readFileSync(landingPath, 'utf8').replaceAll('__RACHET_PUBLIC_URL__', origin)
     : shell;
+  const pricingPath = join(root, 'pricing.html');
+  const pricing = existsSync(pricingPath)
+    ? readFileSync(pricingPath, 'utf8').replaceAll('__RACHET_PUBLIC_URL__', origin)
+    : shell;
   const loginPath = join(root, 'login.html');
   const login = existsSync(loginPath)
     ? readFileSync(loginPath, 'utf8').replaceAll('__RACHET_PUBLIC_URL__', origin)
@@ -22,6 +26,13 @@ export function mountDashboard(app: Hono, root: string, publicUrl: string, googl
     ? `<script async src="https://www.googletagmanager.com/gtag/js?id=${googleAnalyticsId}"></script><script>window.dataLayer = window.dataLayer || []; function gtag(){dataLayer.push(arguments);} gtag('js', new Date()); gtag('config', '${googleAnalyticsId}');</script>`
     : '';
   const publicLanding = landing.replace('<!-- RACHET_ANALYTICS -->', analytics);
+  const pricingTitle = 'Rachet | Pricing';
+  const pricingDescription = 'Bring your own email sending key and pay only for running journeys. Free for 500 people a month, paid plans from €12, or self-host for free.';
+  const publicPricing = pricing.replace('<!-- RACHET_ANALYTICS -->', analytics)
+    .replace(/<title>[^<]*<\/title>/, `<title>${pricingTitle}</title>`)
+    .replace(/(<meta (?:property="og:title"|name="twitter:title") content=")[^"]*/g, `$1${pricingTitle}`)
+    .replace(/(<meta (?:name="description"|property="og:description"|name="twitter:description") content=")[^"]*/g, `$1${pricingDescription}`)
+    .replace(/(<link rel="canonical" href="|<meta property="og:url" content=")[^"]*/g, `$1${origin}/pricing`);
   const privateShell = shell.replace('content="index, follow, max-image-preview:large"', 'content="noindex, nofollow"')
     .replace(/<link rel="canonical"[^>]*>/, '')
     .replace(/<title>[^<]*<\/title>/, '<title>Rachet | Dashboard</title>');
@@ -31,13 +42,15 @@ export function mountDashboard(app: Hono, root: string, publicUrl: string, googl
   const privateLogin = privatePage(login);
 
   app.get('/robots.txt', (c) => c.text(`User-agent: *\nAllow: /\nDisallow: /api/\nDisallow: /v1/\nDisallow: /mcp\n\nSitemap: ${origin}/sitemap.xml\n`));
-  app.get('/sitemap.xml', (c) => c.body(`<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>${origin}/</loc></url></urlset>`, 200, { 'Content-Type': 'application/xml; charset=UTF-8' }));
+  app.get('/sitemap.xml', (c) => c.body(`<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>${origin}/</loc></url><url><loc>${origin}/pricing</loc></url></urlset>`, 200, { 'Content-Type': 'application/xml; charset=UTF-8' }));
   app.get('/', (c) => c.html(publicLanding));
   app.get('/welcome', (c) => c.html(publicLanding));
+  app.get('/pricing', (c) => c.html(publicPricing));
   // Prevent direct access to build templates and their unresolved metadata.
   app.get('/index.html', (c) => c.redirect('/', 301));
   app.get('/landing.html', (c) => c.redirect('/', 301));
   app.get('/login.html', (c) => c.redirect('/login', 301));
+  app.get('/pricing.html', (c) => c.redirect('/pricing', 301));
   app.use('/assets/*', serveStatic({ root }));
   app.use('/brand/*', serveStatic({ root }));
   app.get('/favicon.svg', serveStatic({ root }));

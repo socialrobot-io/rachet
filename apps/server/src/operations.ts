@@ -3,7 +3,7 @@ import {
   accountCreateSchema, credentialCreateSchema, credentialListSchema, credentialRevokeSchema, contactUpsertSchema, enrollmentControlSchema, enrollmentCreateSchema,
   eventEmitSchema, eventTypeDefineSchema, workflowCreateSchema, workflowDeleteSchema, workflowPublishSchema, workflowSimulateSchema, workflowDefinitionSchema, templateCreateSchema,
   templateArchiveSchema, templatePublishSchema, templateReviseSchema, templateRenderSchema, workspaceIdSchema,
-  enrollmentDeleteSchema,
+  enrollmentDeleteSchema, billingUsageSchema, billingOverageUpdateSchema, billingHeldDiscardSchema,
   type OperationContext,
 } from '@reflow/contracts';
 import type { ReflowService } from './domain/service.js';
@@ -167,6 +167,24 @@ export function createOperations(service: ReflowService): Record<string, Operati
     'enrollment.delete': {
       description: 'Permanently delete one enrollment and its event, send, and queued-job records. Before calling, ask the user to confirm the exact enrollment. An active Temporal execution is terminated first; an accepted email cannot be recalled.', input: enrollmentDeleteSchema, readOnly: false,
       invoke: (context, input) => service.enrollmentDelete(context, enrollmentDeleteSchema.parse(input)),
+    },
+    'billing.usage': {
+      description: 'Read unique-contact usage for the current month when Cloud billing is enabled. Returns billingEnabled=false with no limits when billing is off.', input: billingUsageSchema, readOnly: true,
+      invoke: (context, input) => service.billingUsage(context, billingUsageSchema.parse(input).workspaceId),
+    },
+    'billing.overage.update': {
+      description: 'Enable or disable paid-plan overage and set an optional monthly spend cap in euro cents. No-op when Cloud billing is off.', input: billingOverageUpdateSchema, readOnly: false,
+      exposeToMcp: false,
+      invoke: (context, input) => service.billingUpdateOverage(context, billingOverageUpdateSchema.parse(input)),
+    },
+    'billing.held.list': {
+      description: 'List enrollments held at the unique-contact limit when Cloud billing is enabled.', input: billingUsageSchema, readOnly: true,
+      invoke: (context, input) => service.billingHeldList(context, billingUsageSchema.parse(input).workspaceId),
+    },
+    'billing.held.discard': {
+      description: 'Discard one held enrollment so it will not start later.', input: billingHeldDiscardSchema, readOnly: false,
+      exposeToMcp: false,
+      invoke: (context, input) => service.billingHeldDiscard(context, billingHeldDiscardSchema.parse(input)),
     },
     'event_type.define': {
       description: 'Define an immutable JSON Schema for one workspace event type. Use a new versioned event name for any schema change.', input: eventTypeDefineSchema, readOnly: false,

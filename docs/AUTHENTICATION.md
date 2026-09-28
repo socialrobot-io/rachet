@@ -74,6 +74,7 @@ OAuth and API-key scopes can only narrow that set. Each operation also checks th
 - Keep `REFLOW_SETUP_SECRET` high-entropy and at least 32 characters; rotate or remove access to it after initialization.
 - Use a dedicated Resend account/key for `AUTH_RESEND_API_KEY`; do not reuse workflow delivery credentials. Set `AUTH_EMAIL_FROM` to a sender on a domain verified in that account.
 - Leave `ALLOW_REGISTRATION=false` unless public account creation is intentional.
+- Leave `BILLING_ENABLED=false` for self-host. Cloud billing setup (Stripe catalog, webhook endpoint, env vars) is in [docs/BILLING.md](BILLING.md).
 - Keep `OAUTH_PUBLIC_REDIRECT_ORIGINS` empty unless a known web MCP client requires an HTTPS callback. Cursor currently requires the exact `https://www.cursor.com` origin.
 - Keep `OAUTH_PUBLIC_REDIRECT_SCHEMES` limited to installed native MCP clients that own those URI schemes.
 - Verify the dashboard login, consent, deny, refresh, logout, and Connected apps revocation paths.

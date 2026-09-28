@@ -143,6 +143,13 @@ export const contactUpsertSchema = z.object({ workspaceId: workspaceIdSchema, ex
 export const enrollmentCreateSchema = z.object({ workspaceId: workspaceIdSchema, workflowVersionId: z.uuid(), contactId: z.uuid(), variables: z.record(z.string(), z.unknown()).default({}), idempotencyKey: z.string().min(1).max(200) });
 export const enrollmentControlSchema = z.object({ workspaceId: workspaceIdSchema, enrollmentId: z.uuid() });
 export const enrollmentDeleteSchema = z.object({ workspaceId: workspaceIdSchema, enrollmentId: z.uuid() });
+export const billingUsageSchema = z.object({ workspaceId: workspaceIdSchema });
+export const billingOverageUpdateSchema = z.object({
+  workspaceId: workspaceIdSchema,
+  overageEnabled: z.boolean(),
+  overageCapCents: z.number().int().min(0).nullable().default(null),
+});
+export const billingHeldDiscardSchema = z.object({ workspaceId: workspaceIdSchema, heldId: z.uuid() });
 export const eventDataSchema = z.record(z.string(), z.unknown());
 export const eventTypeDefineSchema = z.object({ workspaceId: workspaceIdSchema, eventType: eventTypeNameSchema, schema: eventDataSchema });
 export const eventEmitSchema = z.object({ workspaceId: workspaceIdSchema, enrollmentId: z.uuid(), eventId: z.string().min(1).max(200), eventType: eventTypeNameSchema, data: z.record(z.string(), z.unknown()).default({}) });
