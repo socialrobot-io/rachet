@@ -35,7 +35,9 @@ For a live test of a multi-day wait, use a second workflow with the same branche
 
 ## Delete
 
-Copy this checklist and check items off as you go:
+**Draft iteration exception:** If you are recreating the same unpublished draft to update `email.send` template pins during an active build the user requested, show the workflow name and id, then call `workflow_delete` with `dangerouslyDeleteWorkflow: true` and create the replacement. Do not ask for a second delete confirmation in that case. This exception does not apply to published workflows or any workflow with enrollments.
+
+For every other delete, copy this checklist and check items off as you go:
 
 - [ ] Show the workflow name and id. Say that published versions and completed enrollment history will be removed.
 - [ ] Ask the user to confirm.
