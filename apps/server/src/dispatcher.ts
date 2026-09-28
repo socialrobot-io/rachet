@@ -6,12 +6,14 @@ import { workflowDefinitionSchema } from '@reflow/contracts';
 import { createTemporalClient } from './temporal/client.js';
 import { enrollmentWorkflow } from './temporal/workflows.js';
 import { enrollmentEvent } from './temporal/shared.js';
+import { runBillingMaintenance } from './billing/jobs.js';
 
 const config = loadConfig();
 const { db, pool } = createDatabase(config);
 const temporal = await createTemporalClient(config);
 let stopping = false;
 let nextRateLimitCleanup = Date.now();
+let nextBillingMaintenance = Date.now();
 process.once('SIGTERM', () => { stopping = true; });
 process.once('SIGINT', () => { stopping = true; });
 
@@ -19,6 +21,23 @@ while (!stopping) {
   if (Date.now() >= nextRateLimitCleanup) {
     nextRateLimitCleanup = Date.now() + 60_000;
     await db.execute(sql`DELETE FROM rate_limit_buckets WHERE reset_at < now() - interval '1 day'`);
+  }
+  if (config.billingEnabled && Date.now() >= nextBillingMaintenance) {
+    nextBillingMaintenance = Date.now() + 5 * 60_000;
+    await runBillingMaintenance(db, {
+      billingEnabled: true,
+      stripeSecretKey: config.stripeSecretKey,
+      stripeMeterEventName: config.stripeMeterEventName,
+      authResendApiKey: config.authResendApiKey,
+      authFrom: config.authFrom,
+      publicUrl: config.publicUrl,
+    }).catch((error: unknown) => {
+      console.error(JSON.stringify({
+        level: 'error',
+        message: 'Billing maintenance failed',
+        error: error instanceof Error ? error.message : 'unknown',
+      }));
+    });
   }
   const now = new Date();
   const [job] = await db.select().from(outbox).where(and(

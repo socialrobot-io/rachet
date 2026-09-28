@@ -22,7 +22,7 @@ async function probeDatabase(): Promise<Runtime | null> {
     const temporal = { workflow: { getHandle: () => ({ signal: async () => undefined }) } } as unknown as Client;
     const auth = {} as ReflowAuth;
     return {
-      service: new ReflowService(database.db, temporal, auth),
+      service: new ReflowService(database.db, temporal, auth, { billingEnabled: config.billingEnabled }),
       db: database.db,
       close: async () => { await database.pool.end(); },
     };

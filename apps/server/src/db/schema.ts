@@ -37,6 +37,12 @@ export const workspaces = pgTable('workspaces', {
   slug: text('slug').notNull().unique(),
   sendingEnabled: boolean('sending_enabled').notNull().default(false),
   onboardingCompletedAt: timestamp('onboarding_completed_at', { withTimezone: true }),
+  /** Cloud plan. Enforced only when BILLING_ENABLED=true. */
+  plan: text('plan').$type<'free' | 'solo' | 'growth' | 'scale'>().notNull().default('free'),
+  /** Paid-plan overage. Ignored when BILLING_ENABLED=false. */
+  overageEnabled: boolean('overage_enabled').notNull().default(false),
+  /** Monthly overage spend cap in euro cents. Null means no cap when overage is on. */
+  overageCapCents: integer('overage_cap_cents'),
   ...timestamps,
 });
 
@@ -164,6 +170,40 @@ export const sequenceVersions = pgTable('sequence_versions', {
   definition: jsonb('definition').$type<Record<string, unknown>>().notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 }, (table) => [uniqueIndex('sequence_version_unique').on(table.sequenceId, table.version)]);
+
+export const workspaceUsageMonths = pgTable('workspace_usage_months', {
+  workspaceId: uuid('workspace_id').notNull().references(() => workspaces.id, { onDelete: 'cascade' }),
+  yearMonth: text('year_month').notNull(),
+  uniqueContacts: integer('unique_contacts').notNull().default(0),
+  overageContacts: integer('overage_contacts').notNull().default(0),
+  alert80SentAt: timestamp('alert_80_sent_at', { withTimezone: true }),
+  alert100SentAt: timestamp('alert_100_sent_at', { withTimezone: true }),
+  ...timestamps,
+}, (table) => [primaryKey({ columns: [table.workspaceId, table.yearMonth] })]);
+
+export const workspaceUsageContacts = pgTable('workspace_usage_contacts', {
+  workspaceId: uuid('workspace_id').notNull().references(() => workspaces.id, { onDelete: 'cascade' }),
+  yearMonth: text('year_month').notNull(),
+  contactId: uuid('contact_id').notNull().references(() => contacts.id, { onDelete: 'cascade' }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  primaryKey({ columns: [table.workspaceId, table.yearMonth, table.contactId] }),
+  index('workspace_usage_contacts_month_idx').on(table.workspaceId, table.yearMonth),
+]);
+
+export const heldEnrollments = pgTable('held_enrollments', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  workspaceId: uuid('workspace_id').notNull().references(() => workspaces.id, { onDelete: 'cascade' }),
+  sequenceVersionId: uuid('sequence_version_id').notNull().references(() => sequenceVersions.id),
+  contactId: uuid('contact_id').notNull().references(() => contacts.id),
+  input: jsonb('input').$type<Record<string, unknown>>().notNull().default({}),
+  idempotencyKey: text('idempotency_key').notNull(),
+  reason: text('reason').$type<'plan_limit' | 'overage_cap'>().notNull(),
+  ...timestamps,
+}, (table) => [
+  uniqueIndex('held_enrollments_idempotency_unique').on(table.workspaceId, table.idempotencyKey),
+  index('held_enrollments_workspace_created_idx').on(table.workspaceId, table.createdAt),
+]);
 
 export const enrollments = pgTable('enrollments', {
   id: uuid('id').primaryKey().defaultRandom(),

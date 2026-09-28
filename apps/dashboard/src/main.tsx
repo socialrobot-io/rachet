@@ -2,11 +2,13 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { ApiKeysPage, AppShell, AuthProvider, ConnectedAppsPage, ConsentPage, LoginPage, RequireAuth, useAuth } from '@/auth';
+import { BillingPage } from '@/billing';
 import { EnrollmentDetailPage, WorkflowDetailPage, WorkflowsPage } from '@/pages';
 import { UsersPage } from '@/admin-users';
 import { IntegrationsPage, RequireResendOnboarding, ResendIntegrationPage } from '@/resend-integration';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { LandingPage } from '@/landing';
+import { PricingPage } from '@/pricing';
 import { RouteMetadata } from '@/route-metadata';
 import './index.css';
 
@@ -24,6 +26,7 @@ createRoot(document.getElementById('root')!).render(
           <Routes>
             <Route path="/" element={<HomePage />} />
             <Route path="/welcome" element={<LandingPage />} />
+            <Route path="/pricing" element={<PricingPage />} />
             <Route path="/login" element={<LoginPage />} />
             <Route path="/auth/login" element={<LoginPage />} />
             <Route path="/auth/consent" element={<ConsentPage />} />
@@ -34,6 +37,7 @@ createRoot(document.getElementById('root')!).render(
                 <Route path="/admin/users" element={<UsersPage />} />
                 <Route path="/settings/integrations" element={<IntegrationsPage />} />
                 <Route path="/settings/integrations/resend" element={<ResendIntegrationPage />} />
+                <Route path="/settings/billing" element={<BillingPage />} />
                 <Route element={<RequireResendOnboarding />}>
                   <Route path="/workflows" element={<WorkflowsPage />} />
                   <Route path="/workflows/:workflowId" element={<WorkflowDetailPage />} />

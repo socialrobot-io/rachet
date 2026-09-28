@@ -105,6 +105,11 @@ export function AppShell() {
   const { user, deploymentAdmin, workspaces, workspaceId, logout } = useAuth();
   const [signingOut, setSigningOut] = useState(false);
   const [signOutError, setSignOutError] = useState<string | null>(null);
+  const [billingEnabled, setBillingEnabled] = useState(false);
+
+  useEffect(() => {
+    void getSetupStatus().then((status) => setBillingEnabled(status.billingEnabled)).catch(() => setBillingEnabled(false));
+  }, []);
 
   return (
     <div className="flex min-h-dvh flex-col">
@@ -117,6 +122,7 @@ export function AppShell() {
               <Link to="/settings/integrations" className="rounded-full px-3 py-1.5 text-sm font-medium hover:bg-accent">Integrations</Link>
               <Link to="/settings/connected-apps" className="rounded-full px-3 py-1.5 text-sm font-medium hover:bg-accent">Connected apps</Link>
               <Link to="/settings/api-keys" className="rounded-full px-3 py-1.5 text-sm font-medium hover:bg-accent">API keys</Link>
+              {billingEnabled && <Link to="/settings/billing" className="rounded-full px-3 py-1.5 text-sm font-medium hover:bg-accent">Billing</Link>}
               {deploymentAdmin && <Link to="/admin/users" className="rounded-full px-3 py-1.5 text-sm font-medium hover:bg-accent">Users</Link>}
             </nav>
           </div>
@@ -148,6 +154,7 @@ export function AppShell() {
             <Link to="/settings/integrations" className="shrink-0 rounded-full px-3 py-1.5 text-sm font-medium hover:bg-accent">Integrations</Link>
             <Link to="/settings/connected-apps" className="shrink-0 rounded-full px-3 py-1.5 text-sm font-medium hover:bg-accent">Apps</Link>
             <Link to="/settings/api-keys" className="shrink-0 rounded-full px-3 py-1.5 text-sm font-medium hover:bg-accent">API keys</Link>
+            {billingEnabled && <Link to="/settings/billing" className="shrink-0 rounded-full px-3 py-1.5 text-sm font-medium hover:bg-accent">Billing</Link>}
             {deploymentAdmin && <Link to="/admin/users" className="shrink-0 rounded-full px-3 py-1.5 text-sm font-medium hover:bg-accent">Users</Link>}
           </nav>
         </div>
@@ -194,8 +201,10 @@ export function LoginPage() {
       window.location.assign(await continueOAuth(oauthQuery));
       return;
     }
-    navigate('/', { replace: true });
-  }, [navigate, oauthQuery]);
+    const next = searchParams.get('next');
+    const safeNext = next && next.startsWith('/') && !next.startsWith('//') ? next : '/';
+    navigate(safeNext, { replace: true });
+  }, [navigate, oauthQuery, searchParams]);
 
   useEffect(() => {
     if (!loading && user) void finishLogin().catch((reason: unknown) => {
@@ -209,7 +218,15 @@ export function LoginPage() {
     });
   }, []);
 
-  const callbackURL = `${window.location.origin}/auth/login${oauthQuery ? `?oauth_query=${encodeURIComponent(oauthQuery)}` : ''}`;
+  const nextParam = searchParams.get('next');
+  const safeNext = nextParam && nextParam.startsWith('/') && !nextParam.startsWith('//') ? nextParam : null;
+  const callbackURL = `${window.location.origin}/auth/login${
+    oauthQuery
+      ? `?oauth_query=${encodeURIComponent(oauthQuery)}`
+      : safeNext
+        ? `?next=${encodeURIComponent(safeNext)}`
+        : ''
+  }`;
 
   const begin = async (method: 'magic-link' | 'github') => {
     if (!status) return;

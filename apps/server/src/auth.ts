@@ -9,6 +9,7 @@ import { jwt } from 'better-auth/plugins/jwt';
 import { magicLink } from 'better-auth/plugins/magic-link';
 import { createHash } from 'node:crypto';
 import type { Pool } from 'pg';
+import { createStripePlugin } from './billing/stripe-plugin.js';
 import type { Config } from './config.js';
 import { Resend } from 'resend';
 import { runWelcomeStarter } from './welcome.js';
@@ -47,6 +48,7 @@ export function reflowOAuthOptions(config: Config, pool?: Pool): OAuthOptions<Sc
 
 export function createAuth(config: Config, pool: Pool) {
   const oauthOptions = reflowOAuthOptions(config, pool);
+  const stripePlugin = createStripePlugin(config, pool);
   const externalOAuth = config.oauthProviderId && config.oauthDiscoveryUrl && config.oauthClientId && config.oauthClientSecret
     ? genericOAuth({
         config: [{
@@ -214,6 +216,7 @@ export function createAuth(config: Config, pool: Pool) {
         },
       },
       ...(externalOAuth ? [externalOAuth] : []),
+      ...(stripePlugin ? [stripePlugin] : []),
     ],
   });
 }

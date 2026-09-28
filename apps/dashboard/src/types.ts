@@ -40,6 +40,7 @@ export type Workspace = {
   name: string;
   slug: string;
   role: string;
+  plan?: 'free' | 'solo' | 'growth' | 'scale';
 };
 
 export type ResendConnectionStatus = {
@@ -139,6 +140,7 @@ export type AccountSummary = {
 export type SetupStatus = {
   requiresSetup: boolean;
   registrationEnabled: boolean;
+  billingEnabled: boolean;
   methods: { magicLink: boolean; github: boolean };
   magicLinkConfigurationWarning?: string;
 };

@@ -204,6 +204,8 @@ Server variables, documented in [`.env.example`](.env.example):
 | `BETTER_AUTH_SECRET` | Auth signing secret, at least 32 random characters |
 | `REFLOW_SETUP_SECRET` | High-entropy secret required by the one-time first-admin page |
 | `ALLOW_REGISTRATION` | Public registration, disabled by default |
+| `BILLING_ENABLED` | Cloud billing and plan limits, disabled by default (leave off for self-host) |
+| `STRIPE_*` | Required only when billing is on; see [docs/BILLING.md](docs/BILLING.md) |
 | `TRUSTED_ORIGINS` | Origins allowed to call the API |
 | `OAUTH_PUBLIC_REDIRECT_ORIGINS`, `OAUTH_PUBLIC_REDIRECT_SCHEMES` | Explicit callback allowlists for public MCP clients |
 | `TEMPORAL_ADDRESS`, `TEMPORAL_NAMESPACE`, `TEMPORAL_TASK_QUEUE` | Temporal connection and task routing |

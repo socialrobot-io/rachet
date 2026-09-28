@@ -6,6 +6,7 @@ import { isGitHubCallback } from '../apps/server/src/auth.js';
 
 const config = {
   allowRegistration: false,
+  billingEnabled: false,
   setupSecret: 'a-high-entropy-setup-secret-for-tests',
   authResendApiKey: 're_auth_test',
   githubClientId: undefined,
@@ -30,6 +31,7 @@ describe('registration authorization', () => {
     const { db } = databaseResults({ rows: [{ initialized: false, userCount: '0' }] });
     await expect(registrationStatus(db, config)).resolves.toMatchObject({
       methods: { magicLink: false, github: false },
+      billingEnabled: false,
       magicLinkConfigurationWarning: expect.stringContaining('AUTH_EMAIL_FROM'),
     });
   });
@@ -38,6 +40,7 @@ describe('registration authorization', () => {
     const { db } = databaseResults({ rows: [{ initialized: false, userCount: '0' }] });
     await expect(registrationStatus(db, { ...config, authFrom: 'Reflow <login@auth.example.com>' })).resolves.toMatchObject({
       methods: { magicLink: true, github: false },
+      billingEnabled: false,
     });
   });
 

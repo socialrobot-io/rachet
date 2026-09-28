@@ -7,6 +7,14 @@ const schema = z.object({
   DATABASE_URL: z.string().min(1).optional(),
   BETTER_AUTH_SECRET: z.string().min(32).optional(),
   ALLOW_REGISTRATION: z.enum(['true', 'false']).default('false'),
+  BILLING_ENABLED: z.enum(['true', 'false']).default('false'),
+  STRIPE_SECRET_KEY: z.string().optional(),
+  STRIPE_WEBHOOK_SECRET: z.string().optional(),
+  STRIPE_PRICE_SOLO: z.string().optional(),
+  STRIPE_PRICE_GROWTH: z.string().optional(),
+  STRIPE_PRICE_SCALE: z.string().optional(),
+  STRIPE_PRICE_OVERAGE: z.string().optional(),
+  STRIPE_METER_EVENT_NAME: z.string().optional(),
   TRUSTED_ORIGINS: z.string().default('http://localhost:3000'),
   REFLOW_DASHBOARD_DIR: z.string().min(1).default('apps/dashboard/dist'),
   TEMPORAL_ADDRESS: z.string().min(1).default('localhost:7233'),
@@ -65,6 +73,21 @@ export function loadConfig(source: NodeJS.ProcessEnv = process.env) {
   if (welcomeWorkspaceId && !z.string().uuid().safeParse(welcomeWorkspaceId).success) {
     throw new Error('REFLOW_WORKSPACE_ID must be a UUID');
   }
+  const billingEnabled = parsed.BILLING_ENABLED === 'true';
+  const stripeSecretKey = parsed.STRIPE_SECRET_KEY?.trim() || undefined;
+  const stripeWebhookSecret = parsed.STRIPE_WEBHOOK_SECRET?.trim() || undefined;
+  const stripePriceSolo = parsed.STRIPE_PRICE_SOLO?.trim() || undefined;
+  const stripePriceGrowth = parsed.STRIPE_PRICE_GROWTH?.trim() || undefined;
+  const stripePriceScale = parsed.STRIPE_PRICE_SCALE?.trim() || undefined;
+  const stripePriceOverage = parsed.STRIPE_PRICE_OVERAGE?.trim() || undefined;
+  const stripeMeterEventName = parsed.STRIPE_METER_EVENT_NAME?.trim() || undefined;
+  if (billingEnabled) {
+    if (!stripeSecretKey) throw new Error('STRIPE_SECRET_KEY is required when BILLING_ENABLED=true');
+    if (!stripeWebhookSecret) throw new Error('STRIPE_WEBHOOK_SECRET is required when BILLING_ENABLED=true');
+    if (!stripePriceSolo) throw new Error('STRIPE_PRICE_SOLO is required when BILLING_ENABLED=true');
+    if (!stripePriceGrowth) throw new Error('STRIPE_PRICE_GROWTH is required when BILLING_ENABLED=true');
+    if (!stripePriceScale) throw new Error('STRIPE_PRICE_SCALE is required when BILLING_ENABLED=true');
+  }
   if (parsed.NODE_ENV === 'production') {
     if (!publicUrl.startsWith('https://')) throw new Error('PUBLIC_URL must use https:// in production');
     if (betterAuthSecret.length < 32) throw new Error('BETTER_AUTH_SECRET must be at least 32 characters in production');
@@ -88,6 +111,14 @@ export function loadConfig(source: NodeJS.ProcessEnv = process.env) {
     databaseUrl: parsed.DATABASE_URL ?? 'postgresql://rachet:reflow@localhost:5432/reflow',
     betterAuthSecret,
     allowRegistration: parsed.ALLOW_REGISTRATION === 'true',
+    billingEnabled,
+    stripeSecretKey,
+    stripeWebhookSecret,
+    stripePriceSolo,
+    stripePriceGrowth,
+    stripePriceScale,
+    stripePriceOverage,
+    stripeMeterEventName,
     trustedOrigins,
     dashboardDir: parsed.REFLOW_DASHBOARD_DIR,
     temporalAddress: parsed.TEMPORAL_ADDRESS,

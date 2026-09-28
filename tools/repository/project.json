@@ -6,12 +6,13 @@
   "targets": {
     "lint": {
       "executor": "nx:run-commands",
-      "dependsOn": ["contracts:build", "mcp-ext-skills:build"],
+      "dependsOn": ["contracts:build", "mcp-ext-skills:build", "sdk:build"],
       "inputs": [
         "{workspaceRoot}/apps/server/src/**/*",
         "{workspaceRoot}/packages/cli/src/**/*",
         "{workspaceRoot}/packages/contracts/src/**/*",
         "{workspaceRoot}/packages/mcp-ext-skills/src/**/*",
+        "{workspaceRoot}/packages/sdk/src/**/*",
         "{workspaceRoot}/scripts/**/*",
         "{workspaceRoot}/tests/**/*",
         "{workspaceRoot}/*.ts",
@@ -24,12 +25,13 @@
     },
     "test": {
       "executor": "nx:run-commands",
-      "dependsOn": ["contracts:build", "mcp-ext-skills:build"],
+      "dependsOn": ["contracts:build", "mcp-ext-skills:build", "sdk:build"],
       "inputs": [
         "{workspaceRoot}/apps/server/src/**/*",
         "{workspaceRoot}/packages/cli/src/**/*",
         "{workspaceRoot}/packages/contracts/src/**/*",
         "{workspaceRoot}/packages/mcp-ext-skills/src/**/*",
+        "{workspaceRoot}/packages/sdk/src/**/*",
         "{workspaceRoot}/tests/**/*",
         "{workspaceRoot}/vitest.config.ts",
         "{workspaceRoot}/package.json",

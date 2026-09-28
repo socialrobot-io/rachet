@@ -18,7 +18,7 @@ Use a Linux host with Docker Engine and the Compose plugin, public DNS for `REFL
 
 For local development without a public domain, use `compose.dev.yaml` and the host process workflow in [README.md](../README.md). Do not use `compose.yaml` on a laptop unless you have real DNS and a working HTTPS front door. Configure Resend using the [Resend setup guide](RESEND.md).
 
-Copy `.env.example` to `.env.local` and set `REFLOW_DOMAIN`, `DATABASE_URL`, `POSTGRES_PASSWORD`, `TEMPORAL_POSTGRES_PASSWORD`, `BETTER_AUTH_SECRET`, `REFLOW_SETUP_SECRET`, `INTEGRATION_ENCRYPTION_KEY`, and either the authentication Resend or GitHub settings. Generate the integration key with `openssl rand -base64 32` and back it up; it must be identical in the app and worker. Magic links require both `AUTH_RESEND_API_KEY` and `AUTH_EMAIL_FROM`; the sender domain must be verified in that separate authentication Resend account. Quote values containing spaces or shell punctuation. Keep `.env.local` mode `0600` and never commit it.
+Copy `.env.example` to `.env.local` and set `REFLOW_DOMAIN`, `DATABASE_URL`, `POSTGRES_PASSWORD`, `TEMPORAL_POSTGRES_PASSWORD`, `BETTER_AUTH_SECRET`, `REFLOW_SETUP_SECRET`, `INTEGRATION_ENCRYPTION_KEY`, and either the authentication Resend or GitHub settings. Generate the integration key with `openssl rand -base64 32` and back it up; it must be identical in the app and worker. Magic links require both `AUTH_RESEND_API_KEY` and `AUTH_EMAIL_FROM`; the sender domain must be verified in that separate authentication Resend account. Leave `BILLING_ENABLED=false` unless you are running Rachet Cloud with Stripe. Quote values containing spaces or shell punctuation. Keep `.env.local` mode `0600` and never commit it.
 
 Start and inspect the deployment:
 
