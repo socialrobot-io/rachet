@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import {
   accountCreateSchema, credentialCreateSchema, credentialListSchema, credentialRevokeSchema, contactUpsertSchema, enrollmentControlSchema, enrollmentCreateSchema,
-  eventEmitSchema, eventTypeDefineSchema, workflowCreateSchema, workflowDeleteSchema, workflowPublishSchema, workflowSimulateSchema, workflowDefinitionSchema, templateCreateSchema,
+  eventEmitSchema, eventTypeDefineSchema, workflowCreateSchema, workflowDeleteSchema, workflowPublishSchema, workflowReviseSchema, workflowSimulateSchema, workflowDefinitionSchema, templateCreateSchema,
   templateArchiveSchema, templatePublishSchema, templateReviseSchema, templateRenderSchema, workspaceIdSchema,
   enrollmentDeleteSchema,
   type OperationContext,
@@ -114,6 +114,10 @@ export function createOperations(service: ReflowService): Record<string, Operati
     'workflow.create': {
       description: 'Create a workflow draft from an agent-authored, validated capability graph and preserve the natural-language intent.', input: workflowCreateSchema, readOnly: false,
       invoke: (context, input) => service.workflowCreate(context, workflowCreateSchema.parse(input)),
+    },
+    'workflow.revise': {
+      description: 'Replace an existing workflow draft graph, including email.send template version pins, without changing its id. Use expectedRevision from workflow.list; publish afterward to create a new immutable version.', input: workflowReviseSchema, readOnly: false,
+      invoke: (context, input) => service.workflowRevise(context, workflowReviseSchema.parse(input)),
     },
     'workflow.list': {
       description: 'List workflow drafts and publication state, including published version ids.', input: workspaceOnly, readOnly: true,

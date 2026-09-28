@@ -11,7 +11,7 @@ Every product operation is defined once in `apps/server/src/operations.ts` and e
 | `credential.create`, `credential.list`, `credential.revoke` | Create, inspect, or revoke an organization-bound SDK key. The secret is returned once; creation is HTTP/CLI only and excluded from MCP/model-visible catalogs. |
 | `template.create`, `template.list`, `template.revise`, `template.publish`, `template.archive`, `template.render` | Manage HTML (preferred) or plain templates. CLI `rachet template push --allow-code-execution` renders reviewed local React Email code and **upserts by `--name`** (revise + publish). The server never executes TSX; it only interpolates `{{…}}` placeholders. |
 | `workflow.actions` | List the installed action registry |
-| `workflow.create`, `workflow.list`, `workflow.validate`, `workflow.simulate`, `workflow.publish`, `workflow.delete` | Author, check, trace, persist, version, and permanently delete capability graphs. `workflow.delete` requires `dangerouslyDeleteWorkflow: true` and rejects workflows with active enrollments. |
+| `workflow.create`, `workflow.revise`, `workflow.list`, `workflow.validate`, `workflow.simulate`, `workflow.publish`, `workflow.delete` | Author, revise, check, trace, persist, version, and permanently delete capability graphs. `workflow.delete` requires `dangerouslyDeleteWorkflow: true` and rejects workflows with active enrollments. |
 | `contact.upsert`, `contact.list` | Manage enrolled contacts |
 | `enrollment.create`, `enrollment.list` | Start and inspect durable executions |
 | `enrollment.pause`, `enrollment.resume`, `enrollment.cancel`, `enrollment.delete` | Control or permanently delete one Temporal execution. Deletion terminates an active execution and cannot recall accepted email. |
@@ -31,6 +31,8 @@ For a scheduled trigger, CLI and MCP both require `at` as ISO 8601 with an expli
 Graphs reject duplicate IDs, missing targets, cycles, unreachable nodes, unknown actions, missing required action inputs, and event types that the workspace has not defined. `workflow.simulate` follows the graph using sample inputs, checks each event payload against its registered schema, treats delays as immediate, chooses event or timeout routes from `receivedEvents`, resolves action inputs, and never executes side effects.
 
 `email.send` requires a literal published template-version UUID at publication. `contact.update` merges a resolved object into contact fields. Future provider and integration adapters register additional actions through the same catalog and executor boundary.
+
+To change a workflow, get its `id` and `revision` from `workflow.list`. Call `workflow.revise` with `workspaceId`, `workflowId`, `expectedRevision`, and the complete replacement `definition`. Pass `intent` only when it changes. The response keeps the workflow id and increments its revision. Use the new revision in `workflow.publish` to create an immutable version. Existing enrollments stay pinned to their original workflow version.
 
 ## CLI examples
 
@@ -59,4 +61,4 @@ Set `REFLOW_URL` and either `REFLOW_TOKEN` or `REFLOW_API_KEY`. Human login uses
 
 ## Planned extensions
 
-The PRD includes draft updates/cloning, bulk audiences, recurring schedule triggers, workflow-level pause, richer delivery reports, webhook replay, sender/domain administration, provider connections, and action packages for CRMs and HTTP callbacks. Until those operations appear in `system.capabilities`, agents report the capability gap rather than bypassing Rachet through PostgreSQL or Temporal.
+The PRD includes workflow cloning, bulk audiences, recurring schedule triggers, workflow-level pause, richer delivery reports, webhook replay, sender/domain administration, provider connections, and action packages for CRMs and HTTP callbacks. Until those operations appear in `system.capabilities`, agents report the capability gap rather than bypassing Rachet through PostgreSQL or Temporal.

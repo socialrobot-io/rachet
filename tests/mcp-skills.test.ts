@@ -116,10 +116,14 @@ description: A demo skill.
 
     const tools = await client.listTools();
     const workflowDelete = tools.tools.find((tool) => tool.name === 'workflow_delete');
+    const workflowRevise = tools.tools.find((tool) => tool.name === 'workflow_revise');
     const enrollmentDelete = tools.tools.find((tool) => tool.name === 'enrollment_delete');
     expect(workflowDelete?.inputSchema).toMatchObject({
       properties: { dangerouslyDeleteWorkflow: { const: true } },
       required: expect.arrayContaining(['workspaceId', 'workflowId', 'dangerouslyDeleteWorkflow']),
+    });
+    expect(workflowRevise?.inputSchema).toMatchObject({
+      required: expect.arrayContaining(['workspaceId', 'workflowId', 'expectedRevision', 'definition']),
     });
     expect(enrollmentDelete?.inputSchema).toMatchObject({
       required: expect.arrayContaining(['workspaceId', 'enrollmentId']),

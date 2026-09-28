@@ -486,6 +486,30 @@ export class ReflowService {
     return created;
   }
 
+  async workflowRevise(context: OperationContext, input: { workspaceId: string; workflowId: string; expectedRevision: number; intent?: string | undefined; definition: WorkflowDefinition }) {
+    this.workspace(context, input.workspaceId, 'author');
+    validateActionNodes(input.definition.nodes);
+    await this.assertEventTypes(input.workspaceId, input.definition);
+    await this.assertTemplateRefs(input.workspaceId, input.definition);
+    return this.db.transaction(async (tx) => {
+      const [draft] = await tx.select().from(sequences)
+        .where(and(eq(sequences.id, input.workflowId), eq(sequences.workspaceId, input.workspaceId))).for('update').limit(1);
+      if (!draft) throw new ReflowError('NOT_FOUND', 'Workflow not found', 404);
+      if (draft.revision !== input.expectedRevision) throw new ReflowError('REVISION_CONFLICT', 'Workflow revision changed', 409);
+      if (draft.state === 'archived') throw new ReflowError('VALIDATION_FAILED', 'Archived workflows cannot be revised', 409);
+      const intent = input.intent ?? (draft.definition as { intent?: string }).intent;
+      const [updated] = await tx.update(sequences).set({
+        definition: { ...input.definition, intent },
+        state: 'draft',
+        revision: draft.revision + 1,
+        updatedAt: new Date(),
+      }).where(and(eq(sequences.id, draft.id), eq(sequences.workspaceId, input.workspaceId), eq(sequences.revision, input.expectedRevision))).returning();
+      if (!updated) throw new ReflowError('REVISION_CONFLICT', 'Workflow revision changed', 409);
+      await tx.insert(auditEvents).values({ workspaceId: input.workspaceId, actorId: context.principal.userId, action: 'workflow.revise', targetType: 'workflow', targetId: updated.id });
+      return updated;
+    });
+  }
+
   async workspaceList(context: OperationContext) {
     const [profile] = await this.db.select({ defaultWorkspaceId: profiles.defaultWorkspaceId })
       .from(profiles).where(eq(profiles.userId, context.principal.userId)).limit(1);

@@ -162,6 +162,34 @@ describe.skipIf(!runtime)('service invariants (postgres)', () => {
     })).rejects.toMatchObject({ code: 'REVISION_CONFLICT' });
   });
 
+  it('revises an unpublished workflow in place and validates replacement pins', async () => {
+    const first = await publishHtmlTemplate(`wf-first-${crypto.randomUUID().slice(0, 6)}`);
+    const second = await publishHtmlTemplate(`wf-second-${crypto.randomUUID().slice(0, 6)}`);
+    const workflow = await boot.service.workflowCreate(admin, {
+      workspaceId,
+      name: `revise-wf-${crypto.randomUUID().slice(0, 6)}`,
+      intent: 'send a follow-up',
+      definition: definitionPinning(first.published.id),
+    });
+    const replacement = definitionPinning(second.published.id);
+    await expect(boot.service.workflowRevise(admin, {
+      workspaceId, workflowId: workflow.id, expectedRevision: workflow.revision,
+      definition: definitionPinning(crypto.randomUUID()),
+    })).rejects.toMatchObject({ code: 'TEMPLATE_REFERENCE_INVALID' });
+    const revised = await boot.service.workflowRevise(admin, {
+      workspaceId, workflowId: workflow.id, expectedRevision: workflow.revision,
+      definition: replacement,
+    });
+    expect(revised).toMatchObject({ id: workflow.id, name: workflow.name, state: 'draft', revision: workflow.revision + 1 });
+    expect(revised.definition).toMatchObject({ ...replacement, intent: 'send a follow-up' });
+    await expect(boot.service.workflowRevise(admin, {
+      workspaceId, workflowId: workflow.id, expectedRevision: workflow.revision,
+      definition: replacement,
+    })).rejects.toMatchObject({ code: 'REVISION_CONFLICT' });
+    const listed = await boot.service.workflowList(admin, workspaceId);
+    expect(listed.find((row) => row.id === workflow.id)?.revision).toBe(revised.revision);
+  });
+
   it('keeps enrollment create idempotent and conflicts on mismatched replay', async () => {
     const { published } = await publishHtmlTemplate(`enr-${crypto.randomUUID().slice(0, 6)}`);
     const workflow = await boot.service.workflowCreate(admin, {

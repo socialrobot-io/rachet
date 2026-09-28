@@ -39,8 +39,7 @@ If every template is archived, use archived HTML as a branded look reference onl
 ## Speed
 
 - One publish pass per user-approved copy set. Do not republish every template for a single-email tweak.
-- After a copy or layout change: revise + publish only the changed templates, update the version map, then recreate the unpublished draft workflow with the new pins.
-- While iterating on the same unpublished draft the user asked you to build or update, you may delete that draft and create a replacement without a second delete confirmation. Still show the workflow name and id when you delete. For a published workflow, or any workflow with enrollments, follow the delete checklist in [workflows](references/workflows.md).
+- After a copy or layout change: revise + publish only the changed templates, update the version map, then call `workflow_revise` with the complete graph and new pins. Use the draft's current `revision` as `expectedRevision`.
 - Do not explore the repo for sample workflows, sample emails, or unrelated packages unless the user pointed at them.
 
 ## Connect

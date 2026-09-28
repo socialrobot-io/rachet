@@ -6,6 +6,7 @@ import {
   templateCreateSchema,
   templateReviseSchema,
   workflowDeleteSchema,
+  workflowReviseSchema,
   enrollmentDeleteSchema,
   valueSourceSchema,
   eventTypeDefineSchema,
@@ -49,6 +50,20 @@ describe('deletion operation contracts', () => {
   it('accepts a scoped enrollment deletion request', () => {
     expect(enrollmentDeleteSchema.parse({ workspaceId, enrollmentId: '00000000-0000-4000-8000-000000000003' }))
       .toMatchObject({ workspaceId });
+  });
+});
+
+describe('workflow revision contract', () => {
+  it('requires an expected revision and complete replacement graph', () => {
+    const request = {
+      workspaceId,
+      workflowId: '00000000-0000-4000-8000-000000000002',
+      expectedRevision: 1,
+      definition: { schemaVersion: '1', description: 'Finish', trigger: { type: 'manual' }, entryNodeId: 'done', nodes: [{ id: 'done', type: 'end', reason: 'done' }] },
+    };
+    expect(workflowReviseSchema.safeParse(request).success).toBe(true);
+    expect(workflowReviseSchema.safeParse({ ...request, expectedRevision: undefined }).success).toBe(false);
+    expect(workflowReviseSchema.safeParse({ ...request, definition: undefined }).success).toBe(false);
   });
 });
 

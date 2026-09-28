@@ -3,7 +3,6 @@ import { eq } from 'drizzle-orm';
 import {
   enrollments,
   sendIntents,
-  sequences,
   sequenceVersions,
   workspaces,
 } from '../apps/server/src/db/schema.js';
@@ -306,18 +305,14 @@ describe.skipIf(!runtime)('version pinning (postgres + fake provider)', () => {
     });
     if (!existing) throw new Error('enrollment create failed');
 
-    // No workflow.revise yet: update the draft definition in place, then publish v2.
-    const nextDefinition = {
-      ...twoStepDefinition(templateV2.id),
-      intent: 'workflow pin',
-    };
-    await boot.db.update(sequences).set({
-      definition: nextDefinition,
-      updatedAt: new Date(),
-    }).where(eq(sequences.id, workflow.id));
-
-    const [draft] = await boot.db.select().from(sequences).where(eq(sequences.id, workflow.id)).limit(1);
-    if (!draft) throw new Error('draft missing');
+    const draft = await boot.service.workflowRevise(admin, {
+      workspaceId,
+      workflowId: workflow.id,
+      expectedRevision: workflow.revision,
+      definition: twoStepDefinition(templateV2.id),
+    });
+    expect(draft.id).toBe(workflow.id);
+    expect(draft.revision).toBe(workflow.revision + 1);
     const workflowV2 = await boot.service.workflowPublish(admin, {
       workspaceId,
       workflowId: workflow.id,

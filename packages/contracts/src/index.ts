@@ -133,6 +133,7 @@ export const workflowDefinitionSchema = z.object({
 export type WorkflowDefinition = z.infer<typeof workflowDefinitionSchema>;
 
 export const workflowCreateSchema = z.object({ workspaceId: workspaceIdSchema, name: z.string().min(1).max(120), intent: z.string().min(1).max(5000), definition: workflowDefinitionSchema });
+export const workflowReviseSchema = z.object({ workspaceId: workspaceIdSchema, workflowId: z.uuid(), expectedRevision: z.number().int().positive(), intent: z.string().min(1).max(5000).optional(), definition: workflowDefinitionSchema });
 export const workflowPublishSchema = z.object({ workspaceId: workspaceIdSchema, workflowId: z.uuid(), expectedRevision: z.number().int().positive() });
 /** Deleting a workflow also removes its published versions and completed enrollment history. */
 export const workflowDeleteSchema = z.object({ workspaceId: workspaceIdSchema, workflowId: z.uuid(), dangerouslyDeleteWorkflow: z.literal(true) });
