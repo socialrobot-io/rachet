@@ -6,15 +6,16 @@ Use **Rachet** in user-facing text. Internal wire contracts and environment vari
 
 Production assets live in `apps/dashboard/public/brand/`:
 
-- `rachet-logo.svg`: dark wordmark with the yellow forward mark, for light backgrounds.
-- `rachet-logo-light.svg`: cream wordmark with the yellow forward mark, for dark backgrounds.
-- `rachet-mark.svg`: standalone yellow forward mark, with a transparent background.
+- `rachet-logo.svg`: dark wordmark with the hand-drawn robot head, for light backgrounds.
+- `rachet-logo-light.svg`: cream wordmark with the robot head, for dark backgrounds.
+- `rachet-mark.svg`: standalone robot head with a transparent background.
+- `rachet-mascot.png`: transparent full-body robot for illustrations.
 
 Transparent PNG exports are also available. Prefer SVG in interfaces and print.
 
-The wordmark uses outlined Inter Tight ExtraBold (800) paths. Keep its aspect ratio, leave clear space equal to half the cap height, and use at least 120px width in interfaces.
+The wordmark uses outlined Inter Tight ExtraBold (800) paths. Keep its aspect ratio, leave clear space equal to half the cap height, and use at least 120px width in interfaces. Use the full-body mascot at 80px high or larger so its ink detail stays clear.
 
-Use the shared `RachetLogo` component in the dashboard. The favicon uses the yellow mark on the dark brand color.
+Use the shared `RachetLogo` component in the dashboard. The favicon uses the robot head on the dark brand color.
 
 ## Social preview and search
 

@@ -248,6 +248,7 @@
 .hero-copy > p { font-size: 15px; line-height: 1.7; color: var(--muted-foreground); max-width: 490px; }
 .hero-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 27px; }
 .hero-copy > .hero-note { font-family: var(--font-mono); font-size: 10px; margin-top: 19px; }
+.hero-mobile-mascot { display: none; }
 .hero-art { position: relative; height: 430px; width: 400px; max-width: 100%; justify-self: end; }
 .hero-art-path { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
 .hero-art-path path { stroke: var(--primary); stroke-opacity: .35; stroke-width: 1.5; stroke-dasharray: 4 5; }
@@ -271,6 +272,7 @@
 .art-outcome-node svg { width: 14px; height: 14px; stroke-width: 1.5; }
 .art-activated .art-outcome-node { background: var(--mint); }
 .art-end { position: relative; display: inline-block; margin-top: 19px; padding-inline: 7px; background: var(--background); font-family: var(--font-mono); font-size: 8px; color: var(--muted-foreground); }
+.art-mascot { position: absolute; right: -80px; bottom: -20px; width: 148px; height: auto; pointer-events: none; }
 .landing-footer { display: flex; align-items: center; justify-content: space-between; gap: 20px; min-height: 72px; border-top: 1px solid var(--border); font-family: var(--font-mono); font-size: 9px; color: var(--muted-foreground); }
 .landing-footer > div { display: flex; gap: 26px; }
 .landing-footer > div > span { display: inline-flex; align-items: center; gap: 8px; }
@@ -279,6 +281,7 @@
   .landing { padding-inline: 35px; }
   .landing-hero { grid-template-columns: 1.25fr 1fr; gap: 5px; }
   .hero-art { width: 335px; }
+  .art-mascot { right: -25px; bottom: -15px; width: 100px; }
   .hero-copy > p { font-size: 13px; }
   .hero-desktop-break { display: none; }
   .hero-actions { gap: 2px; }
@@ -298,6 +301,7 @@
   .hero-actions { margin-top: 23px; gap: 3px; }
   .hero-actions [data-slot="button"] { padding-inline: 15px; font-size: 11px; height: 43px; }
   .hero-copy > .hero-note { font-size: 8px; margin-top: 17px; }
+  .hero-mobile-mascot { display: block; width: 104px; height: 104px; margin: 8px 0 0 auto; }
   .hero-art { display: none; }
   .landing-footer { min-height: 65px; font-size: 8px; gap: 13px; flex-wrap: wrap; justify-content: flex-start; padding-block: 15px; }
   .landing-footer > div { gap: 17px; }

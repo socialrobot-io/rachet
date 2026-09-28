@@ -29,6 +29,7 @@ function JourneyIllustration() {
       <div className="art-node art-wait reflow-panel"><span className="art-node-icon"><Clock3 aria-hidden="true" /></span><span><small>WAIT UP TO 24 HOURS</small><strong>Did they activate?</strong></span></div>
       <div className="art-outcome art-activated"><span className="art-branch-label">Yes</span><div className="art-outcome-node"><Check aria-hidden="true" /><span>End journey</span></div></div>
       <div className="art-outcome art-reminder"><span className="art-branch-label">Not yet</span><div className="art-outcome-node"><Mail aria-hidden="true" /><span>Send reminder</span></div><span className="art-end">Then end</span></div>
+      <img className="art-mascot" src="/brand/rachet-mascot.png" alt="" aria-hidden="true" width="148" height="148" />
     </figure>
   );
 }
@@ -49,6 +50,7 @@ export function LandingPage() {
           <p>Describe what should happen. Your agent builds the workflow.<br className="hero-desktop-break" /> Rachet keeps it moving for days, weeks, or months.</p>
           <div className="hero-actions"><Button asChild size="lg" className="h-12 rounded-full px-6"><Link to="/login">Build your first journey <ArrowRight data-icon="inline-end" /></Link></Button><Button asChild variant="ghost" size="lg" className="h-12 rounded-full px-4"><a href={repository}><GitHubIcon /> Explore the code</a></Button></div>
           <p className="hero-note">Your agent authors. You approve. Rachet runs.</p>
+          <img className="hero-mobile-mascot" src="/brand/rachet-mascot.png" alt="" aria-hidden="true" width="104" height="104" />
         </div>
         <JourneyIllustration />
       </main>

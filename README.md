@@ -4,6 +4,8 @@
     <source media="(prefers-color-scheme: dark)" srcset="apps/dashboard/public/brand/rachet-logo-light.svg" />
     <img src="apps/dashboard/public/brand/rachet-logo.svg" alt="Rachet" width="320" />
   </picture>
+  <br />
+  <img src="apps/dashboard/public/brand/rachet-mascot.png" alt="Rachet's hand-drawn robot mascot" width="110" />
 </p>
 
 <h1 align="center">Customer journeys, built with your agent.</h1>
