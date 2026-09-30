@@ -8,7 +8,7 @@ On a Linux server with Docker Engine, Docker Compose, public DNS, and ports 80/4
 ./scripts/deploy.sh rachet.example.com admin@example.com
 ```
 
-For a new installation, the script generates secrets under `.rachet/`, builds and starts the stack, enables Caddy TLS, and runs migrations. Re-run the same command to deploy an update. If an earlier installation has a `.reflow/production.env` file, the script reuses it and its existing database and Temporal namespace. Configure magic-link or GitHub credentials in the selected production environment file, then open the dashboard and use its one-time first-admin page with the setup secret in that file.
+For a new installation, the script generates secrets under `.rachet/`, builds and starts the stack, enables Caddy TLS, and runs migrations. Re-run the same command to deploy an update. For an installation created before the rename, the script reuses its production environment file, database, and Temporal namespace. Configure magic-link or GitHub credentials in the selected production environment file, then open the dashboard and use its one-time first-admin page with the setup secret in that file.
 
 The sections below cover manual deployments, external ingress, Coolify, backups, and production customization.
 
@@ -96,7 +96,7 @@ Coolify can deploy the checked-in `compose.yaml` directly. Leave the `caddy` pro
 
 Set `RACHET_DOMAIN`, `PUBLIC_URL`, and `TRUSTED_ORIGINS` to the same HTTPS hostname Coolify assigns, then deploy. `ACME_EMAIL` is not required unless you enable the `caddy` profile.
 
-When upgrading an existing stack, keep its Compose project name, database URL and names, named volumes, Temporal namespace and task queue, and all secrets. The new `RACHET_*` settings accept the old `REFLOW_*` values as fallbacks. Change one setting at a time only after confirming the running stack still reads its saved data.
+When upgrading an existing stack, keep its Compose project name, database URL and names, named volumes, Temporal namespace and task queue, and all secrets. `RACHET_*` settings accept the earlier names as fallbacks. Change one setting at a time only after confirming the running stack still reads its saved data.
 
 Leave `OAUTH_PUBLIC_REDIRECT_ORIGINS` empty for CLI and loopback MCP clients. Cursor's current MCP OAuth flow uses `https://www.cursor.com`; add that exact origin when enabling Cursor against a deployment. `OAUTH_PUBLIC_REDIRECT_SCHEMES` defaults to `cursor`; keep it to the comma-separated native clients installed in your environment. Add only exact HTTPS origins for web MCP clients you have reviewed. Operators authorize clients in the dashboard and can revoke grants from **Connected apps**.
 
