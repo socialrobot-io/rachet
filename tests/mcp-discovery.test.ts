@@ -1,9 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
 import { createApp } from '../apps/server/src/app.js';
-import type { ReflowAuth } from '../apps/server/src/auth.js';
+import type { RachetAuth } from '../apps/server/src/auth.js';
 import type { Config } from '../apps/server/src/config.js';
 import type { Database } from '../apps/server/src/db/index.js';
-import type { ReflowService } from '../apps/server/src/domain/service.js';
+import type { RachetService } from '../apps/server/src/domain/service.js';
 
 function discoveryApp() {
   const handler = vi.fn(async (request: Request) => Response.json({
@@ -24,9 +24,9 @@ function discoveryApp() {
         getSession,
         verifyApiKey: async () => ({ valid: false, key: null }),
       },
-    } as unknown as ReflowAuth,
+    } as unknown as RachetAuth,
     db: {} as Database,
-    service: {} as ReflowService,
+    service: {} as RachetService,
     operations: {},
   });
   return { app, handler, getSession };

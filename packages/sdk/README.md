@@ -16,9 +16,9 @@ rachet call credential.create --input '{"userId":"USER_ID","name":"product-ui","
 import { RachetSdk } from '@socialrobot-io/rachet-sdk';
 
 const rachet = new RachetSdk({
-  url: process.env.REFLOW_URL!,
-  apiKey: process.env.REFLOW_API_KEY!,
-  workspaceId: process.env.REFLOW_WORKSPACE_ID!,
+  url: process.env.RACHET_URL!,
+  apiKey: process.env.RACHET_API_KEY!,
+  workspaceId: process.env.RACHET_WORKSPACE_ID!,
 });
 
 const result = await rachet.trigger({

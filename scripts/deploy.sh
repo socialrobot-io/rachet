@@ -12,9 +12,15 @@ if [[ "$domain" == http://* || "$domain" == https://* || "$domain" == */* ]]; th
   exit 1
 fi
 
-mkdir -p .reflow
-chmod 700 .reflow
-env_file=".reflow/production.env"
+if [[ -f .rachet/production.env ]]; then
+  env_file=".rachet/production.env"
+elif [[ -f .reflow/production.env ]]; then
+  env_file=".reflow/production.env"
+else
+  mkdir -p .rachet
+  chmod 700 .rachet
+  env_file=".rachet/production.env"
+fi
 
 if [[ ! -f "$env_file" ]]; then
   postgres_password="$(openssl rand -hex 24)"
@@ -23,14 +29,19 @@ if [[ ! -f "$env_file" ]]; then
   setup_secret="$(openssl rand -base64 48 | tr -d '\n')"
   integration_key="$(openssl rand -base64 32 | tr -d '\n')"
   cat > "$env_file" <<EOF
-REFLOW_DOMAIN=$domain
+COMPOSE_PROJECT_NAME=rachet
+RACHET_DOMAIN=$domain
 ACME_EMAIL=$admin_email
 POSTGRES_PASSWORD=$postgres_password
-DATABASE_URL=postgresql://reflow:$postgres_password@postgres:5432/reflow
+RACHET_DB_NAME=rachet
+RACHET_DB_USER=rachet
+DATABASE_URL=postgresql://rachet:$postgres_password@postgres:5432/rachet
 TEMPORAL_POSTGRES_PASSWORD=$temporal_password
 BETTER_AUTH_SECRET=$auth_secret
-REFLOW_SETUP_SECRET=$setup_secret
+RACHET_SETUP_SECRET=$setup_secret
 INTEGRATION_ENCRYPTION_KEY=$integration_key
+TEMPORAL_NAMESPACE=rachet
+TEMPORAL_TASK_QUEUE=rachet-enrollments
 AUTH_EMAIL_FROM=
 AUTH_RESEND_API_KEY=
 GITHUB_CLIENT_ID=

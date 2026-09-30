@@ -526,7 +526,7 @@ function TriggerPill({ definition }: { definition: WorkflowDefinition }) {
 
 function FallbackList({ definition }: { definition: WorkflowDefinition }) {
   return (
-    <div className="reflow-document flex w-full flex-col gap-2 rounded-2xl border border-foreground/8 px-4 py-4 sm:px-5 sm:py-5">
+    <div className="rachet-document flex w-full flex-col gap-2 rounded-2xl border border-foreground/8 px-4 py-4 sm:px-5 sm:py-5">
       <p className="text-sm text-muted-foreground">
         This workflow cannot be displayed as a document; showing its definition order instead.
       </p>
@@ -568,7 +568,7 @@ export function DocumentView({
   if (!tree) return <FallbackList definition={definition} />;
   const paint: Paint = { path, counts, activeStepId, onSelectStep, onPreviewEmail };
   return (
-    <div className="reflow-document flex w-full flex-col rounded-2xl border border-foreground/8 px-4 py-4 sm:px-5 sm:py-5">
+    <div className="rachet-document flex w-full flex-col rounded-2xl border border-foreground/8 px-4 py-4 sm:px-5 sm:py-5">
       <TriggerPill definition={definition} />
       <Rail />
       <Sequence blocks={tree} paint={paint} />

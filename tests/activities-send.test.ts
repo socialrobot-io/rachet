@@ -146,8 +146,8 @@ describe.skipIf(!runtime)('email.send activity invariants (postgres + fake provi
     expect(provider.sent[0]?.message.subject).toBe('Hello Ada');
     expect(provider.sent[0]?.message.html).toContain('Hello Ada');
     expect(provider.sent[0]?.message.tags).toEqual([
-      { name: 'reflow_workspace', value: workspaceId },
-      { name: 'reflow_intent', value: expect.any(String) },
+      { name: 'rachet_workspace', value: workspaceId },
+      { name: 'rachet_intent', value: expect.any(String) },
     ]);
     expect(provider.sent[0]?.idempotencyKey).toBe(`enrollment/${enrollmentId}/welcome`);
 

@@ -1,6 +1,6 @@
 # Rachet brand
 
-Use **Rachet** in user-facing text. Internal wire contracts and environment variables may use `reflow`.
+Use **Rachet** in user-facing text, package names, skills, commands, and new configuration keys. Preserve old identifiers only where an existing installation still needs them to read data or complete in-flight work.
 
 ## Logo assets
 

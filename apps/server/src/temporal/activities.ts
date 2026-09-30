@@ -3,7 +3,7 @@ import { ApplicationFailure } from '@temporalio/activity';
 import { and, eq } from 'drizzle-orm';
 import type { Config } from '../config.js';
 import { resolveActionInput, resolveValue } from '../domain/action-catalog.js';
-import type { FlowCondition, FlowNode } from '@reflow/contracts';
+import type { FlowCondition, FlowNode } from '@rachet/contracts';
 import { renderEmail } from '../domain/render.js';
 import { createDatabase, type Database } from '../db/index.js';
 import { contacts, enrollments, resendConnections, sendIntents, suppressions, templateVersions, workspaces } from '../db/schema.js';
@@ -97,7 +97,7 @@ async function sendEmail(input: { workspaceId: string; enrollmentId: string; nod
   const outcome = await provider.send({
     from: intent.fromAddress ?? fromAddress, to: intent.recipient, subject: intent.subject,
     html: intent.html, text: intent.plainText,
-    tags: [{ name: 'reflow_workspace', value: input.workspaceId }, { name: 'reflow_intent', value: intent.id }],
+    tags: [{ name: 'rachet_workspace', value: input.workspaceId }, { name: 'rachet_intent', value: intent.id }],
   }, idempotencyKey);
   if (outcome.kind === 'accepted') {
     await db.update(sendIntents).set({ state: 'accepted', providerMessageId: outcome.messageId, acceptedAt: new Date(), updatedAt: new Date() }).where(eq(sendIntents.id, intent.id));

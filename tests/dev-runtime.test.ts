@@ -18,9 +18,9 @@ describe('development runtime compatibility', () => {
 
   it('honors strong development setup secrets and replaces short ones', async () => {
     const devScript = await readFile('scripts/dev.ts', 'utf8');
-    expect(devScript).toContain('!localEnvironment.REFLOW_SETUP_SECRET || localEnvironment.REFLOW_SETUP_SECRET.length < 32');
-    expect(devScript).toContain("saveLocalEnvironmentValue('REFLOW_SETUP_SECRET'");
-    expect(devScript).not.toContain('REFLOW_SETUP_SECRET_FILE');
+    expect(devScript).toContain('!setupSecret || setupSecret.length < 32');
+    expect(devScript).toContain("saveLocalEnvironmentValue('RACHET_SETUP_SECRET'");
+    expect(devScript).not.toContain('RACHET_SETUP_SECRET_FILE');
     expect(devScript).not.toContain('dev-setup-secret');
   });
 

@@ -4,7 +4,7 @@ import unittest
 from pathlib import Path
 
 from scripts.check_repo import ROOT, check_lock, check_markdown, check_workflow, read_json
-from scripts.install_reflow_skill import install
+from scripts.install_rachet_skill import install
 
 
 class WorkflowChecks(unittest.TestCase):
@@ -73,7 +73,7 @@ class RepositoryChecks(unittest.TestCase):
             source = root / "source"
             source.mkdir()
             (source / "SKILL.md").write_text("original\n")
-            destination = root / "installed/reflow"
+            destination = root / "installed/rachet"
             self.assertEqual(install(source, destination), "Installed")
             self.assertEqual(install(source, destination), "Already installed (identical)")
             (destination / "SKILL.md").write_text("user modification\n")

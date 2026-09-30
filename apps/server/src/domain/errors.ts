@@ -1,4 +1,4 @@
-export class ReflowError extends Error {
+export class RachetError extends Error {
   readonly hint?: string | undefined;
   readonly details?: Record<string, unknown> | undefined;
 
@@ -24,7 +24,7 @@ export function isUniqueViolation(error: unknown): boolean {
   return false;
 }
 
-export function errorPayload(error: ReflowError) {
+export function errorPayload(error: RachetError) {
   return {
     code: error.code,
     message: error.message,

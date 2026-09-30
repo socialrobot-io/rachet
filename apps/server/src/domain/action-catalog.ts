@@ -1,6 +1,6 @@
 import { z } from 'zod';
-import type { FlowNode, ValueSource } from '@reflow/contracts';
-import { ReflowError } from './errors.js';
+import type { FlowNode, ValueSource } from '@rachet/contracts';
+import { RachetError } from './errors.js';
 
 export type ActionDefinition = {
   description: string;
@@ -32,10 +32,10 @@ export function validateActionNodes(nodes: FlowNode[]): void {
   for (const node of nodes) {
     if (node.type !== 'action') continue;
     const action = actionCatalog[node.action as ActionKey];
-    if (!action) throw new ReflowError('VALIDATION_FAILED', `Unknown action capability: ${node.action}`, 422);
+    if (!action) throw new RachetError('VALIDATION_FAILED', `Unknown action capability: ${node.action}`, 422);
     for (const [name, field] of Object.entries(action.input)) {
       if (field.required && !(name in node.input)) {
-        throw new ReflowError('VALIDATION_FAILED', `Action ${node.action} requires input.${name}`, 422);
+        throw new RachetError('VALIDATION_FAILED', `Action ${node.action} requires input.${name}`, 422);
       }
     }
   }

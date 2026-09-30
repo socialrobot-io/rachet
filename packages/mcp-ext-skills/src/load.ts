@@ -7,7 +7,7 @@ import type { Skill, SkillFrontmatter, SkillResourceEntry } from './types.js';
 export interface LoadedSkillFile {
   /** Absolute filesystem path. */
   absolutePath: string;
-  /** Resource URI (for example `skill://reflow/SKILL.md`). */
+  /** Resource URI (for example `skill://rachet/SKILL.md`). */
   uri: string;
   /** Relative path inside the skill folder, POSIX separators. */
   relativePath: string;

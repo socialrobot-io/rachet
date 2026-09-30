@@ -2,7 +2,7 @@ import { and, eq, isNull, lt, or, sql } from 'drizzle-orm';
 import { loadConfig } from './config.js';
 import { createDatabase } from './db/index.js';
 import { enrollmentEvents, enrollments, outbox, sequenceVersions } from './db/schema.js';
-import { workflowDefinitionSchema } from '@reflow/contracts';
+import { workflowDefinitionSchema } from '@rachet/contracts';
 import { createTemporalClient } from './temporal/client.js';
 import { enrollmentWorkflow } from './temporal/workflows.js';
 import { enrollmentEvent } from './temporal/shared.js';

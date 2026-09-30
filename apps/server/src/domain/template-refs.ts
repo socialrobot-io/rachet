@@ -1,5 +1,5 @@
-import type { WorkflowDefinition } from '@reflow/contracts';
-import { ReflowError } from './errors.js';
+import type { WorkflowDefinition } from '@rachet/contracts';
+import { RachetError } from './errors.js';
 
 export type EmailSendTemplateRef = {
   nodeId: string;
@@ -91,7 +91,7 @@ export function buildTemplateRefIssues(
 
 export function throwTemplateRefIssues(issues: TemplateRefIssue[]): never {
   const summary = issues.map((issue) => issue.message).join(' ');
-  throw new ReflowError(
+  throw new RachetError(
     'TEMPLATE_REFERENCE_INVALID',
     summary,
     422,

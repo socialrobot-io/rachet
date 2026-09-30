@@ -2,7 +2,7 @@
   email {$ACME_EMAIL}
 }
 
-{$REFLOW_DOMAIN} {
+{$RACHET_DOMAIN} {
   encode zstd gzip
   reverse_proxy app:3000
   header {

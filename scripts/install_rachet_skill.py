@@ -7,7 +7,7 @@ import os
 import shutil
 from pathlib import Path
 
-SOURCE = Path(__file__).resolve().parents[1] / "skills/reflow"
+SOURCE = Path(__file__).resolve().parents[1] / "skills/rachet"
 
 
 def fingerprint(folder):
@@ -30,7 +30,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--dest", type=Path, default=default, help="Destination skills root")
     args = parser.parse_args()
-    destination = args.dest.expanduser().resolve() / "reflow"
+    destination = args.dest.expanduser().resolve() / "rachet"
     try:
         print(f"{install(SOURCE, destination)}: {destination}")
     except ValueError as error:

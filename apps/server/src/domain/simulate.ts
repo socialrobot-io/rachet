@@ -1,5 +1,5 @@
 import { resolveActionInput, resolveValue } from './action-catalog.js';
-import type { FlowCondition, SimulatedEvent, WorkflowDefinition } from '@reflow/contracts';
+import type { FlowCondition, SimulatedEvent, WorkflowDefinition } from '@rachet/contracts';
 
 function evaluate(condition: FlowCondition, root: Record<string, unknown>, receivedEvents: Set<string>): boolean {
   if (condition.op === 'event_received') return receivedEvents.has(condition.eventType);

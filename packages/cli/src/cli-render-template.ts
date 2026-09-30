@@ -28,7 +28,7 @@ export async function renderLocalReactEmailFile(
   options: { resolveDir?: string } = {},
 ) {
   const resolveDir = options.resolveDir ?? process.cwd();
-  const dir = await mkdtemp(join(resolveDir, '.reflow-render-'));
+  const dir = await mkdtemp(join(resolveDir, '.rachet-render-'));
   const file = join(dir, `template-${createHash('sha256').update(tsxSource).digest('hex').slice(0, 16)}.mjs`);
   try {
     const transformed = await esbuild.build({

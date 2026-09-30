@@ -23,7 +23,7 @@ function openFile(path: string): Promise<void> {
 }
 
 export async function openWorkflowSvg(id: string, definition: WorkflowDefinition): Promise<string> {
-  const directory = join(tmpdir(), 'reflow-workflows');
+  const directory = join(tmpdir(), 'rachet-workflows');
   await mkdir(directory, { recursive: true });
   const path = join(directory, `${safeName(id)}.svg`);
   await writeFile(path, renderWorkflowSvg(definition), { encoding: 'utf8', mode: 0o600 });

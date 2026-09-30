@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { ReflowError, errorPayload, isUniqueViolation } from '../apps/server/src/domain/errors.js';
+import { RachetError, errorPayload, isUniqueViolation } from '../apps/server/src/domain/errors.js';
 
-describe('ReflowError', () => {
+describe('RachetError', () => {
   it('serializes hint and details when present', () => {
-    const error = new ReflowError('TEMPLATE_IN_USE', 'Cannot archive', 409, false, {
+    const error = new RachetError('TEMPLATE_IN_USE', 'Cannot archive', 409, false, {
       hint: 'Unpin first',
       details: { templateId: 't1' },
     });
@@ -17,7 +17,7 @@ describe('ReflowError', () => {
   });
 
   it('omits optional fields when unset', () => {
-    expect(errorPayload(new ReflowError('NOT_FOUND', 'Missing', 404))).toEqual({
+    expect(errorPayload(new RachetError('NOT_FOUND', 'Missing', 404))).toEqual({
       code: 'NOT_FOUND',
       message: 'Missing',
       retryable: false,

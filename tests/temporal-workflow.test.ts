@@ -147,6 +147,25 @@ describe('Temporal enrollment complex flows', () => {
     expect(states.map((row) => row.state)).toContain('cancelled');
   }, 30_000);
 
+  it('cancels during a delay without waiting for its timer', async () => {
+    const definition: WorkflowDefinition = {
+      schemaVersion: '1', description: 'Cancel delay', trigger: { type: 'manual' }, purpose: 'transactional', topic: 'test', entryNodeId: 'delay',
+      nodes: [
+        { id: 'delay', type: 'delay', durationSeconds: 86_400, next: 'send' },
+        { id: 'send', type: 'action', action: 'email.send', input: {}, next: 'done' },
+        { id: 'done', type: 'end', reason: 'done' },
+      ],
+    };
+    const { worker, handle, actions } = await runWithWorker(environment, definition);
+    const result = await worker.runUntil(async () => {
+      await environment.sleep('1s');
+      await handle.signal(cancelEnrollment);
+      return handle.result();
+    });
+    expect(result).toBe('cancelled');
+    expect(actions).toEqual([]);
+  }, 30_000);
+
   it('parks in needs_attention when action returns needs_attention', async () => {
     const definition: WorkflowDefinition = {
       schemaVersion: '1', description: 'Attention', trigger: { type: 'manual' }, purpose: 'transactional', topic: 'test', entryNodeId: 'send',

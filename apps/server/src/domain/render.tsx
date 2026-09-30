@@ -1,7 +1,7 @@
 import React from 'react';
 import { Body, Container, Head, Html, Preview, Text } from 'react-email';
 import { render, toPlainText } from 'react-email';
-import { ReflowError } from './errors.js';
+import { RachetError } from './errors.js';
 
 export type TemplateRenderable = {
   subject: string;
@@ -28,10 +28,10 @@ export function interpolate(input: string, props: Record<string, unknown>, optio
       return found === undefined ? undefined : record[found];
     }, props);
     if (value === undefined || value === null) {
-      throw new ReflowError('VALIDATION_FAILED', `Missing template property: ${key}`, 422);
+      throw new RachetError('VALIDATION_FAILED', `Missing template property: ${key}`, 422);
     }
     if (typeof value === 'object') {
-      throw new ReflowError('VALIDATION_FAILED', `Template property must be scalar: ${key}`, 422);
+      throw new RachetError('VALIDATION_FAILED', `Template property must be scalar: ${key}`, 422);
     }
     const rendered = String(value);
     return options?.escapeHtml ? escapeHtml(rendered) : rendered;

@@ -7,14 +7,14 @@ Waits are 20 seconds so you can test without waiting days.
 ## Prerequisites
 
 - `pnpm dev`
-- `npm install --global @socialrobot-io/reflow`
-- `reflow auth login --url http://localhost:3000`
+- `npm install --global @socialrobot-io/rachet`
+- `rachet auth login --url http://localhost:3000`
 - Resend key loaded for real delivery
 
 ## 1. Preview templates
 
 ```sh
-reflow template preview --dir examples/welcome-nudge/emails
+rachet template preview --dir examples/welcome-nudge/emails
 # http://localhost:3030
 ```
 
@@ -23,13 +23,13 @@ reflow template preview --dir examples/welcome-nudge/emails
 `push` renders each reviewed `.tsx` on your machine (any imports you need), then uploads HTML + plain text. Because TSX is local code, the explicit acknowledgement flag is required. The server only interpolates `{{…}}` at send time.
 
 ```sh
-reflow template push examples/welcome-nudge/emails/welcome.tsx \
+rachet template push examples/welcome-nudge/emails/welcome.tsx \
   --name "Welcome nudge / welcome" \
   --subject "Welcome, {{contact.firstName}}" \
   --preheader "Your account is ready." \
   --allow-code-execution
 
-reflow template push examples/welcome-nudge/emails/reminder.tsx \
+rachet template push examples/welcome-nudge/emails/reminder.tsx \
   --name "Welcome nudge / reminder" \
   --subject "Still there, {{contact.firstName}}?" \
   --preheader "A quick nudge." \
@@ -43,17 +43,17 @@ Copy each printed `templateVersionId`.
 Edit `workflow.template.json` once: replace `__WELCOME_VERSION_ID__` and `__REMINDER_VERSION_ID__` with the IDs returned above. The file is a complete `workflow.create` request; validation ignores its extra `name` and `intent` fields.
 
 ```sh
-reflow call workflow.validate \
+rachet call workflow.validate \
   --file examples/welcome-nudge/workflow.template.json
 
-reflow call workflow.create \
+rachet call workflow.create \
   --file examples/welcome-nudge/workflow.template.json
 ```
 
 Publish with the `id` and `revision` from create:
 
 ```sh
-reflow call workflow.publish --input '{
+rachet call workflow.publish --input '{
   "workflowId": "WORKFLOW_ID",
   "expectedRevision": 1
 }'
@@ -62,13 +62,13 @@ reflow call workflow.publish --input '{
 ## 4. Enroll
 
 ```sh
-reflow call contact.upsert --input '{
+rachet call contact.upsert --input '{
   "email": "you@your-resend-account.email",
   "externalId": "welcome-nudge-demo",
   "fields": { "firstName": "Ada" }
 }'
 
-reflow call enrollment.create --input '{
+rachet call enrollment.create --input '{
   "workflowVersionId": "WORKFLOW_VERSION_ID",
   "contactId": "CONTACT_ID",
   "idempotencyKey": "welcome-nudge-1",
