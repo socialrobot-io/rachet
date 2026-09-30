@@ -5,7 +5,7 @@ import {
   validateActionNodes,
   valueAtPath,
 } from '../apps/server/src/domain/action-catalog.js';
-import { ReflowError } from '../apps/server/src/domain/errors.js';
+import { RachetError } from '../apps/server/src/domain/errors.js';
 import type { FlowNode } from '../packages/contracts/src/index.js';
 
 describe('action catalog value resolution', () => {
@@ -55,7 +55,7 @@ describe('validateActionNodes', () => {
     expect(() => validateActionNodes([
       { id: 'bad', type: 'action', action: 'crm.mutate', input: {}, next: 'done', onError: 'fail' },
       { id: 'done', type: 'end', reason: 'done' },
-    ])).toThrow(ReflowError);
+    ])).toThrow(RachetError);
 
     expect(() => validateActionNodes([
       { id: 'send', type: 'action', action: 'email.send', input: {}, next: 'done', onError: 'fail' },

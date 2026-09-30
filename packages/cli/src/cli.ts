@@ -2,7 +2,7 @@
 import { readFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { Command } from 'commander';
-import { ReflowClient, ReflowClientError } from './client.js';
+import { RachetClient, RachetClientError } from './client.js';
 import { chooseWorkspace, type WorkspaceChoice } from './cli-prompts.js';
 import { clearLogin, resolveCliContext, saveLogin, saveRefreshedOAuth, saveWorkspace, type CliContext, type SavedWorkspace } from './cli-state.js';
 import { loginWithBrowser, refreshOAuth } from './oauth.js';
@@ -39,7 +39,7 @@ async function request(context: CliContext, path: string, body: Record<string, u
   if (!response.ok) {
     const record = typeof data === 'object' && data !== null ? data as Record<string, unknown> : {};
     const message = typeof record.message === 'string' ? record.message : JSON.stringify(data);
-    throw new ReflowClientError(response.status, message, {
+    throw new RachetClientError(response.status, message, {
       ...(typeof record.code === 'string' ? { code: record.code } : {}),
       ...(typeof record.hint === 'string' ? { hint: record.hint } : {}),
       ...(record.details && typeof record.details === 'object' ? { details: record.details as Record<string, unknown> } : {}),
@@ -48,8 +48,8 @@ async function request(context: CliContext, path: string, body: Record<string, u
   return data;
 }
 
-function client(context: CliContext): ReflowClient {
-  return new ReflowClient({ url: context.url, ...(context.token ? { token: context.token } : {}), ...(context.apiKey ? { apiKey: context.apiKey } : {}) });
+function client(context: CliContext): RachetClient {
+  return new RachetClient({ url: context.url, ...(context.token ? { token: context.token } : {}), ...(context.apiKey ? { apiKey: context.apiKey } : {}) });
 }
 
 function requireAuthentication(context: CliContext): void {
@@ -120,7 +120,7 @@ auth.command('login')
   .option('--workspace <id-or-slug>', 'Select without prompting')
   .option('--no-open', 'Print the authorization URL without opening a browser')
   .action(async (options: { url?: string; workspace?: string; open: boolean }) => {
-    const context: CliContext = { url: (options.url ?? process.env.REFLOW_URL ?? 'https://rachet.dev').replace(/\/$/, '') };
+    const context: CliContext = { url: (options.url ?? process.env.RACHET_URL ?? process.env.REFLOW_URL ?? 'https://rachet.dev').replace(/\/$/, '') };
     const result = await loginWithBrowser({
       url: context.url,
       openBrowser: options.open,
@@ -193,7 +193,7 @@ try {
 } catch (error) {
   let message = error instanceof Error ? error.message : 'Command failed';
   let hint = error instanceof CliFailure ? error.hint : undefined;
-  if (error instanceof ReflowClientError) {
+  if (error instanceof RachetClientError) {
     if (error.status === 401) {
       message = 'Your saved login is missing, invalid, or expired.';
       hint = 'Run `rachet auth login` again.';
@@ -204,7 +204,7 @@ try {
     }
   } else if (error instanceof TypeError && error.message.toLowerCase().includes('fetch')) {
     message = 'Rachet could not reach the configured server.';
-    hint = 'Check that the server is running and verify `REFLOW_URL`.';
+    hint = 'Check that the server is running and verify `RACHET_URL`.';
   }
   console.error(`Error: ${message}`);
   if (hint) console.error(`Next: ${hint}`);

@@ -3,7 +3,7 @@ import { mkdir, readFile, writeFile, access } from 'node:fs/promises';
 import { basename, dirname, join, resolve } from 'node:path';
 import { createRequire } from 'node:module';
 import type { Command } from 'commander';
-import type { ReflowClient } from './client.js';
+import type { RachetClient } from './client.js';
 import type { CliContext, SavedWorkspace } from './cli-state.js';
 import { renderLocalReactEmailFile } from './cli-render-template.js';
 
@@ -110,7 +110,7 @@ export function registerTemplateCommands(
     resolveCliContext: () => Promise<CliContext>;
     requireAuthentication: (context: CliContext) => void;
     resolveWorkspace: (context: CliContext, selector?: string, persist?: boolean) => Promise<SavedWorkspace>;
-    client: (context: CliContext) => ReflowClient;
+    client: (context: CliContext) => RachetClient;
   },
 ): void {
   const template = program.command('template').description('Author, preview, and publish React Email templates.');

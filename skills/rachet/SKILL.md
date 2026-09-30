@@ -1,5 +1,5 @@
 ---
-name: reflow
+name: rachet
 description: Authors and operates Rachet workflows through MCP, including templates, validation, simulation, publishing, and enrollment. Use when the user wants a welcome sequence, email workflow, or other durable journey created or changed in Rachet.
 ---
 

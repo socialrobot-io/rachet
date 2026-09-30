@@ -17,18 +17,18 @@ RUN pnpm build
 FROM node:22.22.0-bookworm-slim AS runtime-base
 ENV NODE_ENV=production
 RUN corepack enable \
-  && groupadd --system reflow \
-  && useradd --system --gid reflow --home /app reflow
+  && groupadd --system rachet \
+  && useradd --system --gid rachet --home /app rachet
 WORKDIR /app
-COPY --from=build --chown=reflow:reflow /app/package.json /app/pnpm-lock.yaml /app/pnpm-workspace.yaml ./
-COPY --from=build --chown=reflow:reflow /app/node_modules ./node_modules
-COPY --from=build --chown=reflow:reflow /app/dist ./dist
-COPY --from=build --chown=reflow:reflow /app/migrations ./migrations
-COPY --from=build --chown=reflow:reflow /app/skills ./skills
-COPY --from=build --chown=reflow:reflow /app/packages/contracts ./packages/contracts
-COPY --from=build --chown=reflow:reflow /app/packages/mcp-ext-skills ./packages/mcp-ext-skills
-COPY --from=build --chown=reflow:reflow /app/packages/sdk ./packages/sdk
-USER reflow
+COPY --from=build --chown=rachet:rachet /app/package.json /app/pnpm-lock.yaml /app/pnpm-workspace.yaml ./
+COPY --from=build --chown=rachet:rachet /app/node_modules ./node_modules
+COPY --from=build --chown=rachet:rachet /app/dist ./dist
+COPY --from=build --chown=rachet:rachet /app/migrations ./migrations
+COPY --from=build --chown=rachet:rachet /app/skills ./skills
+COPY --from=build --chown=rachet:rachet /app/packages/contracts ./packages/contracts
+COPY --from=build --chown=rachet:rachet /app/packages/mcp-ext-skills ./packages/mcp-ext-skills
+COPY --from=build --chown=rachet:rachet /app/packages/sdk ./packages/sdk
+USER rachet
 
 FROM runtime-base AS worker
 CMD ["node", "dist/apps/server/worker.js"]
@@ -43,20 +43,20 @@ RUN apt-get update \
   && apt-get install -y --no-install-recommends curl \
   && rm -rf /var/lib/apt/lists/* \
   && corepack enable \
-  && groupadd --system reflow \
-  && useradd --system --gid reflow --home /app reflow
+  && groupadd --system rachet \
+  && useradd --system --gid rachet --home /app rachet
 WORKDIR /app
-COPY --from=build --chown=reflow:reflow /app/package.json /app/pnpm-lock.yaml /app/pnpm-workspace.yaml ./
-COPY --from=build --chown=reflow:reflow /app/node_modules ./node_modules
-COPY --from=build --chown=reflow:reflow /app/dist ./dist
-COPY --from=build --chown=reflow:reflow /app/migrations ./migrations
-COPY --from=build --chown=reflow:reflow /app/apps/dashboard/dist ./apps/dashboard/dist
-COPY --from=build --chown=reflow:reflow /app/skills ./skills
-COPY --from=build --chown=reflow:reflow /app/packages/contracts ./packages/contracts
-COPY --from=build --chown=reflow:reflow /app/packages/mcp-ext-skills ./packages/mcp-ext-skills
-COPY --from=build --chown=reflow:reflow /app/packages/sdk ./packages/sdk
-COPY --chown=reflow:reflow docker/healthcheck-ready.js ./docker/healthcheck-ready.js
-USER reflow
+COPY --from=build --chown=rachet:rachet /app/package.json /app/pnpm-lock.yaml /app/pnpm-workspace.yaml ./
+COPY --from=build --chown=rachet:rachet /app/node_modules ./node_modules
+COPY --from=build --chown=rachet:rachet /app/dist ./dist
+COPY --from=build --chown=rachet:rachet /app/migrations ./migrations
+COPY --from=build --chown=rachet:rachet /app/apps/dashboard/dist ./apps/dashboard/dist
+COPY --from=build --chown=rachet:rachet /app/skills ./skills
+COPY --from=build --chown=rachet:rachet /app/packages/contracts ./packages/contracts
+COPY --from=build --chown=rachet:rachet /app/packages/mcp-ext-skills ./packages/mcp-ext-skills
+COPY --from=build --chown=rachet:rachet /app/packages/sdk ./packages/sdk
+COPY --chown=rachet:rachet docker/healthcheck-ready.js ./docker/healthcheck-ready.js
+USER rachet
 EXPOSE 3000
 
 # Readiness is not declared in this file. Coolify treats that keyword anywhere

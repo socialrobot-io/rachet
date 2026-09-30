@@ -52,10 +52,11 @@ const localEnvironment: NodeJS.ProcessEnv = {
   TEMPORAL_TASK_QUEUE: 'reflow-enrollments',
 };
 
-if (!localEnvironment.REFLOW_SETUP_SECRET || localEnvironment.REFLOW_SETUP_SECRET.length < 32) {
-  localEnvironment.REFLOW_SETUP_SECRET = randomBytes(32).toString('base64url');
-  await saveLocalEnvironmentValue('REFLOW_SETUP_SECRET', localEnvironment.REFLOW_SETUP_SECRET);
-  console.log('Generated a strong REFLOW_SETUP_SECRET in .env.local');
+const setupSecret = localEnvironment.RACHET_SETUP_SECRET ?? localEnvironment.REFLOW_SETUP_SECRET;
+if (!setupSecret || setupSecret.length < 32) {
+  localEnvironment.RACHET_SETUP_SECRET = randomBytes(32).toString('base64url');
+  await saveLocalEnvironmentValue('RACHET_SETUP_SECRET', localEnvironment.RACHET_SETUP_SECRET);
+  console.log('Generated a strong RACHET_SETUP_SECRET in .env.local');
 }
 
 if (!localEnvironment.INTEGRATION_ENCRYPTION_KEY) {
@@ -82,7 +83,7 @@ await run('node', ['--env-file-if-exists=.env.local', '--env-file=.env', '--impo
 console.log('\nRachet is ready:');
 console.log('  Dashboard: http://localhost:5173');
 console.log('  API + MCP: http://localhost:3000');
-console.log('  Fresh DB:  enter REFLOW_SETUP_SECRET from .env.local or .env');
+console.log('  Fresh DB:  enter RACHET_SETUP_SECRET from .env.local or .env');
 console.log('  Sign-in:   configure AUTH_RESEND_API_KEY or GitHub credentials in .env.local');
 console.log('  Stop:      Ctrl+C, then pnpm dev:infra:down when you want to stop Docker\n');
 

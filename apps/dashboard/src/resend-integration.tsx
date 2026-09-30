@@ -96,7 +96,7 @@ function OrganizationId({ workspaceId }: { workspaceId: string }) {
     <div className="min-w-0">
       <p className="font-mono text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">Organization ID</p>
       <p className="mt-1 break-all font-mono text-sm">{workspaceId}</p>
-      <p className="mt-1 text-xs text-muted-foreground">Use this id as <span className="font-mono">REFLOW_WORKSPACE_ID</span>.</p>
+      <p className="mt-1 text-xs text-muted-foreground">Use this id as <span className="font-mono">RACHET_WORKSPACE_ID</span>.</p>
     </div>
     <Button type="button" variant="outline" size="sm" onClick={() => {
       void navigator.clipboard.writeText(workspaceId).then(() => setMessage('Copied')).catch(() => setMessage('Select and copy the text manually.'));

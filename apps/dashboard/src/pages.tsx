@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
-import { ArrowUpRight, CircleCheck, Layers3, Pause, Play, UsersRound, XCircle } from 'lucide-react';
+import { ArrowUpRight, Check, CircleCheck, Copy, Layers3, Pause, Play, UsersRound, XCircle } from 'lucide-react';
 import { api, ApiError } from '@/api';
 import { useAuth } from '@/auth';
 import {
@@ -88,6 +88,18 @@ function PageFrame({ children }: { children: ReactNode }) {
   return <div className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6 lg:px-8 lg:py-12">{children}</div>;
 }
 
+function CopyWorkflowId({ id }: { id: string }) {
+  const [message, setMessage] = useState('');
+  return <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+    <span>Workflow ID</span>
+    <code className="break-all font-mono text-foreground">{id}</code>
+    <Button type="button" variant="outline" size="xs" onClick={() => {
+      void navigator.clipboard.writeText(id).then(() => setMessage('Copied')).catch(() => setMessage('Select and copy the ID manually.'));
+    }}>{message === 'Copied' ? <Check data-icon="inline-start" /> : <Copy data-icon="inline-start" />}{message === 'Copied' ? 'Copied' : 'Copy'}</Button>
+    {message && <span role="status">{message}</span>}
+  </div>;
+}
+
 export function WorkflowsPage() {
   const { workspaceId, workflows, enrollments, error, loading } = useWorkspaceData();
   const { workspaces } = useAuth();
@@ -131,9 +143,9 @@ export function WorkflowsPage() {
         </div>
 
         <section aria-label="Workspace overview" className="grid gap-3 sm:grid-cols-3">
-          <Card className="reflow-panel"><CardHeader><CardDescription className="flex items-center gap-2"><Layers3 className="size-4" /> Workflows</CardDescription><CardTitle className="text-3xl font-bold tabular-nums">{rows.length}</CardTitle></CardHeader></Card>
-          <Card className="reflow-panel"><CardHeader><CardDescription className="flex items-center gap-2"><CircleCheck className="size-4" /> Ready to review</CardDescription><CardTitle className="text-3xl font-bold tabular-nums">{drafts}</CardTitle></CardHeader></Card>
-          <Card className="reflow-panel"><CardHeader><CardDescription className="flex items-center gap-2"><UsersRound className="size-4" /> People in progress</CardDescription><CardTitle className="text-3xl font-bold tabular-nums">{active}</CardTitle></CardHeader></Card>
+          <Card className="rachet-panel"><CardHeader><CardDescription className="flex items-center gap-2"><Layers3 className="size-4" /> Workflows</CardDescription><CardTitle className="text-3xl font-bold tabular-nums">{rows.length}</CardTitle></CardHeader></Card>
+          <Card className="rachet-panel"><CardHeader><CardDescription className="flex items-center gap-2"><CircleCheck className="size-4" /> Ready to review</CardDescription><CardTitle className="text-3xl font-bold tabular-nums">{drafts}</CardTitle></CardHeader></Card>
+          <Card className="rachet-panel"><CardHeader><CardDescription className="flex items-center gap-2"><UsersRound className="size-4" /> People in progress</CardDescription><CardTitle className="text-3xl font-bold tabular-nums">{active}</CardTitle></CardHeader></Card>
         </section>
 
         {error && (
@@ -152,13 +164,13 @@ export function WorkflowsPage() {
             <span className="rounded-full bg-accent px-3 py-1 font-mono text-xs font-medium">{rows.length} total</span>
           </div>
           {rows.length === 0 ? (
-            <Card className="reflow-panel border-dashed"><CardHeader><CardTitle>No workflows yet</CardTitle><CardDescription>Create your first workflow through the CLI or MCP, then it will appear here.</CardDescription></CardHeader></Card>
+            <Card className="rachet-panel border-dashed"><CardHeader><CardTitle>No workflows yet</CardTitle><CardDescription>Create your first workflow through the CLI or MCP, then it will appear here.</CardDescription></CardHeader></Card>
           ) : (
             <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
               {rows.map(({ workflow, active, completed }, index) => (
-                <Card key={workflow.id} className="reflow-workflow-card reflow-panel group relative h-full min-h-[21rem] transition-transform duration-200 hover:-translate-y-1">
+                <Card key={workflow.id} className="rachet-workflow-card rachet-panel group relative h-full min-h-[21rem] transition-transform duration-200 hover:-translate-y-1">
                   <CardHeader className="gap-4">
-                    <div className="reflow-card-art relative flex h-28 items-start justify-between overflow-hidden rounded-xl p-4">
+                    <div className="rachet-card-art relative flex h-28 items-start justify-between overflow-hidden rounded-xl p-4">
                       <span className="relative z-10 rounded-full bg-card/80 px-3 py-1 font-mono text-[0.65rem] font-semibold uppercase tracking-wide">{workflow.definition.topic?.replaceAll('_', ' ') || 'Workflow'}</span>
                       <span className="absolute -bottom-10 right-2 text-[8rem] font-bold leading-none tracking-[-0.13em] text-foreground/10" aria-hidden="true">{String(index + 1).padStart(2, '0')}</span>
                     </div>
@@ -263,6 +275,7 @@ export function WorkflowDetailPage() {
               <StatusBadge value={workflow.state} />
             </div>
             <p className="text-sm text-muted-foreground">{workflow.definition.description}</p>
+            <CopyWorkflowId id={workflow.id} />
           </div>
         </div>
 
@@ -352,8 +365,8 @@ export function EnrollmentDetailPage() {
   }, [enrollment, enrollmentMessages]);
 
   const path = useMemo(
-    () => (enrollment ? computeEnrollmentPath(enrollment.definition, enrollment) : undefined),
-    [enrollment],
+    () => (enrollment ? computeEnrollmentPath(enrollment.definition, enrollment, new Set(enrollmentMessages.map((message) => message.stepId))) : undefined),
+    [enrollment, enrollmentMessages],
   );
 
   const nextItem = trace.find((item) => item.status === 'future');
@@ -511,6 +524,7 @@ export function EnrollmentDetailPage() {
               {enrollment.workflowName} · enrolled {formatWhen(enrollment.createdAt)}
               {name !== enrollment.contactEmail.split('@')[0] ? ` · ${name}` : ''}
             </p>
+            <CopyWorkflowId id={enrollment.sequenceId} />
           </div>
         </div>
 

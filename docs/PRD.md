@@ -193,7 +193,7 @@ Engagement tracking is optional and disabled by workspace policy when inappropri
 
 **FR-I08.** `ALLOW_REGISTRATION` defaults to false. Enforce it on password registration, OAuth first-time identity creation, raw Better Auth routes, CLI, and MCP. When true, CLI/MCP self-registration creates a non-admin account and isolated workspace according to deployment policy; it never joins an existing workspace without an explicit grant. See the auth document for verification and send activation rules.
 
-**FR-I09.** Publish an installable `reflow` agent skill covering authentication, authoring, templates, simulation, launch, monitoring, and recovery. The skill must discover current capabilities, preserve operation IDs/idempotency keys, and use Rachet operations instead of bypassing its send ledger through a provider. Skill instructions must distinguish proposed commands from implemented behavior.
+**FR-I09.** Publish an installable `rachet` agent skill covering authentication, authoring, templates, simulation, launch, monitoring, and recovery. The skill must discover current capabilities, preserve operation IDs/idempotency keys, and use Rachet operations instead of bypassing its send ledger through a provider. Skill instructions must distinguish proposed commands from implemented behavior.
 
 Default roles: viewer, author, sender, operator, administrator. Author can edit/publish assets but cannot enroll live recipients or send tests. Sender can launch within policy. Operator can pause, inspect, replay safe ingestion, and reconcile with a dedicated scope. Administrator manages credentials and policy. Keys cannot grant scopes their creator lacks.
 

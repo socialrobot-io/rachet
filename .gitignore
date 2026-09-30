@@ -21,7 +21,9 @@ __pycache__/
 *.pyc
 .venv/
 .reflow-render-*/
+.rachet-render-*/
 .reflow/
+.rachet/
 /emails/
 node_modules/.react-email-jsx-runtime/
 

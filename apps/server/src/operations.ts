@@ -5,10 +5,10 @@ import {
   templateArchiveSchema, templatePublishSchema, templateReviseSchema, templateRenderSchema, workspaceIdSchema,
   enrollmentDeleteSchema,
   type OperationContext,
-} from '@reflow/contracts';
-import type { ReflowService } from './domain/service.js';
+} from '@rachet/contracts';
+import type { RachetService } from './domain/service.js';
 import { actionCatalog } from './domain/action-catalog.js';
-import { ReflowError } from './domain/errors.js';
+import { RachetError } from './domain/errors.js';
 
 type AnySchema = z.ZodType<Record<string, unknown>>;
 export type Operation = {
@@ -22,12 +22,14 @@ export type Operation = {
 
 export function authorizeOperation(operation: Operation, context: OperationContext): void {
   const required = operation.requiredScope ?? (operation.readOnly ? 'rachet:read' : 'rachet:write');
-  if (!context.principal.scopes.includes(required)) throw new ReflowError('FORBIDDEN', `Missing required scope: ${required}`, 403);
+  if (!context.principal.scopes.includes(required) && !context.principal.scopes.includes(required.replace('rachet:', 'reflow:'))) {
+    throw new RachetError('FORBIDDEN', `Missing required scope: ${required}`, 403);
+  }
 }
 
 const workspaceOnly = z.object({ workspaceId: workspaceIdSchema });
 
-export function createOperations(service: ReflowService): Record<string, Operation> {
+export function createOperations(service: RachetService): Record<string, Operation> {
   return {
     'system.capabilities': {
       description: 'Describe the implemented Rachet operations and runtime capabilities.', input: z.object({}), readOnly: true,
@@ -41,7 +43,7 @@ export function createOperations(service: ReflowService): Record<string, Operati
         operations: Object.keys(createOperations(service)).filter((name) => name !== 'credential.create'),
         agentCookbook: {
           beforeAuthoring: [
-            'Follow skill://reflow/SKILL.md. Use MCP. Do not use the CLI or write template files.',
+            'Follow skill://rachet/SKILL.md. Use MCP. Do not use the CLI or write template files.',
             'Call auth.whoami, then template.list and workflow.list. Reuse a live template. Skip archived templates.',
             'Include only emails, waits, and branches the user named. Do not add contact.update unless they asked to store a contact field. contact.update merges contact fields. It does not change the email.',
             'Do not insert an extra wait. timeoutSeconds is elapsed seconds. Two days is 172800.',

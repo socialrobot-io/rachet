@@ -1,10 +1,10 @@
 import { readFile } from 'node:fs/promises';
 import { describe, expect, it, vi } from 'vitest';
 import { createApp } from '../apps/server/src/app.js';
-import type { ReflowAuth } from '../apps/server/src/auth.js';
+import type { RachetAuth } from '../apps/server/src/auth.js';
 import type { Config } from '../apps/server/src/config.js';
 import type { Database } from '../apps/server/src/db/index.js';
-import type { ReflowService } from '../apps/server/src/domain/service.js';
+import type { RachetService } from '../apps/server/src/domain/service.js';
 
 function healthApp(db: Database) {
   const config = {
@@ -20,9 +20,9 @@ function healthApp(db: Database) {
         getSession: async () => null,
         verifyApiKey: async () => ({ valid: false, key: null }),
       },
-    } as unknown as ReflowAuth,
+    } as unknown as RachetAuth,
     db,
-    service: {} as ReflowService,
+    service: {} as RachetService,
     operations: {},
   });
 }

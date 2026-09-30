@@ -4,7 +4,7 @@ Rachet uses Better Auth 1.7.4 for browser sessions, OAuth 2.1 authorization, API
 
 ## Initial administrator
 
-When the database contains no users, `/auth/login` becomes the one-time administrator registration page. It requires `REFLOW_SETUP_SECRET`, plus the administrator name, email, and organization name. The secret is compared without exposing it in URLs or logs. Database locking and constraints ensure concurrent attempts can create only one deployment administrator. The user, profile, immutable default organization, owner membership, and initialization marker are provisioned in the same database transaction.
+When the database contains no users, `/auth/login` becomes the one-time administrator registration page. It requires `RACHET_SETUP_SECRET`, plus the administrator name, email, and organization name. The secret is compared without exposing it in URLs or logs. Database locking and constraints ensure concurrent attempts can create only one deployment administrator. The user, profile, immutable default organization, owner membership, and initialization marker are provisioned in the same database transaction.
 
 The deployment administrator can open **Users** at `/admin/users`. That page lists every signed-up account, the organizations that account belongs to, the number of workflows in those organizations, and the number of distinct contacts with an enrollment. `account.list` is the only way to read that list. Only a deployment administrator can open it.
 
@@ -28,7 +28,7 @@ An optional upstream OAuth/OIDC provider can be configured with `OAUTH_PROVIDER_
 4. The user signs in and explicitly approves the requested scopes.
 5. The callback validates state, exchanges the short-lived code, and stores the resulting short-lived access token plus rotating refresh token.
 
-The CLI configuration is mode `0600` under `${XDG_CONFIG_HOME:-~/.config}/reflow/config.json`. Passwords and dashboard session cookies are never copied into it. Expired access tokens are refreshed before an operation; a failed or revoked refresh requires a new login. `REFLOW_TOKEN`, `REFLOW_API_KEY`, and `REFLOW_WORKSPACE_ID` remain process-local automation overrides.
+The CLI configuration is mode `0600` under `${XDG_CONFIG_HOME:-~/.config}/rachet/config.json`. Passwords and dashboard session cookies are never copied into it. Expired access tokens are refreshed before an operation; a failed or revoked refresh requires a new login. `RACHET_TOKEN`, `RACHET_API_KEY`, and `RACHET_WORKSPACE_ID` remain process-local automation overrides.
 
 The published CLI intentionally does not expose a generic `/api/auth/*` proxy. Account creation and credential administration use named Rachet operations with their normal authorization checks.
 
@@ -44,7 +44,7 @@ The dashboard's **Connected apps** page lists grants for the signed-in user and 
 
 Cursor starts OAuth with the standard `profile` scope. Rachet accepts it only to complete identity setup. Reading, changing, publishing, and sending through MCP still require the matching `rachet:read`, `rachet:write`, or `rachet:send` scope.
 
-The MCP resource's allowed scopes are stored in the database. On startup, Rachet updates that resource from its configured scope list, including when an existing deployment moves from `reflow:*` to `rachet:*`. Redeploy after a scope change so the stored policy is updated.
+The MCP resource's allowed scopes are stored in the database. New clients request `rachet:*` scopes. Existing `reflow:*` grants and API keys remain valid during the rename. Redeploy after a scope change so the stored policy is updated.
 
 After first sign-in, an organization owner is directed to **Integrations**, where they can choose Resend (Webhooks and Push are marked coming soon). They can skip setup to build and simulate, but cannot send workflow email until an owner or admin saves that organization's sender, API key, and webhook signing secret and Resend accepts a test email. These integration secrets are encrypted with `INTEGRATION_ENCRYPTION_KEY`; they are managed only through authenticated browser endpoints and are never returned by status, CLI, or MCP operations. The Integrations page remains available for rotation.
 
@@ -56,7 +56,7 @@ The published `@socialrobot-io/rachet-sdk` uses the same `/v1/operations` contra
 
 See [Sending product events](EVENTS.md) for a complete scoped API-key and HTTP integration example.
 
-The stdio MCP bridge is a trusted, single-user host adapter. It refuses to start unless both `REFLOW_STDIO_TRUSTED_HOST=true` and `REFLOW_ACTOR_USER_ID` are set. Do not expose it through a shared service or remote transport; use authenticated HTTP MCP instead.
+The stdio MCP bridge is a trusted, single-user host adapter. It refuses to start unless both `RACHET_STDIO_TRUSTED_HOST=true` and `RACHET_ACTOR_USER_ID` are set. Do not expose it through a shared service or remote transport; use authenticated HTTP MCP instead.
 
 ## Scope and role enforcement
 
@@ -73,7 +73,7 @@ OAuth and API-key scopes can only narrow that set. Each operation also checks th
 
 - Use HTTPS for `PUBLIC_URL` and every trusted origin in production.
 - Keep `BETTER_AUTH_SECRET` high-entropy and at least 32 characters.
-- Keep `REFLOW_SETUP_SECRET` high-entropy and at least 32 characters; rotate or remove access to it after initialization.
+- Keep `RACHET_SETUP_SECRET` high-entropy and at least 32 characters; rotate or remove access to it after initialization.
 - Use a dedicated Resend account/key for `AUTH_RESEND_API_KEY`; do not reuse workflow delivery credentials. Set `AUTH_EMAIL_FROM` to a sender on a domain verified in that account.
 - Leave `ALLOW_REGISTRATION=false` unless public account creation is intentional.
 - Keep `OAUTH_PUBLIC_REDIRECT_ORIGINS` empty unless a known web MCP client requires an HTTPS callback. Cursor currently requires the exact `https://www.cursor.com` origin.

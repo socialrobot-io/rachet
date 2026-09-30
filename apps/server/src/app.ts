@@ -7,11 +7,11 @@ import { secureHeaders } from 'hono/secure-headers';
 import { ZodError } from 'zod';
 import { z } from 'zod';
 import type { Config } from './config.js';
-import type { ReflowAuth } from './auth.js';
+import type { RachetAuth } from './auth.js';
 import type { Database } from './db/index.js';
 import { resendConnections, sendIntents, suppressions, webhookEvents, workspaces } from './db/schema.js';
-import type { ReflowService } from './domain/service.js';
-import { ReflowError, errorPayload } from './domain/errors.js';
+import type { RachetService } from './domain/service.js';
+import { RachetError, errorPayload } from './domain/errors.js';
 import { createMcpServer } from './mcp.js';
 import { authorizeOperation, type Operation } from './operations.js';
 import { ResendProvider } from './providers/resend.js';
@@ -28,9 +28,9 @@ import {
 
 type Dependencies = {
   config: Config;
-  auth: ReflowAuth;
+  auth: RachetAuth;
   db: Database;
-  service: ReflowService;
+  service: RachetService;
   operations: Record<string, Operation>;
 };
 
@@ -62,11 +62,11 @@ export function createApp(dependencies: Dependencies) {
   });
   async function integrationMember(request: Request, workspaceId: string, admin: boolean) {
     const session = await auth.api.getSession({ headers: request.headers });
-    if (!session) throw new ReflowError('UNAUTHENTICATED', 'Authentication required', 401);
+    if (!session) throw new RachetError('UNAUTHENTICATED', 'Authentication required', 401);
     const principal = await service.principalFor(session.user.id);
     const role = principal.workspaceRoles[workspaceId];
     if (!role || (admin && role !== 'owner' && role !== 'admin')) {
-      throw new ReflowError('FORBIDDEN', 'Organization access denied', 403);
+      throw new RachetError('FORBIDDEN', 'Organization access denied', 403);
     }
     return principal;
   }
@@ -85,14 +85,14 @@ export function createApp(dependencies: Dependencies) {
       size += value.byteLength;
       if (size > maxBytes) {
         await reader.cancel();
-        throw new ReflowError('VALIDATION_FAILED', 'Request body is too large', 413);
+        throw new RachetError('VALIDATION_FAILED', 'Request body is too large', 413);
       }
       chunks.push(value);
     }
     return new TextDecoder('utf-8', { fatal: true }).decode(Buffer.concat(chunks));
   }
   function integrationError(error: unknown) {
-    if (error instanceof ReflowError) return { status: error.status, body: errorPayload(error) };
+    if (error instanceof RachetError) return { status: error.status, body: errorPayload(error) };
     if (error instanceof ZodError) return { status: 422, body: { code: 'VALIDATION_FAILED', message: 'Check the integration fields', fieldErrors: z.flattenError(error).fieldErrors } };
     if (error instanceof SyntaxError) return { status: 400, body: { code: 'INVALID_JSON', message: 'Invalid JSON request' } };
     if (error instanceof Error && 'code' in error && error.code === '23505') {
@@ -125,14 +125,14 @@ export function createApp(dependencies: Dependencies) {
   });
   app.post('/api/integrations/resend', async (context) => {
     try {
-      if (!sameOriginWrite(context.req.raw)) throw new ReflowError('FORBIDDEN', 'Invalid request origin', 403);
+      if (!sameOriginWrite(context.req.raw)) throw new RachetError('FORBIDDEN', 'Invalid request origin', 403);
       const raw = await limitedText(context.req.raw, 4096);
       const input = connectionInput.parse(JSON.parse(raw));
       const principal = await integrationMember(context.req.raw, input.workspaceId, true);
       await consumeRateLimit(db, config, 'resend-connection-save', input.workspaceId, 20, 3600);
-      if (!config.integrationEncryptionKey) throw new ReflowError('NOT_CONFIGURED', 'Integration encryption is not configured on this deployment', 503);
+      if (!config.integrationEncryptionKey) throw new RachetError('NOT_CONFIGURED', 'Integration encryption is not configured on this deployment', 503);
       if (input.apiKey === config.authResendApiKey || input.apiKey === config.resendApiKey) {
-        throw new ReflowError('VALIDATION_FAILED', 'Use a dedicated Resend key for this organization', 422);
+        throw new RachetError('VALIDATION_FAILED', 'Use a dedicated Resend key for this organization', 422);
       }
       const apiKeyEncrypted = encryptIntegrationSecret(config, input.workspaceId, 'resend-api-key', input.apiKey);
       const webhookSecretEncrypted = encryptIntegrationSecret(config, input.workspaceId, 'resend-webhook-secret', input.webhookSecret);
@@ -157,7 +157,7 @@ export function createApp(dependencies: Dependencies) {
   });
   app.post('/api/integrations/resend/skip', async (context) => {
     try {
-      if (!sameOriginWrite(context.req.raw)) throw new ReflowError('FORBIDDEN', 'Invalid request origin', 403);
+      if (!sameOriginWrite(context.req.raw)) throw new RachetError('FORBIDDEN', 'Invalid request origin', 403);
       const raw = await limitedText(context.req.raw, 256);
       const workspaceId = workspaceIdInput.parse((JSON.parse(raw) as { workspaceId?: unknown }).workspaceId);
       await integrationMember(context.req.raw, workspaceId, true);
@@ -171,14 +171,14 @@ export function createApp(dependencies: Dependencies) {
   });
   app.post('/api/integrations/resend/test', async (context) => {
     try {
-      if (!sameOriginWrite(context.req.raw)) throw new ReflowError('FORBIDDEN', 'Invalid request origin', 403);
+      if (!sameOriginWrite(context.req.raw)) throw new RachetError('FORBIDDEN', 'Invalid request origin', 403);
       const raw = await limitedText(context.req.raw, 256);
       const workspaceId = workspaceIdInput.parse((JSON.parse(raw) as { workspaceId?: unknown }).workspaceId);
       await integrationMember(context.req.raw, workspaceId, true);
       const session = await auth.api.getSession({ headers: context.req.raw.headers });
-      if (!session) throw new ReflowError('UNAUTHENTICATED', 'Authentication required', 401);
+      if (!session) throw new RachetError('UNAUTHENTICATED', 'Authentication required', 401);
       const [connection] = await db.select().from(resendConnections).where(eq(resendConnections.workspaceId, workspaceId)).limit(1);
-      if (!connection) throw new ReflowError('NOT_FOUND', 'Connect Resend first', 404);
+      if (!connection) throw new RachetError('NOT_FOUND', 'Connect Resend first', 404);
       const key = decryptIntegrationSecret(config, workspaceId, 'resend-api-key', connection.apiKeyEncrypted);
       const outcome = await new ResendProvider(key, undefined).send({
         from: connection.fromAddress,
@@ -186,14 +186,14 @@ export function createApp(dependencies: Dependencies) {
         subject: 'Rachet Resend connection test',
         html: '<p>Your organization’s Resend connection can send email.</p>',
         text: 'Your organization’s Resend connection can send email.',
-        tags: [{ name: 'reflow_kind', value: 'connection_test' }],
+        tags: [{ name: 'rachet_kind', value: 'connection_test' }],
       }, `connection-test/${crypto.randomUUID()}`);
       if (outcome.kind !== 'accepted') return context.json({ code: outcome.code, message: 'Resend did not accept the test email' }, 502);
       await db.transaction(async (transaction) => {
         const [tested] = await transaction.update(resendConnections).set({ lastTestAcceptedAt: new Date() })
           .where(and(eq(resendConnections.workspaceId, workspaceId), eq(resendConnections.version, connection.version)))
           .returning({ workspaceId: resendConnections.workspaceId });
-        if (!tested) throw new ReflowError('CONNECTION_CHANGED', 'Connection changed during the test; test it again', 409);
+        if (!tested) throw new RachetError('CONNECTION_CHANGED', 'Connection changed during the test; test it again', 409);
         await transaction.update(workspaces).set({ onboardingCompletedAt: new Date(), sendingEnabled: true, updatedAt: new Date() })
           .where(eq(workspaces.id, workspaceId));
       });
@@ -226,7 +226,7 @@ export function createApp(dependencies: Dependencies) {
       context.header('Cache-Control', 'no-store');
       return context.json(result);
     } catch (error) {
-      if (error instanceof ReflowError) return context.json(errorPayload(error), error.status as 400);
+      if (error instanceof RachetError) return context.json(errorPayload(error), error.status as 400);
       if (error instanceof ZodError) {
         const fieldErrors: Record<string, string[]> = {};
         const messages: Record<string, string> = {
@@ -303,16 +303,19 @@ export function createApp(dependencies: Dependencies) {
     if (rawApiKey) {
       const api = auth.api as unknown as { verifyApiKey(args: { body: { key: string } }): Promise<{ valid: boolean; key: null | { referenceId: string; permissions: null | Record<string, string[]>; metadata?: unknown } }> };
       const verified = await api.verifyApiKey({ body: { key: rawApiKey } });
-      if (!verified.valid || !verified.key) throw new ReflowError('UNAUTHENTICATED', 'Invalid API key', 401);
+      if (!verified.valid || !verified.key) throw new RachetError('UNAUTHENTICATED', 'Invalid API key', 401);
       const principal = await service.principalFor(verified.key.referenceId);
-      principal.scopes = (verified.key.permissions?.rachet ?? []).map((scope) => `rachet:${scope}`);
+      principal.scopes = [
+        ...(verified.key.permissions?.rachet ?? []).map((scope) => `rachet:${scope}`),
+        ...(verified.key.permissions?.reflow ?? []).map((scope) => `reflow:${scope}`),
+      ];
       const metadata = verified.key.metadata && typeof verified.key.metadata === 'object'
         ? verified.key.metadata as Record<string, unknown>
         : {};
       const workspaceId = typeof metadata.workspaceId === 'string' ? metadata.workspaceId : undefined;
-      if (!workspaceId) throw new ReflowError('FORBIDDEN', 'API key has no organization binding', 403);
+      if (!workspaceId) throw new RachetError('FORBIDDEN', 'API key has no organization binding', 403);
       if (!principal.workspaceIds.includes(workspaceId)) {
-        throw new ReflowError('FORBIDDEN', 'API key organization access was revoked', 403);
+        throw new RachetError('FORBIDDEN', 'API key organization access was revoked', 403);
       }
       principal.workspaceIds = [workspaceId];
       principal.workspaceRoles = principal.workspaceRoles[workspaceId]
@@ -325,37 +328,37 @@ export function createApp(dependencies: Dependencies) {
     if (session) return { principal: await service.principalFor(session.user.id), requestId: crypto.randomUUID() };
     const authorization = request.headers.get('authorization');
     if (authorization?.startsWith('Bearer ')) {
-      const response = await auth.handler(new Request(`${config.publicUrl}/api/auth/reflow-token`, { headers: request.headers }));
-      if (response.status === 429) throw new ReflowError('RATE_LIMITED', 'Authentication rate limit reached', 429, true);
-      if (response.status >= 500) throw new ReflowError('AUTH_UNAVAILABLE', 'Authentication temporarily unavailable', 503, true);
-      if (!response.ok) throw new ReflowError('UNAUTHENTICATED', 'Invalid OAuth access token', 401);
+      const response = await auth.handler(new Request(`${config.publicUrl}/api/auth/rachet-token`, { headers: request.headers }));
+      if (response.status === 429) throw new RachetError('RATE_LIMITED', 'Authentication rate limit reached', 429, true);
+      if (response.status >= 500) throw new RachetError('AUTH_UNAVAILABLE', 'Authentication temporarily unavailable', 503, true);
+      if (!response.ok) throw new RachetError('UNAUTHENTICATED', 'Invalid OAuth access token', 401);
       const token = await response.json() as { aud?: string | string[]; sub?: string; client_id?: string; scope?: string };
       const audience = Array.isArray(token.aud) ? token.aud : [token.aud];
-      if (!audience.includes(`${config.publicUrl}/mcp`)) throw new ReflowError('FORBIDDEN', 'OAuth token is not valid for Rachet MCP', 403);
+      if (!audience.includes(`${config.publicUrl}/mcp`)) throw new RachetError('FORBIDDEN', 'OAuth token is not valid for Rachet MCP', 403);
       let userId = token.sub;
       if (!userId && token.client_id) {
         const result = await db.execute<{ userId: string }>(sql`select "userId" as "userId" from "oauthClient" where "clientId" = ${token.client_id} and disabled is not true limit 1`);
         userId = result.rows[0]?.userId;
       }
-      if (!userId) throw new ReflowError('FORBIDDEN', 'OAuth client is not assigned to a Rachet account', 403);
+      if (!userId) throw new RachetError('FORBIDDEN', 'OAuth client is not assigned to a Rachet account', 403);
       const principal = await service.principalFor(userId);
       principal.scopes = token.scope?.split(' ').filter(Boolean) ?? [];
       return { principal, requestId: crypto.randomUUID() };
     }
-    throw new ReflowError('UNAUTHENTICATED', 'Authentication required', 401);
+    throw new RachetError('UNAUTHENTICATED', 'Authentication required', 401);
   }
 
   app.post('/v1/operations/:name', async (context) => {
     try {
       const operation = operations[context.req.param('name')];
-      if (!operation) throw new ReflowError('NOT_FOUND', 'Operation not found', 404);
+      if (!operation) throw new RachetError('NOT_FOUND', 'Operation not found', 404);
       const execution = await operationContext(context.req.raw);
       authorizeOperation(operation, execution);
       const input = operation.input.parse(await context.req.json().catch(() => ({})));
       const data = await operation.invoke(execution, input);
       return context.json({ status: 'succeeded', data, requestId: execution.requestId });
     } catch (error) {
-      if (error instanceof ReflowError) return context.json(errorPayload(error), error.status as 400);
+      if (error instanceof RachetError) return context.json(errorPayload(error), error.status as 400);
       if (error instanceof Error && error.name === 'ZodError') return context.json({ code: 'VALIDATION_FAILED', message: error.message, retryable: false }, 422);
       console.error(error);
       return context.json({ code: 'INTERNAL', message: 'Operation failed', retryable: false }, 500);
@@ -366,14 +369,14 @@ export function createApp(dependencies: Dependencies) {
     let execution;
     try { execution = await operationContext(context.req.raw); }
     catch (error) {
-      if (error instanceof ReflowError) {
+      if (error instanceof RachetError) {
         if (error.status !== 401) return context.json(errorPayload(error), error.status as 400);
       } else {
         console.error('MCP authentication failed', error instanceof Error ? error.name : 'unknown');
-        return context.json(errorPayload(new ReflowError('AUTH_UNAVAILABLE', 'Authentication temporarily unavailable', 503, true)), 503);
+        return context.json(errorPayload(new RachetError('AUTH_UNAVAILABLE', 'Authentication temporarily unavailable', 503, true)), 503);
       }
       return context.json({ error: 'unauthorized' }, 401, {
-        'WWW-Authenticate': `Bearer realm="reflow", resource_metadata="${config.publicUrl}/.well-known/oauth-protected-resource/mcp"`,
+        'WWW-Authenticate': `Bearer realm="rachet", resource_metadata="${config.publicUrl}/.well-known/oauth-protected-resource/mcp"`,
       });
     }
     // A fresh transport per request leaves MCP transport sessions disabled.
@@ -387,7 +390,7 @@ export function createApp(dependencies: Dependencies) {
   const protectedResourceMetadata = {
     resource: `${config.publicUrl}/mcp`,
     authorization_servers: [authorizationServer],
-    scopes_supported: ['rachet:read', 'rachet:write', 'rachet:send'],
+    scopes_supported: ['rachet:read', 'rachet:write', 'rachet:send', 'reflow:read', 'reflow:write', 'reflow:send'],
     bearer_methods_supported: ['header'],
   };
   app.get('/.well-known/oauth-protected-resource', (context) => context.json(protectedResourceMetadata));
@@ -431,13 +434,16 @@ export function createApp(dependencies: Dependencies) {
     if (!eventId) return context.text('Missing event ID', 400);
     const tags = typeof data.tags === 'object' && data.tags !== null && !Array.isArray(data.tags)
       ? data.tags as Record<string, unknown> : {};
-    if (tags.reflow_kind === 'connection_test') return context.json({ received: true });
-    if (typeof tags.reflow_workspace === 'string' && tags.reflow_workspace !== workspaceId.data) {
+    const tagKind = tags.rachet_kind ?? tags.reflow_kind;
+    const taggedWorkspace = tags.rachet_workspace ?? tags.reflow_workspace;
+    const taggedIntent = tags.rachet_intent ?? tags.reflow_intent;
+    if (tagKind === 'connection_test') return context.json({ received: true });
+    if (typeof taggedWorkspace === 'string' && taggedWorkspace !== workspaceId.data) {
       return context.json({ received: true });
     }
-    const taggedIntentId = typeof tags.reflow_intent === 'string' && z.uuid().safeParse(tags.reflow_intent).success
-      ? tags.reflow_intent : null;
-    if (taggedIntentId && tags.reflow_workspace !== workspaceId.data) return context.json({ received: true });
+    const taggedIntentId = typeof taggedIntent === 'string' && z.uuid().safeParse(taggedIntent).success
+      ? taggedIntent : null;
+    if (taggedIntentId && taggedWorkspace !== workspaceId.data) return context.json({ received: true });
     const [intent] = taggedIntentId
       ? await db.select().from(sendIntents).where(and(eq(sendIntents.id, taggedIntentId), eq(sendIntents.workspaceId, workspaceId.data))).limit(1)
       : providerMessageId
@@ -450,7 +456,7 @@ export function createApp(dependencies: Dependencies) {
       // Pre-tag legacy sends have no intent ID in the event. Retry critical
       // outcomes until the send response can be correlated by provider ID;
       // acknowledging here could permanently lose a bounce or complaint.
-      if (!taggedIntentId && !tags.reflow_workspace && providerMessageId &&
+      if (!taggedIntentId && !taggedWorkspace && providerMessageId &&
         (eventType === 'email.bounced' || eventType === 'email.complained' || eventType === 'email.suppressed')) {
         return context.text('Send correlation pending', 503);
       }

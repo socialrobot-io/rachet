@@ -60,22 +60,22 @@ rachet call credential.create --input '{
 }'
 ```
 
-The secret is returned once. Store it in your secret manager and provide it to the application as `REFLOW_API_KEY`. Do not put the key in source code, command arguments, logs, or agent prompts.
+The secret is returned once. Store it in your secret manager and provide it to the application as `RACHET_API_KEY`. Do not put the key in source code, command arguments, logs, or agent prompts.
 
 ```ts
 const event = {
-  workspaceId: process.env.REFLOW_WORKSPACE_ID,
+  workspaceId: process.env.RACHET_WORKSPACE_ID,
   enrollmentId,
   eventId: `product-activation:${activityId}`,
   eventType: 'product.activated.v1',
   data: { plan },
 };
 
-const response = await fetch(`${process.env.REFLOW_URL}/v1/operations/event.emit`, {
+const response = await fetch(`${process.env.RACHET_URL}/v1/operations/event.emit`, {
   method: 'POST',
   headers: {
     'content-type': 'application/json',
-    'x-api-key': process.env.REFLOW_API_KEY!,
+    'x-api-key': process.env.RACHET_API_KEY!,
   },
   body: JSON.stringify(event),
 });
@@ -85,7 +85,7 @@ if (!response.ok) {
 }
 ```
 
-Persist or deterministically derive `eventId` before making the request. A network timeout does not prove Rachet rejected the event, so retry with the same ID rather than generating another one. Supply `REFLOW_URL`, `REFLOW_WORKSPACE_ID`, and `REFLOW_API_KEY` through the application's secret-managed environment.
+Persist or deterministically derive `eventId` before making the request. A network timeout does not prove Rachet rejected the event, so retry with the same ID rather than generating another one. Supply `RACHET_URL`, `RACHET_WORKSPACE_ID`, and `RACHET_API_KEY` through the application's secret-managed environment.
 
 ## Send through MCP
 
@@ -105,7 +105,7 @@ OAuth/MCP authorization must include `rachet:send`; API keys use the correspondi
 
 ## Account welcome
 
-Set `REFLOW_API_KEY` and `REFLOW_WORKSPACE_ID` together. The key needs the `send` scope in that organization. Rachet then uses `@socialrobot-io/rachet-sdk` against its own API.
+Set `RACHET_API_KEY` and `RACHET_WORKSPACE_ID` together. The key needs the `send` scope in that organization. Rachet then uses `@socialrobot-io/rachet-sdk` against its own API.
 
 When that organization has a published workflow named `Welcome first workflow`, each new account is enrolled in its latest published version. The call is `trigger()`. The enrollment idempotency key is `welcome-<userId>`.
 
@@ -113,7 +113,7 @@ When that organization has a published workflow named `Welcome first workflow`, 
 | --- | --- |
 | `workflowsUrl` | `{PUBLIC_URL}/workflows` |
 | `integrationsUrl` | `{PUBLIC_URL}/settings/integrations` |
-| `replyMailto` | `mailto:` plus the address in `REFLOW_FROM` |
+| `replyMailto` | `mailto:` plus the address in `RACHET_FROM` |
 
 Follow-up emails embed `https://rachet.dev/brand/rachet-logo.png?v=robot-1`. The welcome letter embeds `https://rachet.dev/brand/founder-signature.png`. Older published versions still read `logoUrl` and `signatureUrl` from the enrollment when those variables are present.
 

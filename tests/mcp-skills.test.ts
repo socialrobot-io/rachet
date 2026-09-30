@@ -14,10 +14,10 @@ import {
   registerFastMcpSkills,
   skillManifestUri,
   skillResourceName,
-} from '@reflow/mcp-ext-skills';
+} from '@rachet/mcp-ext-skills';
 import { createMcpServer } from '../apps/server/src/mcp.js';
 import { createOperations } from '../apps/server/src/operations.js';
-import type { ReflowService } from '../apps/server/src/domain/service.js';
+import type { RachetService } from '../apps/server/src/domain/service.js';
 
 const adminContext = {
   principal: {
@@ -43,10 +43,10 @@ description: A demo skill.
   });
 
   it('lists FastMCP-shaped skill resources and answers skills/list', async () => {
-    const loaded = await loadSkillDirectory(new URL('../skills/reflow', import.meta.url).pathname);
+    const loaded = await loadSkillDirectory(new URL('../skills/rachet', import.meta.url).pathname);
     const mcp = new McpServer(
       { name: 'skills-test', version: '0.0.0' },
-      { instructions: 'Start with skill://reflow/SKILL.md' },
+      { instructions: 'Start with skill://rachet/SKILL.md' },
     );
     registerFastMcpSkills(mcp, {
       skills: [loaded],
@@ -60,58 +60,58 @@ description: A demo skill.
 
     expect(client.getServerCapabilities()?.extensions?.[SKILLS_EXTENSION_ID]).toEqual({});
     expect(client.getServerCapabilities()?.experimental?.[SKILLS_EXTENSION_ID]).toEqual({});
-    expect(client.getInstructions()).toContain('skill://reflow/SKILL.md');
+    expect(client.getInstructions()).toContain('skill://rachet/SKILL.md');
 
     const resources = await client.listResources();
     const uris = resources.resources.map((resource) => resource.uri).sort();
-    expect(uris).toContain('skill://reflow/SKILL.md');
-    expect(uris).toContain(skillManifestUri('reflow'));
-    expect(uris).toContain('skill://reflow/references/workflows.md');
+    expect(uris).toContain('skill://rachet/SKILL.md');
+    expect(uris).toContain(skillManifestUri('rachet'));
+    expect(uris).toContain('skill://rachet/references/workflows.md');
 
-    const skillMd = resources.resources.find((resource) => resource.uri === 'skill://reflow/SKILL.md');
-    expect(skillMd?.name).toBe(skillResourceName('reflow', 'SKILL.md'));
-    expect(skillMd?._meta).toMatchObject({ fastmcp: { skill: { name: 'reflow', is_manifest: false } } });
+    const skillMd = resources.resources.find((resource) => resource.uri === 'skill://rachet/SKILL.md');
+    expect(skillMd?.name).toBe(skillResourceName('rachet', 'SKILL.md'));
+    expect(skillMd?._meta).toMatchObject({ fastmcp: { skill: { name: 'rachet', is_manifest: false } } });
 
-    const manifest = resources.resources.find((resource) => resource.uri === skillManifestUri('reflow'));
-    expect(manifest?.name).toBe(skillResourceName('reflow', SKILL_MANIFEST_BASENAME));
-    expect(manifest?._meta).toMatchObject({ fastmcp: { skill: { name: 'reflow', is_manifest: true } } });
+    const manifest = resources.resources.find((resource) => resource.uri === skillManifestUri('rachet'));
+    expect(manifest?.name).toBe(skillResourceName('rachet', SKILL_MANIFEST_BASENAME));
+    expect(manifest?._meta).toMatchObject({ fastmcp: { skill: { name: 'rachet', is_manifest: true } } });
 
     const listed = await client.request({ method: SKILLS_LIST_METHOD }, ListSkillsResultSchema);
-    expect(listed.skills.map((skill) => skill.frontmatter.name)).toEqual(['reflow']);
+    expect(listed.skills.map((skill) => skill.frontmatter.name)).toEqual(['rachet']);
 
     const got = await client.request(
-      { method: SKILLS_GET_METHOD, params: { uri: 'skill://reflow/SKILL.md' } },
+      { method: SKILLS_GET_METHOD, params: { uri: 'skill://rachet/SKILL.md' } },
       GetSkillResultSchema,
     );
     expect(got.skill.frontmatter.description).toContain('Rachet workflows');
 
-    const body = await client.readResource({ uri: 'skill://reflow/references/workflows.md' });
+    const body = await client.readResource({ uri: 'skill://rachet/references/workflows.md' });
     expect(String((body.contents[0] as { text?: string }).text)).toContain('Schedules, deletion, and recovery');
 
     await client.close();
     await mcp.close();
   });
 
-  it('createMcpServer lists reflow skill resources for Cursor-style discovery', async () => {
+  it('createMcpServer lists rachet skill resources for Cursor-style discovery', async () => {
     const mcp = await createMcpServer({}, adminContext);
 
     const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
-    const client = new Client({ name: 'reflow-skills-client', version: '0.0.0' });
+    const client = new Client({ name: 'rachet-skills-client', version: '0.0.0' });
     await Promise.all([mcp.connect(serverTransport), client.connect(clientTransport)]);
 
     const resources = await client.listResources();
-    expect(resources.resources.some((resource) => resource.uri === 'skill://reflow/SKILL.md')).toBe(true);
-    expect(resources.resources.some((resource) => resource.name === 'reflow/SKILL.md')).toBe(true);
-    expect(client.getInstructions()).toContain('skill://reflow/SKILL.md');
+    expect(resources.resources.some((resource) => resource.uri === 'skill://rachet/SKILL.md')).toBe(true);
+    expect(resources.resources.some((resource) => resource.name === 'rachet/SKILL.md')).toBe(true);
+    expect(client.getInstructions()).toContain('skill://rachet/SKILL.md');
 
     await client.close();
     await mcp.close();
   });
 
   it('exposes workflow and enrollment deletion through MCP tool discovery', async () => {
-    const mcp = await createMcpServer(createOperations({} as ReflowService), adminContext);
+    const mcp = await createMcpServer(createOperations({} as RachetService), adminContext);
     const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
-    const client = new Client({ name: 'reflow-delete-tools-client', version: '0.0.0' });
+    const client = new Client({ name: 'rachet-delete-tools-client', version: '0.0.0' });
     await Promise.all([mcp.connect(serverTransport), client.connect(clientTransport)]);
 
     const tools = await client.listTools();

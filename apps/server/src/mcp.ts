@@ -12,12 +12,12 @@ import {
   registerFastMcpSkills,
   skillServerInstructions,
   type LoadedSkill,
-} from '@reflow/mcp-ext-skills';
+} from '@rachet/mcp-ext-skills';
 import { authorizeOperation, type Operation } from './operations.js';
-import type { OperationContext } from '@reflow/contracts';
-import { ReflowError, errorPayload } from './domain/errors.js';
+import type { OperationContext } from '@rachet/contracts';
+import { RachetError, errorPayload } from './domain/errors.js';
 import { z } from 'zod';
-import { workflowDefinitionSchema } from '@reflow/contracts';
+import { workflowDefinitionSchema } from '@rachet/contracts';
 import { actionCatalog } from './domain/action-catalog.js';
 
 async function exists(candidate: string): Promise<boolean> {
@@ -29,15 +29,15 @@ async function exists(candidate: string): Promise<boolean> {
   }
 }
 
-/** Prefer REFLOW_SKILL_DIR, then cwd/skills/reflow, then a few parents of this module. */
-export async function resolveReflowSkillDir(): Promise<string | undefined> {
-  const fromEnv = process.env.REFLOW_SKILL_DIR?.trim();
+/** Prefer RACHET_SKILL_DIR, then cwd/skills/rachet, then a few parents of this module. */
+export async function resolveRachetSkillDir(): Promise<string | undefined> {
+  const fromEnv = (process.env.RACHET_SKILL_DIR ?? process.env.REFLOW_SKILL_DIR)?.trim();
   if (fromEnv) return path.resolve(fromEnv);
 
   const candidates = [
-    path.resolve(process.cwd(), 'skills/reflow'),
-    path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../skills/reflow'),
-    path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../../skills/reflow'),
+    path.resolve(process.cwd(), 'skills/rachet'),
+    path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../skills/rachet'),
+    path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../../skills/rachet'),
   ];
   for (const candidate of candidates) {
     if (await exists(path.join(candidate, 'SKILL.md'))) return candidate;
@@ -45,17 +45,17 @@ export async function resolveReflowSkillDir(): Promise<string | undefined> {
   return undefined;
 }
 
-export async function loadReflowSkill(): Promise<LoadedSkill | undefined> {
-  const directory = await resolveReflowSkillDir();
+export async function loadRachetSkill(): Promise<LoadedSkill | undefined> {
+  const directory = await resolveRachetSkillDir();
   if (!directory) return undefined;
   return loadSkillDirectory(directory);
 }
 
 export async function createMcpServer(operations: Record<string, Operation>, context: OperationContext) {
-  const skill = await loadReflowSkill();
+  const skill = await loadRachetSkill();
   const skills = skill ? [skill] : [];
   const server = new McpServer(
-    { name: 'reflow', version: '0.1.0' },
+    { name: 'rachet', version: '0.1.0' },
     { instructions: skillServerInstructions(skills) },
   );
 
@@ -75,7 +75,7 @@ export async function createMcpServer(operations: Record<string, Operation>, con
         const data = await operation.invoke(context, input as Record<string, unknown>);
         return { content: [{ type: 'text', text: JSON.stringify({ status: 'succeeded', data, requestId: context.requestId }) }], structuredContent: { status: 'succeeded', data, requestId: context.requestId } };
       } catch (error) {
-        const detail = error instanceof ReflowError
+        const detail = error instanceof RachetError
           ? errorPayload(error)
           : { code: 'INTERNAL', message: 'Operation failed', retryable: false };
         return { isError: true, content: [{ type: 'text', text: JSON.stringify(detail) }], structuredContent: detail };
@@ -109,7 +109,7 @@ export async function createMcpServer(operations: Record<string, Operation>, con
     },
   }, async ({ intent, workspaceId }) => ({ messages: [{ role: 'user', content: { type: 'text', text: [
     `Design this workflow for workspace ${workspaceId}: ${intent}`,
-    'Follow skill://reflow/SKILL.md. Do not search the project for samples or use the CLI.',
+    'Follow skill://rachet/SKILL.md. Do not search the project for samples or use the CLI.',
     'Include only the emails, waits, and branches in the intent. contact.update writes contact fields and is not part of the email. Add it only when the intent asks to store a field.',
     'Create HTML templates with template_create and template_publish. Pin each email.send to the published version id.',
     'workflow_validate, then workflow_simulate twice (no events, then the activation event). Fix errors before workflow_create.',

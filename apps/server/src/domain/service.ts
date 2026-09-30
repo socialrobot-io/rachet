@@ -2,16 +2,16 @@ import { createHash } from 'node:crypto';
 import { and, asc, eq, inArray, sql } from 'drizzle-orm';
 import type { Client } from '@temporalio/client';
 import { WorkflowNotFoundError } from '@temporalio/common';
-import type { ReflowAuth } from '../auth.js';
+import type { RachetAuth } from '../auth.js';
 import type { Database } from '../db/index.js';
 import {
   auditEvents, contacts, enrollmentEvents, enrollments, eventTypes, memberships, outbox, profiles, sendIntents,
   sequences, sequenceVersions, templates, templateVersions, webhookEvents, workspaces,
 } from '../db/schema.js';
-import type { OperationContext, Principal, SimulatedEvent, WorkflowDefinition } from '@reflow/contracts';
+import type { OperationContext, Principal, SimulatedEvent, WorkflowDefinition } from '@rachet/contracts';
 import { validateActionNodes } from './action-catalog.js';
 import { simulateWorkflow } from './simulate.js';
-import { ReflowError, isUniqueViolation } from './errors.js';
+import { RachetError, isUniqueViolation } from './errors.js';
 import { compileEventSchema, validateEventData } from './event-types.js';
 import { renderEmail } from './render.js';
 import {
@@ -43,16 +43,16 @@ function stableHash(value: unknown): string {
   return createHash('sha256').update(stableJson(value)).digest('hex');
 }
 
-export class ReflowService {
+export class RachetService {
   constructor(
     private readonly db: Database,
     private readonly temporal: Client,
-    private readonly auth: ReflowAuth,
+    private readonly auth: RachetAuth,
   ) {}
 
   async principalFor(userId: string): Promise<Principal> {
     const [profile] = await this.db.select().from(profiles).where(eq(profiles.userId, userId)).limit(1);
-    if (profile?.disabled) throw new ReflowError('FORBIDDEN', 'Account is disabled', 403);
+    if (profile?.disabled) throw new RachetError('FORBIDDEN', 'Account is disabled', 403);
     const rows = await this.db.select({ workspaceId: memberships.workspaceId, role: memberships.role }).from(memberships).where(eq(memberships.userId, userId));
     const activeRows = profile?.defaultWorkspaceId
       ? rows.filter((row) => row.workspaceId === profile.defaultWorkspaceId)
@@ -81,7 +81,7 @@ export class ReflowService {
       : permission === 'author' ? ['owner', 'admin', 'author']
       : permission === 'send' ? ['owner', 'admin', 'sender']
       : ['owner', 'admin', 'sender', 'operator'];
-    if (!role || !allowed.includes(role)) throw new ReflowError('FORBIDDEN', `Workspace ${permission} permission denied`, 403);
+    if (!role || !allowed.includes(role)) throw new RachetError('FORBIDDEN', `Workspace ${permission} permission denied`, 403);
   }
 
   private async audit(
@@ -103,10 +103,10 @@ export class ReflowService {
   }
 
   async accountCreate(context: OperationContext, input: { email: string; name: string; method: 'magic-link' | 'github'; organizationName: string }) {
-    if (!context.principal.deploymentAdmin) throw new ReflowError('FORBIDDEN', 'Deployment administrator required', 403);
+    if (!context.principal.deploymentAdmin) throw new RachetError('FORBIDDEN', 'Deployment administrator required', 403);
     const normalizedEmail = input.email.trim().toLowerCase();
     const existing = await this.db.execute(sql`select id from "user" where lower(trim(email)) = ${normalizedEmail} limit 1`);
-    if (existing.rowCount) throw new ReflowError('ACCOUNT_EXISTS', 'An account with this email already exists', 409);
+    if (existing.rowCount) throw new RachetError('ACCOUNT_EXISTS', 'An account with this email already exists', 409);
     await this.db.execute(sql`delete from registration_intents where consumed_at is null and expires_at <= now()`);
     await this.db.execute(sql`
       insert into registration_intents (
@@ -131,7 +131,7 @@ export class ReflowService {
     this.workspace(context, input.workspaceId);
     for (const scope of input.scopes) {
       if (!context.principal.scopes.includes(`rachet:${scope}`)) {
-        throw new ReflowError('FORBIDDEN', `Cannot grant unavailable scope: ${scope}`, 403);
+        throw new RachetError('FORBIDDEN', `Cannot grant unavailable scope: ${scope}`, 403);
       }
     }
     const result = await (this.auth.api as unknown as { createApiKey(args: { body: Record<string, unknown> }): Promise<Record<string, unknown>> }).createApiKey({
@@ -182,7 +182,7 @@ export class ReflowService {
         and coalesce(metadata, '{}')::jsonb ->> 'workspaceId' = ${input.workspaceId}
       returning id
     `);
-    if (!result.rows[0]) throw new ReflowError('NOT_FOUND', 'API key not found', 404);
+    if (!result.rows[0]) throw new RachetError('NOT_FOUND', 'API key not found', 404);
     await this.audit(context, 'credential.revoke', input.workspaceId, 'api_key', input.keyId);
     return { success: true };
   }
@@ -202,10 +202,10 @@ export class ReflowService {
     const body = input.body?.trim() ?? '';
     const html = input.html?.trim() || null;
     if (sourceKind === 'html') {
-      if (!html) throw new ReflowError('VALIDATION_FAILED', 'html is required for html templates', 422);
-      if (!body) throw new ReflowError('VALIDATION_FAILED', 'body (plain text) is required for html templates', 422);
+      if (!html) throw new RachetError('VALIDATION_FAILED', 'html is required for html templates', 422);
+      if (!body) throw new RachetError('VALIDATION_FAILED', 'body (plain text) is required for html templates', 422);
     } else if (!body) {
-      throw new ReflowError('VALIDATION_FAILED', 'body is required for plain templates', 422);
+      throw new RachetError('VALIDATION_FAILED', 'body is required for plain templates', 422);
     }
     try {
       const [created] = await this.db.insert(templates).values({
@@ -223,7 +223,7 @@ export class ReflowService {
       return created;
     } catch (error) {
       if (!isUniqueViolation(error)) throw error;
-      throw new ReflowError(
+      throw new RachetError(
         'TEMPLATE_NAME_EXISTS',
         `A template named "${input.name}" already exists in this workspace.`,
         409,
@@ -259,21 +259,21 @@ export class ReflowService {
     const body = input.body?.trim() ?? '';
     const html = input.html?.trim() || null;
     if (sourceKind === 'html') {
-      if (!html) throw new ReflowError('VALIDATION_FAILED', 'html is required for html templates', 422);
-      if (!body) throw new ReflowError('VALIDATION_FAILED', 'body (plain text) is required for html templates', 422);
+      if (!html) throw new RachetError('VALIDATION_FAILED', 'html is required for html templates', 422);
+      if (!body) throw new RachetError('VALIDATION_FAILED', 'body (plain text) is required for html templates', 422);
     } else if (!body) {
-      throw new ReflowError('VALIDATION_FAILED', 'body is required for plain templates', 422);
+      throw new RachetError('VALIDATION_FAILED', 'body is required for plain templates', 422);
     }
     const [draft] = await this.db.select().from(templates).where(and(
       eq(templates.id, input.templateId),
       eq(templates.workspaceId, input.workspaceId),
     )).limit(1);
-    if (!draft) throw new ReflowError('NOT_FOUND', 'Template not found', 404);
+    if (!draft) throw new RachetError('NOT_FOUND', 'Template not found', 404);
     if (draft.revision !== input.expectedRevision) {
-      throw new ReflowError('REVISION_CONFLICT', 'Template revision changed', 409);
+      throw new RachetError('REVISION_CONFLICT', 'Template revision changed', 409);
     }
     if (draft.state === 'archived') {
-      throw new ReflowError(
+      throw new RachetError(
         'VALIDATION_FAILED',
         'Archived templates cannot be revised; create a new template with a different name',
         409,
@@ -292,7 +292,7 @@ export class ReflowService {
       eq(templates.id, draft.id),
       eq(templates.revision, input.expectedRevision),
     )).returning();
-    if (!updated) throw new ReflowError('REVISION_CONFLICT', 'Template revision changed', 409);
+    if (!updated) throw new RachetError('REVISION_CONFLICT', 'Template revision changed', 409);
     await this.audit(context, 'template.revise', input.workspaceId, 'template', updated.id);
     return updated;
   }
@@ -315,7 +315,7 @@ export class ReflowService {
   async templateArchive(context: OperationContext, input: { workspaceId: string; templateId: string }) {
     this.workspace(context, input.workspaceId, 'author');
     const [draft] = await this.db.select().from(templates).where(and(eq(templates.id, input.templateId), eq(templates.workspaceId, input.workspaceId))).limit(1);
-    if (!draft) throw new ReflowError('NOT_FOUND', 'Template not found', 404);
+    if (!draft) throw new RachetError('NOT_FOUND', 'Template not found', 404);
     if (draft.state === 'archived') return draft;
 
     const versionRows = await this.db.select({ id: templateVersions.id, version: templateVersions.version })
@@ -325,7 +325,7 @@ export class ReflowService {
     if (versionIds.size > 0) {
       const refs = await this.findTemplateVersionUsages(input.workspaceId, versionIds);
       if (refs.length > 0) {
-        throw new ReflowError(
+        throw new RachetError(
           'TEMPLATE_IN_USE',
           `Template "${draft.name}" cannot be archived because published version(s) are referenced by workflow(s): ${refs.map((ref) => `${ref.workflowName} (${ref.scope})`).join(', ')}.`,
           409,
@@ -417,7 +417,7 @@ export class ReflowService {
     const schemas = new Map(rows.map((row) => [row.eventType, row.schema]));
     const missing = [...names].filter((name) => !schemas.has(name));
     if (missing.length > 0) {
-      throw new ReflowError('EVENT_TYPE_NOT_FOUND', `Define event types before using them: ${missing.join(', ')}`, 422, false, {
+      throw new RachetError('EVENT_TYPE_NOT_FOUND', `Define event types before using them: ${missing.join(', ')}`, 422, false, {
         hint: 'Call event_type_define with a JSON Schema for each event type.', details: { eventTypes: missing },
       });
     }
@@ -429,7 +429,7 @@ export class ReflowService {
       eq(eventTypes.workspaceId, workspaceId), eq(eventTypes.eventType, eventType),
     )).limit(1);
     if (!registered) {
-      throw new ReflowError('EVENT_TYPE_NOT_FOUND', `Event type ${eventType} is not registered`, 422, false, {
+      throw new RachetError('EVENT_TYPE_NOT_FOUND', `Event type ${eventType} is not registered`, 422, false, {
         hint: 'Call event_type_define before emitting this event.', details: { eventType },
       });
     }
@@ -440,11 +440,11 @@ export class ReflowService {
     this.workspace(context, input.workspaceId, 'author');
     return this.db.transaction(async (tx) => {
       const [draft] = await tx.select().from(templates).where(and(eq(templates.id, input.templateId), eq(templates.workspaceId, input.workspaceId))).for('update').limit(1);
-      if (!draft) throw new ReflowError('NOT_FOUND', 'Template not found', 404);
-      if (draft.revision !== input.expectedRevision) throw new ReflowError('REVISION_CONFLICT', 'Template revision changed', 409);
-      if (draft.state === 'archived') throw new ReflowError('VALIDATION_FAILED', 'Archived templates cannot be published; create a new template instead', 409);
+      if (!draft) throw new RachetError('NOT_FOUND', 'Template not found', 404);
+      if (draft.revision !== input.expectedRevision) throw new RachetError('REVISION_CONFLICT', 'Template revision changed', 409);
+      if (draft.state === 'archived') throw new RachetError('VALIDATION_FAILED', 'Archived templates cannot be published; create a new template instead', 409);
       if (draft.sourceKind === 'html' && !draft.html?.trim()) {
-        throw new ReflowError('VALIDATION_FAILED', 'html template is missing html content; revise it with template.revise before publishing', 422);
+        throw new RachetError('VALIDATION_FAILED', 'html template is missing html content; revise it with template.revise before publishing', 422);
       }
       const countRows = await tx.select({ count: sql<number>`count(*)::int` }).from(templateVersions).where(eq(templateVersions.templateId, draft.id));
       const version = Number(countRows[0]?.count ?? 0) + 1;
@@ -470,7 +470,7 @@ export class ReflowService {
   async templateRender(context: OperationContext, input: { workspaceId: string; templateVersionId: string; props: Record<string, unknown> }) {
     this.workspace(context, input.workspaceId);
     const [version] = await this.db.select().from(templateVersions).where(and(eq(templateVersions.id, input.templateVersionId), eq(templateVersions.workspaceId, input.workspaceId))).limit(1);
-    if (!version) throw new ReflowError('NOT_FOUND', 'Template version not found', 404);
+    if (!version) throw new RachetError('NOT_FOUND', 'Template version not found', 404);
     return renderEmail(version, input.props);
   }
 
@@ -494,9 +494,9 @@ export class ReflowService {
     return this.db.transaction(async (tx) => {
       const [draft] = await tx.select().from(sequences)
         .where(and(eq(sequences.id, input.workflowId), eq(sequences.workspaceId, input.workspaceId))).for('update').limit(1);
-      if (!draft) throw new ReflowError('NOT_FOUND', 'Workflow not found', 404);
-      if (draft.revision !== input.expectedRevision) throw new ReflowError('REVISION_CONFLICT', 'Workflow revision changed', 409);
-      if (draft.state === 'archived') throw new ReflowError('VALIDATION_FAILED', 'Archived workflows cannot be revised', 409);
+      if (!draft) throw new RachetError('NOT_FOUND', 'Workflow not found', 404);
+      if (draft.revision !== input.expectedRevision) throw new RachetError('REVISION_CONFLICT', 'Workflow revision changed', 409);
+      if (draft.state === 'archived') throw new RachetError('VALIDATION_FAILED', 'Archived workflows cannot be revised', 409);
       const intent = input.intent ?? (draft.definition as { intent?: string }).intent;
       const [updated] = await tx.update(sequences).set({
         definition: { ...input.definition, intent },
@@ -504,7 +504,7 @@ export class ReflowService {
         revision: draft.revision + 1,
         updatedAt: new Date(),
       }).where(and(eq(sequences.id, draft.id), eq(sequences.workspaceId, input.workspaceId), eq(sequences.revision, input.expectedRevision))).returning();
-      if (!updated) throw new ReflowError('REVISION_CONFLICT', 'Workflow revision changed', 409);
+      if (!updated) throw new RachetError('REVISION_CONFLICT', 'Workflow revision changed', 409);
       await tx.insert(auditEvents).values({ workspaceId: input.workspaceId, actorId: context.principal.userId, action: 'workflow.revise', targetType: 'workflow', targetId: updated.id });
       return updated;
     });
@@ -555,8 +555,8 @@ export class ReflowService {
     this.workspace(context, input.workspaceId, 'author');
     return this.db.transaction(async (tx) => {
       const [draft] = await tx.select().from(sequences).where(and(eq(sequences.id, input.workflowId), eq(sequences.workspaceId, input.workspaceId))).for('update').limit(1);
-      if (!draft) throw new ReflowError('NOT_FOUND', 'Workflow not found', 404);
-      if (draft.revision !== input.expectedRevision) throw new ReflowError('REVISION_CONFLICT', 'Workflow revision changed', 409);
+      if (!draft) throw new RachetError('NOT_FOUND', 'Workflow not found', 404);
+      if (draft.revision !== input.expectedRevision) throw new RachetError('REVISION_CONFLICT', 'Workflow revision changed', 409);
       const definition = draft.definition as WorkflowDefinition;
       validateActionNodes(definition.nodes);
       await this.assertEventTypes(input.workspaceId, definition);
@@ -574,7 +574,7 @@ export class ReflowService {
     return this.db.transaction(async (tx) => {
       const [workflow] = await tx.select().from(sequences)
         .where(and(eq(sequences.id, input.workflowId), eq(sequences.workspaceId, input.workspaceId))).for('update').limit(1);
-      if (!workflow) throw new ReflowError('NOT_FOUND', 'Workflow not found', 404);
+      if (!workflow) throw new RachetError('NOT_FOUND', 'Workflow not found', 404);
 
       const versions = await tx.select({ id: sequenceVersions.id }).from(sequenceVersions)
         .where(and(eq(sequenceVersions.sequenceId, workflow.id), eq(sequenceVersions.workspaceId, input.workspaceId))).for('update');
@@ -582,7 +582,7 @@ export class ReflowService {
       const activeEnrollments = versionIds.length === 0 ? [] : await tx.select({ id: enrollments.id }).from(enrollments)
         .where(and(eq(enrollments.workspaceId, input.workspaceId), inArray(enrollments.sequenceVersionId, versionIds), inArray(enrollments.state, ['pending_start', 'running', 'waiting', 'paused', 'needs_attention']))).for('update');
       if (activeEnrollments.length > 0) {
-        throw new ReflowError(
+        throw new RachetError(
           'WORKFLOW_HAS_ACTIVE_ENROLLMENTS',
           'Workflow has enrollments in progress and cannot be deleted.',
           409,
@@ -626,7 +626,7 @@ export class ReflowService {
       return created;
     } catch (error) {
       if (!isUniqueViolation(error)) throw error;
-      throw new ReflowError('EVENT_TYPE_EXISTS', `Event type ${input.eventType} already exists`, 409, false, {
+      throw new RachetError('EVENT_TYPE_EXISTS', `Event type ${input.eventType} already exists`, 409, false, {
         hint: 'Event types are immutable. Define a new versioned name for a schema change.', details: { eventType: input.eventType },
       });
     }
@@ -662,7 +662,7 @@ export class ReflowService {
       this.db.select({ id: sequenceVersions.id }).from(sequenceVersions)
         .where(and(eq(sequenceVersions.id, input.workflowVersionId), eq(sequenceVersions.workspaceId, input.workspaceId))).limit(1),
     ]);
-    if (!contact[0] || !version[0]) throw new ReflowError('NOT_FOUND', 'Contact or workflow version not found in this organization', 404);
+    if (!contact[0] || !version[0]) throw new RachetError('NOT_FOUND', 'Contact or workflow version not found in this organization', 404);
     const id = crypto.randomUUID();
     const workflowId = `workspace/${input.workspaceId}/enrollment/${id}`;
     try {
@@ -673,16 +673,16 @@ export class ReflowService {
         const [existing] = await tx.select().from(enrollments).where(and(eq(enrollments.workspaceId, input.workspaceId), eq(enrollments.idempotencyKey, input.idempotencyKey))).limit(1);
         if (existing) {
           if (existing.contactId !== input.contactId || existing.sequenceVersionId !== input.workflowVersionId || stableHash(existing.input) !== stableHash(input.variables)) {
-            throw new ReflowError('IDEMPOTENCY_CONFLICT', 'Idempotency key was used with different input', 409);
+            throw new RachetError('IDEMPOTENCY_CONFLICT', 'Idempotency key was used with different input', 409);
           }
           return existing;
         }
         const [recent] = await tx.select({ count: sql<number>`count(*)` }).from(enrollments)
           .where(and(eq(enrollments.workspaceId, input.workspaceId), sql`${enrollments.createdAt} >= now() - interval '1 minute'`));
-        if (Number(recent?.count ?? 0) >= 100) throw new ReflowError('WORKSPACE_RATE_LIMIT', 'This organization can start at most 100 workflows per minute', 429, true);
+        if (Number(recent?.count ?? 0) >= 100) throw new RachetError('WORKSPACE_RATE_LIMIT', 'This organization can start at most 100 workflows per minute', 429, true);
         const [active] = await tx.select({ count: sql<number>`count(*)` }).from(enrollments)
           .where(and(eq(enrollments.workspaceId, input.workspaceId), inArray(enrollments.state, ['pending_start', 'running', 'waiting', 'paused', 'needs_attention'])));
-        if (Number(active?.count ?? 0) >= 1000) throw new ReflowError('WORKSPACE_CAPACITY', 'This organization has reached 1000 active workflows', 429, true);
+        if (Number(active?.count ?? 0) >= 1000) throw new RachetError('WORKSPACE_CAPACITY', 'This organization has reached 1000 active workflows', 429, true);
         const rows = await tx.insert(enrollments).values({ id, workspaceId: input.workspaceId, sequenceVersionId: input.workflowVersionId, contactId: input.contactId, workflowId, input: input.variables, idempotencyKey: input.idempotencyKey }).returning();
         await tx.insert(outbox).values({ kind: 'enrollment.start', aggregateId: id, payload: { enrollmentId: id } });
         await tx.insert(auditEvents).values({ workspaceId: input.workspaceId, actorId: context.principal.userId, action: 'enrollment.create', targetType: 'enrollment', targetId: id });
@@ -692,7 +692,7 @@ export class ReflowService {
     } catch (error) {
       if (!isUniqueViolation(error)) throw error;
       const [existing] = await this.db.select().from(enrollments).where(and(eq(enrollments.workspaceId, input.workspaceId), eq(enrollments.idempotencyKey, input.idempotencyKey))).limit(1);
-      if (!existing || existing.contactId !== input.contactId || existing.sequenceVersionId !== input.workflowVersionId || stableHash(existing.input) !== stableHash(input.variables)) throw new ReflowError('IDEMPOTENCY_CONFLICT', 'Idempotency key was used with different input', 409);
+      if (!existing || existing.contactId !== input.contactId || existing.sequenceVersionId !== input.workflowVersionId || stableHash(existing.input) !== stableHash(input.variables)) throw new RachetError('IDEMPOTENCY_CONFLICT', 'Idempotency key was used with different input', 409);
       return existing;
     }
   }
@@ -768,18 +768,27 @@ export class ReflowService {
   async enrollmentControl(context: OperationContext, input: { workspaceId: string; enrollmentId: string }, action: 'pause' | 'resume' | 'cancel') {
     this.workspace(context, input.workspaceId, 'operate');
     const [row] = await this.db.select().from(enrollments).where(and(eq(enrollments.id, input.enrollmentId), eq(enrollments.workspaceId, input.workspaceId))).limit(1);
-    if (!row) throw new ReflowError('NOT_FOUND', 'Enrollment not found', 404);
+    if (!row) throw new RachetError('NOT_FOUND', 'Enrollment not found', 404);
+    if (!['pending_start', 'running', 'waiting', 'paused', 'needs_attention'].includes(row.state)) {
+      throw new RachetError('ENROLLMENT_NOT_RUNNING', 'Enrollment is no longer active', 409);
+    }
+    if (action === 'resume' && row.state !== 'paused') {
+      throw new RachetError('ENROLLMENT_NOT_PAUSED', 'Enrollment is not paused', 409);
+    }
     try {
       await this.withEnrollmentExecution(row, (handle) =>
         handle.signal(action === 'pause' ? pauseEnrollment : action === 'resume' ? resumeEnrollment : cancelEnrollment),
       );
     } catch (error) {
-      if (!(error instanceof ReflowError && error.code === 'ENROLLMENT_NOT_RUNNING') || action !== 'cancel') throw error;
+      if (!(error instanceof RachetError && error.code === 'ENROLLMENT_NOT_RUNNING') || action !== 'cancel') throw error;
       // Temporal has no execution for this enrollment (e.g. a dev Temporal reset while
       // Postgres kept data): it is already stopped in practice, so reconcile the row
       // instead of leaving operators with a stale 'running' record they cannot clear.
-      await this.db.update(enrollments).set({ state: 'cancelled', updatedAt: new Date() }).where(eq(enrollments.id, row.id));
+      await this.db.update(enrollments).set({ state: 'cancelled' }).where(eq(enrollments.id, row.id));
     }
+    await this.db.update(enrollments).set({
+      state: action === 'pause' ? 'paused' : action === 'cancel' ? 'cancelled' : 'running',
+    }).where(and(eq(enrollments.id, row.id), eq(enrollments.workspaceId, input.workspaceId)));
     await this.audit(context, `enrollment.${action}`, input.workspaceId, 'enrollment', row.id);
     return { id: row.id, control: action, status: 'requested' };
   }
@@ -788,7 +797,7 @@ export class ReflowService {
     this.workspace(context, input.workspaceId, 'operate');
     const [row] = await this.db.select().from(enrollments)
       .where(and(eq(enrollments.id, input.enrollmentId), eq(enrollments.workspaceId, input.workspaceId))).limit(1);
-    if (!row) throw new ReflowError('NOT_FOUND', 'Enrollment not found', 404);
+    if (!row) throw new RachetError('NOT_FOUND', 'Enrollment not found', 404);
     if (['pending_start', 'running', 'waiting', 'paused', 'needs_attention'].includes(row.state)) {
       try {
         await this.temporal.workflow.getHandle(row.workflowId).terminate('Enrollment deleted from Rachet');
@@ -799,7 +808,7 @@ export class ReflowService {
     return this.db.transaction(async (tx) => {
       const [current] = await tx.select({ id: enrollments.id }).from(enrollments)
         .where(and(eq(enrollments.id, input.enrollmentId), eq(enrollments.workspaceId, input.workspaceId))).for('update').limit(1);
-      if (!current) throw new ReflowError('NOT_FOUND', 'Enrollment not found', 404);
+      if (!current) throw new RachetError('NOT_FOUND', 'Enrollment not found', 404);
       await this.deleteEnrollmentRecords(tx, input.workspaceId, [current.id]);
       await tx.insert(auditEvents).values({ workspaceId: input.workspaceId, actorId: context.principal.userId, action: 'enrollment.delete', targetType: 'enrollment', targetId: current.id });
       return { id: current.id, deleted: true };
@@ -825,7 +834,7 @@ export class ReflowService {
       return await run(this.temporal.workflow.getHandle(row.workflowId));
     } catch (error) {
       if (error instanceof WorkflowNotFoundError) {
-        throw new ReflowError(
+        throw new RachetError(
           'ENROLLMENT_NOT_RUNNING',
           `Temporal has no execution for enrollment ${row.id}; its database state is stale.`,
           409,
@@ -840,8 +849,7 @@ export class ReflowService {
   async eventEmit(context: OperationContext, input: { workspaceId: string; enrollmentId: string; eventId: string; eventType: string; data: Record<string, unknown> }) {
     this.workspace(context, input.workspaceId, 'operate');
     const [row] = await this.db.select().from(enrollments).where(and(eq(enrollments.id, input.enrollmentId), eq(enrollments.workspaceId, input.workspaceId))).limit(1);
-    if (!row) throw new ReflowError('NOT_FOUND', 'Enrollment not found', 404);
-    await this.assertEventData(input.workspaceId, input.eventType, input.data);
+    if (!row) throw new RachetError('NOT_FOUND', 'Enrollment not found', 404);
     const payloadHash = stableHash({ eventType: input.eventType, data: input.data });
     const [existing] = await this.db.select().from(enrollmentEvents).where(and(
       eq(enrollmentEvents.enrollmentId, row.id),
@@ -850,7 +858,7 @@ export class ReflowService {
     if (existing) {
       const existingHash = stableHash({ eventType: existing.eventType, data: existing.data });
       if (existingHash !== payloadHash) {
-        throw new ReflowError('IDEMPOTENCY_CONFLICT', 'Event ID was already used with a different event type or payload', 409);
+        throw new RachetError('IDEMPOTENCY_CONFLICT', 'Event ID was already used with a different event type or payload', 409);
       }
       return {
         accepted: false,
@@ -859,8 +867,9 @@ export class ReflowService {
         delivery: existing.deliveredAt ? 'delivered' : 'queued',
       };
     }
+    await this.assertEventData(input.workspaceId, input.eventType, input.data);
     if (!['pending_start', 'running', 'waiting', 'paused', 'needs_attention'].includes(row.state)) {
-      throw new ReflowError('ENROLLMENT_NOT_RUNNING', `Enrollment ${row.id} is ${row.state} and cannot accept events.`, 409);
+      throw new RachetError('ENROLLMENT_NOT_RUNNING', `Enrollment ${row.id} is ${row.state} and cannot accept events.`, 409);
     }
 
     const created = await this.db.transaction(async (tx) => {
@@ -896,7 +905,7 @@ export class ReflowService {
     if (!receipt) throw new Error('Event receipt disappeared after insert conflict');
     const existingHash = stableHash({ eventType: receipt.eventType, data: receipt.data });
     if (existingHash !== payloadHash) {
-      throw new ReflowError('IDEMPOTENCY_CONFLICT', 'Event ID was already used with a different event type or payload', 409);
+      throw new RachetError('IDEMPOTENCY_CONFLICT', 'Event ID was already used with a different event type or payload', 409);
     }
 
     let deliveredAt = receipt.deliveredAt;
@@ -915,7 +924,7 @@ export class ReflowService {
           ));
         });
       } catch (error) {
-        if (error instanceof ReflowError && error.code === 'ENROLLMENT_NOT_RUNNING') throw error;
+        if (error instanceof RachetError && error.code === 'ENROLLMENT_NOT_RUNNING') throw error;
         // The receipt and outbox job are durable. The dispatcher will retry a
         // transient Temporal failure, and the workflow deduplicates by eventId.
       }
@@ -935,12 +944,12 @@ export class ReflowService {
   }
 
   async webhookEventList(context: OperationContext) {
-    if (!context.principal.deploymentAdmin) throw new ReflowError('FORBIDDEN', 'Deployment administrator required', 403);
+    if (!context.principal.deploymentAdmin) throw new RachetError('FORBIDDEN', 'Deployment administrator required', 403);
     return this.db.select().from(webhookEvents).orderBy(asc(webhookEvents.createdAt));
   }
 
   async accountList(context: OperationContext) {
-    if (!context.principal.deploymentAdmin) throw new ReflowError('FORBIDDEN', 'Deployment administrator required', 403);
+    if (!context.principal.deploymentAdmin) throw new RachetError('FORBIDDEN', 'Deployment administrator required', 403);
     const result = await this.db.execute<{
       id: string;
       name: string;

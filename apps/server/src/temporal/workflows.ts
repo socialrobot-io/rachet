@@ -1,5 +1,5 @@
-import { condition, patched, proxyActivities, setHandler, sleep } from '@temporalio/workflow';
-import type { FlowNode, WorkflowDefinition } from '@reflow/contracts';
+import { condition, patched, proxyActivities, setHandler } from '@temporalio/workflow';
+import type { FlowNode, WorkflowDefinition } from '@rachet/contracts';
 import type * as activities from './activities.js';
 import { cancelEnrollment, enrollmentEvent, enrollmentStatus, pauseEnrollment, resumeEnrollment, type EnrollmentWorkflowState } from './shared.js';
 
@@ -25,16 +25,16 @@ export async function enrollmentWorkflow(input: EnrollmentWorkflowInput): Promis
   });
   setHandler(pauseEnrollment, () => { paused = true; state.state = 'paused'; });
   setHandler(resumeEnrollment, () => { paused = false; state.state = 'running'; });
-  setHandler(cancelEnrollment, () => { cancelled = true; });
+  setHandler(cancelEnrollment, () => { cancelled = true; state.state = 'cancelled'; });
   setHandler(enrollmentStatus, () => ({ ...state }));
   if (input.definition.trigger.type === 'schedule') {
     const delay = new Date(input.definition.trigger.at).getTime() - Date.now();
-    if (delay > 0) await sleep(delay);
+    if (delay > 0) await condition(() => cancelled, delay);
   }
   if (input.definition.trigger.type === 'event') {
     state.state = 'waiting';
     await activity.recordEnrollmentState(input.enrollmentId, 'waiting', current);
-    await condition(() => events.has(input.definition.trigger.type === 'event' ? input.definition.trigger.eventType : ''));
+    await condition(() => cancelled || events.has(input.definition.trigger.type === 'event' ? input.definition.trigger.eventType : ''));
     state.state = 'running';
   }
   while (true) {
@@ -52,12 +52,12 @@ export async function enrollmentWorkflow(input: EnrollmentWorkflowInput): Promis
 async function executeNode(node: Exclude<FlowNode, { type: 'end' }>, input: EnrollmentWorkflowInput, events: Map<string, { eventId: string; data: Record<string, unknown> }>, state: EnrollmentWorkflowState): Promise<string> {
   if (node.type === 'action') {
     const outcome = await activity.executeAction({ workspaceId: input.workspaceId, enrollmentId: input.enrollmentId, node, eventData: Object.fromEntries(events) });
-    if (outcome === 'needs_attention' || (outcome === 'failed' && node.onError === 'attention')) { state.state = 'needs_attention'; await activity.recordEnrollmentState(input.enrollmentId, 'needs_attention', node.id); await condition(() => false); }
+    if (outcome === 'needs_attention' || (outcome === 'failed' && node.onError === 'attention')) { state.state = 'needs_attention'; await activity.recordEnrollmentState(input.enrollmentId, 'needs_attention', node.id); await condition(() => state.state === 'cancelled'); }
     if (outcome === 'failed' && node.onError === 'fail') throw new Error(`Action ${node.action} failed`);
     return node.next;
   }
-  if (node.type === 'delay') { await sleep(node.durationSeconds * 1000); return node.next; }
-  if (node.type === 'wait_for_event') { const received = await condition(() => events.has(node.eventType), node.timeoutSeconds * 1000); return received ? node.onEvent : node.onTimeout; }
+  if (node.type === 'delay') { await condition(() => state.state === 'cancelled', node.durationSeconds * 1000); return node.next; }
+  if (node.type === 'wait_for_event') { const received = await condition(() => state.state === 'cancelled' || events.has(node.eventType), node.timeoutSeconds * 1000); return received && events.has(node.eventType) ? node.onEvent : node.onTimeout; }
   if (node.condition.op === 'event_received') return events.has(node.condition.eventType) ? node.onTrue : node.onFalse;
   const result = await activity.evaluateCondition({ workspaceId: input.workspaceId, enrollmentId: input.enrollmentId, condition: node.condition, eventData: Object.fromEntries(events) });
   return result ? node.onTrue : node.onFalse;

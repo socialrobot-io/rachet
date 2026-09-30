@@ -134,7 +134,7 @@ def check_lock(lock):
 def main():
     required = ["README.md", "AGENTS.md", "CONTRIBUTING.md", "Makefile",
                 "docs/PRD.md", "docs/ARCHITECTURE.md", "docs/AUTHENTICATION.md",
-                "docs/OPERATIONS.md", "docs/SKILLS.md", "skills/reflow/SKILL.md"]
+                "docs/OPERATIONS.md", "docs/SKILLS.md", "skills/rachet/SKILL.md"]
     for name in required:
         require((ROOT / name).is_file(), f"Required repository file missing: {name}")
     paths = subprocess.check_output(
@@ -158,7 +158,7 @@ def main():
             require(not re.search(r"^(<<<<<<< |=======\s*$|>>>>>>> )", content, re.M),
                     f"Merge conflict marker: {name}")
     check_lock(read_json(ROOT / "skills.lock.json"))
-    check_skill(ROOT / "skills/reflow")
+    check_skill(ROOT / "skills/rachet")
     for path in (ROOT / "examples").glob("*.workflow.json"):
         check_workflow(read_json(path))
     print("Repository checks passed: docs, links, JSON, graph, skill metadata, pinned sources, hygiene.")

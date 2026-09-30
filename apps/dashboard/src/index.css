@@ -181,12 +181,12 @@
 }
 
 @layer components {
-  .reflow-panel {
+  .rachet-panel {
     box-shadow: 0 6px 0 oklch(0.26 0.05 24 / 0.075), 0 14px 32px oklch(0.26 0.05 24 / 0.045);
   }
 
   /* Opaque reading surface: workflow trees should not sit on the grid. */
-  .reflow-document {
+  .rachet-document {
     position: relative;
     isolation: isolate;
     background: var(--card);
@@ -196,7 +196,7 @@
       0 22px 48px oklch(0.26 0.05 24 / 0.06);
   }
 
-  .reflow-document::before {
+  .rachet-document::before {
     content: "";
     position: absolute;
     inset: -1.75rem;
@@ -212,9 +212,9 @@
     filter: blur(14px);
   }
 
-  .reflow-workflow-card:nth-child(3n + 1) .reflow-card-art { background: var(--candy); }
-  .reflow-workflow-card:nth-child(3n + 2) .reflow-card-art { background: var(--mint); }
-  .reflow-workflow-card:nth-child(3n) .reflow-card-art { background: var(--sunny); }
+  .rachet-workflow-card:nth-child(3n + 1) .rachet-card-art { background: var(--candy); }
+  .rachet-workflow-card:nth-child(3n + 2) .rachet-card-art { background: var(--mint); }
+  .rachet-workflow-card:nth-child(3n) .rachet-card-art { background: var(--sunny); }
 }
 
 /* Single-screen landing uses the same tokens, typography, and surfaces as the console. */

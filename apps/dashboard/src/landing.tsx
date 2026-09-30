@@ -3,7 +3,7 @@ import { ArrowRight, ArrowUpRight, Check, Clock3, Mail } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { RachetLogo } from '@/components/RachetLogo';
 
-const repository = 'https://github.com/socialrobot-io/reflow';
+const repository = 'https://github.com/socialrobot-io/rachet';
 
 // GitHub mark from Simple Icons: https://github.com/simple-icons/simple-icons/blob/develop/icons/github.svg
 function GitHubIcon() {
@@ -25,8 +25,8 @@ function JourneyIllustration() {
         <path d="M200 115V137M200 197V220M200 280V300Q200 310 190 310H102Q92 310 92 320V347M200 300Q200 310 210 310H298Q308 310 308 320V347M308 394V413" />
       </svg>
       <span className="art-trigger"><span /> User signs up</span>
-      <div className="art-node art-welcome reflow-panel"><span className="art-node-icon"><Mail aria-hidden="true" /></span><span><small>SEND EMAIL</small><strong>Welcome aboard</strong></span></div>
-      <div className="art-node art-wait reflow-panel"><span className="art-node-icon"><Clock3 aria-hidden="true" /></span><span><small>WAIT UP TO 24 HOURS</small><strong>Did they activate?</strong></span></div>
+      <div className="art-node art-welcome rachet-panel"><span className="art-node-icon"><Mail aria-hidden="true" /></span><span><small>SEND EMAIL</small><strong>Welcome aboard</strong></span></div>
+      <div className="art-node art-wait rachet-panel"><span className="art-node-icon"><Clock3 aria-hidden="true" /></span><span><small>WAIT UP TO 24 HOURS</small><strong>Did they activate?</strong></span></div>
       <div className="art-outcome art-activated"><span className="art-branch-label">Yes</span><div className="art-outcome-node"><Check aria-hidden="true" /><span>End journey</span></div></div>
       <div className="art-outcome art-reminder"><span className="art-branch-label">Not yet</span><div className="art-outcome-node"><Mail aria-hidden="true" /><span>Send reminder</span></div><span className="art-end">Then end</span></div>
       <img className="art-mascot" src="/brand/rachet-mascot.png" alt="" aria-hidden="true" width="148" height="148" />
