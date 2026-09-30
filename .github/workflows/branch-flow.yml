@@ -1,0 +1,28 @@
+name: Release branch flow
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  release-flow:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require next or a hotfix branch
+        env:
+          HEAD_BRANCH: ${{ github.head_ref }}
+          HEAD_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name }}
+          BASE_REPOSITORY: ${{ github.repository }}
+        run: |
+          if [[ "$HEAD_REPOSITORY" != "$BASE_REPOSITORY" ]]; then
+            echo 'PRs to main must come from this repository.' >&2
+            exit 1
+          fi
+          if [[ "$HEAD_BRANCH" == next || "$HEAD_BRANCH" == hotfix/* ]]; then
+            exit 0
+          fi
+          echo 'Target next for normal work. Only next and hotfix/* may target main.' >&2
+          exit 1

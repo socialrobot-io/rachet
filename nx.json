@@ -1,7 +1,7 @@
 {
   "$schema": "./node_modules/nx/schemas/nx-schema.json",
   "analytics": false,
-  "defaultBase": "main",
+  "defaultBase": "next",
   "namedInputs": {
     "default": [
       "{projectRoot}/**/*",

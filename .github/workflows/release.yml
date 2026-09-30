@@ -10,7 +10,31 @@ permissions:
   id-token: write
 
 jobs:
+  verify-source:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          fetch-depth: 0
+      - name: Require a main-branch tag and reviewed release notes
+        run: |
+          git fetch origin main
+          tagged_commit="$(git rev-parse "${GITHUB_REF_NAME}^{commit}")"
+          git merge-base --is-ancestor "$tagged_commit" origin/main
+          notes="docs/releases/${GITHUB_REF_NAME}.md"
+          test -s "$notes"
+          bullets="$(grep -c '^- ' "$notes" || true)"
+          test "$bullets" -ge 1
+          test "$bullets" -le 5
+          if grep -q 'Describe the most useful\|Describe a significant fix' "$notes"; then
+            echo 'Replace the release-note template text before tagging.' >&2
+            exit 1
+          fi
+          expected="v$(node -p 'require("./packages/cli/package.json").version')"
+          test "${GITHUB_REF_NAME}" = "$expected"
+
   publish:
+    needs: verify-source
     runs-on: ubuntu-latest
     environment: npm
     timeout-minutes: 15
@@ -50,4 +74,4 @@ jobs:
       - name: Create GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "${GITHUB_REF_NAME}" --title "Rachet ${GITHUB_REF_NAME}" --generate-notes
+        run: gh release create "${GITHUB_REF_NAME}" --title "Rachet ${GITHUB_REF_NAME}" --notes-file "docs/releases/${GITHUB_REF_NAME}.md"

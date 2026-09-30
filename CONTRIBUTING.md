@@ -12,6 +12,8 @@ This validates documentation and examples, linting, shared contracts, typechecks
 
 CI runs the same command from a clean checkout. Add regression coverage for every runtime bug and keep CLI/MCP behavior on the shared operation contract. Do not add empty checks that succeed without testing runtime behavior.
 
+Open normal work as a PR into `next`. Keep each PR ready to run and review. `main` contains released code. A release PR goes from `next` to `main` and uses a merge commit so the branches keep shared history. Urgent fixes can use `hotfix/*` PRs into `main`; merge `main` back into `next` afterward. See [releasing](docs/RELEASING.md) for versions, notes, and tags.
+
 Update [README](README.md), [PRD](docs/PRD.md), [architecture](docs/ARCHITECTURE.md), [authentication](docs/AUTHENTICATION.md), [operation catalog](docs/OPERATIONS.md), [event guide](docs/EVENTS.md), and the [agent skill](skills/reflow/SKILL.md) when their behavior changes. Verify every documented CLI/MCP command before reporting it as available. Keep changes focused and explain the affected behavior and validation in the commit/PR description.
 
 Follow the [writing guide](docs/WRITING.md) for documentation and user-facing copy.
