@@ -14,7 +14,11 @@ Before finishing a repository change, run `make check`. Update README/docs when 
 
 ## Releases
 
-Write release notes for operators and users, not only feature highlights. Compare the release diff with the previous tag and verify every note against the code and deployment docs. For every release, state any breaking changes and the exact action required from self-hosters, including environment variables, secrets, migrations, workflow or data changes, and commands in execution order. If there are no breaking changes or operator steps, say so explicitly. Use `docs/releases/TEMPLATE.md`; the versioned notes file is published verbatim as the GitHub Release body. Update deployment docs when release steps change.
+Write release notes for operators and users, not only feature highlights. Compare the release diff with the previous tag and verify every note against the code and deployment docs. Keep three clearly labeled sections: **Features**, **Breaking changes**, and **Upgrade steps**. List breaking changes separately from numbered upgrade steps. Include exact self-host actions, such as environment variables, secrets, migrations, workflow or data changes, and commands in execution order. State “None” or “No upgrade steps required” when a section has nothing to report. Use `docs/releases/TEMPLATE.md`; the versioned notes file is published verbatim as the GitHub Release body. Update deployment docs when release steps change.
+
+## Commit messages
+
+Use Conventional Commits for every commit included in a pull request: `<type>(optional-scope): <imperative summary>`. Use `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `build`, `ci`, `chore`, or `revert`; keep the full header to 72 characters or fewer and omit the final period. Mark breaking changes with `!` after the type or scope and explain the impact in the commit body. CI rejects pull requests with invalid commit headers.
 
 <!-- nx configuration start-->
 <!-- Leave the start & end comments to automatically receive updates. -->
