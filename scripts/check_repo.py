@@ -2,10 +2,16 @@
 """Offline sanity checks for the specification repository, not a runtime validator."""
 
 import json
+import os
 import re
 import subprocess
 from pathlib import Path
 from urllib.parse import unquote, urlsplit
+
+try:
+    from .check_commit_messages import validate_commit_messages
+except ImportError:
+    from check_commit_messages import validate_commit_messages
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -131,6 +137,44 @@ def check_lock(lock):
                 "Invalid skill path")
 
 
+def check_release_notes():
+    required_sections = ("## Features", "## Breaking changes", "## Upgrade steps")
+    for path in sorted((ROOT / "docs/releases").glob("v*.md")):
+        content = path.read_text()
+        lines = content.splitlines()
+        for section in required_sections:
+            require(lines.count(section) == 1, f"{path} must contain one '{section}' section")
+        bullets = [line for line in lines if line.startswith("- ")]
+        require(1 <= len(bullets) <= 5, f"{path} must contain one to five feature and breaking-change bullets")
+        require(not re.search(r"\[(?:Feature summary|Breaking change or None\.|Upgrade step or No upgrade steps required\.)\]", content),
+                f"Replace release-note template placeholders: {path}")
+        require(bool(re.search(r"(?m)^\d+\. \S", content)) or "No upgrade steps required." in content,
+                f"{path} must number upgrade steps or state that none are required")
+
+
+def check_pull_request_commit_messages():
+    if os.environ.get("GITHUB_EVENT_NAME") != "pull_request":
+        return
+    base = os.environ.get("GITHUB_BASE_REF", "")
+    ref = os.environ.get("GITHUB_REF", "")
+    match = re.fullmatch(r"refs/pull/(\d+)/merge", ref)
+    require(bool(base) and match is not None, "Could not determine pull request commits for message validation")
+    number = match.group(1)
+    base_ref = f"refs/heads/{base}"
+    base_tracking = f"refs/remotes/origin/{base}"
+    head_ref = f"refs/pull/{number}/head"
+    head_tracking = f"refs/remotes/pull/{number}/head"
+    subprocess.run(
+        ["git", "fetch", "--no-tags", "origin", f"+{base_ref}:{base_tracking}", f"+{head_ref}:{head_tracking}"],
+        cwd=ROOT,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    count = validate_commit_messages(base_tracking, head_tracking)
+    print(f"Validated {count} pull request commit message header(s).")
+
+
 def main():
     required = ["README.md", "AGENTS.md", "CONTRIBUTING.md", "Makefile",
                 "docs/PRD.md", "docs/ARCHITECTURE.md", "docs/AUTHENTICATION.md",
@@ -159,6 +203,8 @@ def main():
                     f"Merge conflict marker: {name}")
     check_lock(read_json(ROOT / "skills.lock.json"))
     check_skill(ROOT / "skills/rachet")
+    check_release_notes()
+    check_pull_request_commit_messages()
     for path in (ROOT / "examples").glob("*.workflow.json"):
         check_workflow(read_json(path))
     print("Repository checks passed: docs, links, JSON, graph, skill metadata, pinned sources, hygiene.")
@@ -167,5 +213,5 @@ def main():
 if __name__ == "__main__":
     try:
         main()
-    except (ValueError, KeyError, TypeError) as error:
+    except (ValueError, KeyError, TypeError, subprocess.CalledProcessError) as error:
         raise SystemExit(f"Repository check failed: {error}")
