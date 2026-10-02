@@ -28,9 +28,9 @@ The `next` and `main` branches require a PR and the repository sanity check. PRs
 ## Release procedure
 
 1. On `next`, update `packages/cli/package.json` to the release version. The git tag must match that CLI version (`v0.2.3` for CLI `0.2.3`). Set `packages/sdk/package.json` to the SDK version to publish in the same release; it may differ from the CLI version.
-2. Add `docs/releases/v<cli-version>.md` using [the template](releases/TEMPLATE.md). Write one to five short points about verified user-visible changes or required upgrade steps. Check each point against the release diff. The file is the exact GitHub Release body; no commit or PR list is appended automatically.
+2. Compare the release diff with the previous tag, then add `docs/releases/v<cli-version>.md` using [the template](releases/TEMPLATE.md). Write one to five concise, verified points total. Include exact self-host deployment steps in order (configuration, secrets, migrations, and commands), or state that none are required. Call out every breaking change and its operator action, or explicitly state that there are none. Check each point against the code and deployment docs. The file is the exact GitHub Release body; no commit or PR list is appended automatically.
 3. Run `make check` from a clean checkout. Inspect the dry-run tarballs and confirm they contain only compiled output, README, LICENSE, and package metadata.
-4. Open the release PR from `next` to `main`. Review the version changes, notes, migrations, and deployment effect. Merge with a merge commit after required checks pass.
+4. Open the release PR from `next` to `main`. Review the version changes, notes, migrations, and deployment effect. Confirm a new self-host operator can apply the release using only the release notes and linked deployment docs. Merge with a merge commit after required checks pass.
 5. On the resulting `main` commit, create and push `v<cli-version>`. The release workflow rejects a tag outside `main`, a mismatched CLI version, or missing notes.
 
 The release workflow runs the full check, rebuilds the CLI without Nx cache, verifies its publish artifact, publishes package versions that are not already in npm with public access and provenance, and creates the GitHub Release from the reviewed notes file.

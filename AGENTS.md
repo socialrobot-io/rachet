@@ -12,6 +12,10 @@ Follow [docs/WRITING.md](docs/WRITING.md) for all user-facing prose and document
 
 Before finishing a repository change, run `make check`. Update README/docs when behavior or setup changes. Once runtime code exists, also run its typecheck, lint, tests, workflow replay checks, and affected integration checks. Passing documentation checks alone does not establish production readiness.
 
+## Releases
+
+Write release notes for operators and users, not only feature highlights. Compare the release diff with the previous tag and verify every note against the code and deployment docs. For every release, state any breaking changes and the exact action required from self-hosters, including environment variables, secrets, migrations, workflow or data changes, and commands in execution order. If there are no breaking changes or operator steps, say so explicitly. Use `docs/releases/TEMPLATE.md`; the versioned notes file is published verbatim as the GitHub Release body. Update deployment docs when release steps change.
+
 <!-- nx configuration start-->
 <!-- Leave the start & end comments to automatically receive updates. -->
 
