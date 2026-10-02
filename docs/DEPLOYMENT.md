@@ -18,7 +18,7 @@ Use a Linux host with Docker Engine and the Compose plugin, public DNS for `RACH
 
 For local development without a public domain, use `compose.dev.yaml` and the host process workflow in [README.md](../README.md). Do not use `compose.yaml` on a laptop unless you have real DNS and a working HTTPS front door. Configure Resend using the [Resend setup guide](RESEND.md).
 
-Copy `.env.example` to `.env.local` and set `RACHET_DOMAIN`, `DATABASE_URL`, `POSTGRES_PASSWORD`, `TEMPORAL_POSTGRES_PASSWORD`, `BETTER_AUTH_SECRET`, `RACHET_SETUP_SECRET`, `INTEGRATION_ENCRYPTION_KEY`, and either the authentication Resend or GitHub settings. Generate the integration key with `openssl rand -base64 32` and back it up; it must be identical in the app and worker. Magic links require both `AUTH_RESEND_API_KEY` and `AUTH_EMAIL_FROM`; the sender domain must be verified in that separate authentication Resend account. Quote values containing spaces or shell punctuation. Keep `.env.local` mode `0600` and never commit it.
+Copy `.env.example` to `.env.local` and set `RACHET_DOMAIN`, `DATABASE_URL`, `POSTGRES_PASSWORD`, `TEMPORAL_POSTGRES_PASSWORD`, `BETTER_AUTH_SECRET`, `RACHET_SETUP_SECRET`, `INTEGRATION_ENCRYPTION_KEY`, `UNSUBSCRIBE_SIGNING_KEYS`, `UNSUBSCRIBE_SUPPORT_EMAIL`, and either the authentication Resend or GitHub settings. Generate the integration and unsubscribe signing keys with `openssl rand -base64 32` and back them up; each key must be identical in the app, worker, and dispatcher. Keep the unsubscribe signing key stable so links in already-sent mail remain valid. Set the unsubscribe support email to a monitored address. Magic links require both `AUTH_RESEND_API_KEY` and `AUTH_EMAIL_FROM`; the sender domain must be verified in that separate authentication Resend account. Quote values containing spaces or shell punctuation. Keep `.env.local` mode `0600` and never commit it.
 
 Start and inspect the deployment:
 
@@ -86,6 +86,8 @@ Coolify can deploy the checked-in `compose.yaml` directly. Leave the `caddy` pro
 | `RACHET_SETUP_SECRET` | separate `openssl rand -base64 32` output |
 | `TEMPORAL_NAMESPACE`, `TEMPORAL_TASK_QUEUE` | `rachet` and `rachet-enrollments` for a new stack; keep the existing values for an upgrade |
 | `INTEGRATION_ENCRYPTION_KEY` | separate `openssl rand -base64 32` output; back up securely |
+| `UNSUBSCRIBE_SIGNING_KEYS` | `openssl rand -base64 32` output; use the same value in API, worker, and dispatcher; back it up and keep it stable |
+| `UNSUBSCRIBE_SUPPORT_EMAIL` | monitored support address shown on unsubscribe pages |
 | `RACHET_API_KEY`, `RACHET_WORKSPACE_ID` | Optional. A send-scoped API key and its organization, used by the product welcome SDK client. Set both, or leave both empty. |
 | `AUTH_RESEND_API_KEY` | magic-link key from a Resend account separate from workflow delivery |
 | `AUTH_EMAIL_FROM` | explicit sender on a domain verified in the authentication Resend account; required for magic links |
@@ -96,7 +98,7 @@ Coolify can deploy the checked-in `compose.yaml` directly. Leave the `caddy` pro
 
 Set `RACHET_DOMAIN`, `PUBLIC_URL`, and `TRUSTED_ORIGINS` to the same HTTPS hostname Coolify assigns, then deploy. `ACME_EMAIL` is not required unless you enable the `caddy` profile.
 
-When upgrading an existing stack, keep its Compose project name, database URL and names, named volumes, Temporal namespace and task queue, and all secrets. `RACHET_*` settings accept the earlier names as fallbacks. Change one setting at a time only after confirming the running stack still reads its saved data.
+When upgrading an existing stack, keep its Compose project name, database URL and names, named volumes, Temporal namespace and task queue, and all secrets. For releases that add required variables, add them to the Coolify environment for API, worker, and dispatcher before deploying. `RACHET_*` settings accept the earlier names as fallbacks. Change one setting at a time only after confirming the running stack still reads its saved data.
 
 Leave `OAUTH_PUBLIC_REDIRECT_ORIGINS` empty for CLI and loopback MCP clients. Cursor's current MCP OAuth flow uses `https://www.cursor.com`; add that exact origin when enabling Cursor against a deployment. `OAUTH_PUBLIC_REDIRECT_SCHEMES` defaults to `cursor`; keep it to the comma-separated native clients installed in your environment. Add only exact HTTPS origins for web MCP clients you have reviewed. Operators authorize clients in the dashboard and can revoke grants from **Connected apps**.
 
@@ -121,7 +123,7 @@ For **split Coolify applications** (separate resources for API, worker, and disp
 | `ratchet-worker` | `worker` | None | Disabled (no image-level probe) |
 | `ratchet-dispatcher` | `dispatcher` | None | Disabled |
 
-Run database migrations on the API app only (`node dist/apps/server/db/migrate.js` as pre-deployment command). Deploy all three from the same commit on each release so the workflow bundle matches the API. Monitor worker and dispatcher through runtime logs and restart counts, Temporal backlog, and database volume backups.
+Run database migrations on the API app only (`node dist/apps/server/db/migrate.js` as pre-deployment command). Deploy all three from the same commit on each release so the workflow bundle matches the API. Before sending from an existing workflow, review its email purpose (`transactional` or `marketing`) and republish it; versions published before this release have no recorded purpose review and their sends will pause until republished. Monitor worker and dispatcher through runtime logs and restart counts, Temporal backlog, and database volume backups.
 
 ### Temporal schema troubleshooting
 
