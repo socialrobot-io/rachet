@@ -1,12 +1,12 @@
 import type { Client } from '@temporalio/client';
-import type { ReflowAuth } from '../../apps/server/src/auth.js';
+import type { RachetAuth } from '../../apps/server/src/auth.js';
 import { loadConfig } from '../../apps/server/src/config.js';
 import { createDatabase, type Database } from '../../apps/server/src/db/index.js';
 import type { OperationContext } from '../../packages/contracts/src/index.js';
-import { ReflowService } from '../../apps/server/src/domain/service.js';
+import { RachetService } from '../../apps/server/src/domain/service.js';
 
 export type DbRuntime = {
-  service: ReflowService;
+  service: RachetService;
   db: Database;
   pool: ReturnType<typeof createDatabase>['pool'];
   config: ReturnType<typeof loadConfig>;
@@ -19,9 +19,9 @@ export async function probeDbRuntime(temporal?: Client): Promise<DbRuntime | nul
     const database = createDatabase(config);
     await database.pool.query('select 1');
     const client = temporal ?? ({ workflow: { getHandle: () => ({ signal: async () => undefined, terminate: async () => undefined }) } } as unknown as Client);
-    const auth = {} as ReflowAuth;
+    const auth = {} as RachetAuth;
     return {
-      service: new ReflowService(database.db, client, auth),
+      service: new RachetService(database.db, client, auth),
       db: database.db,
       pool: database.pool,
       config,

@@ -1,10 +1,10 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { and, eq } from 'drizzle-orm';
 import { createApp } from '../apps/server/src/app.js';
-import type { ReflowAuth } from '../apps/server/src/auth.js';
+import type { RachetAuth } from '../apps/server/src/auth.js';
 import type { Config } from '../apps/server/src/config.js';
-import type { ReflowService } from '../apps/server/src/domain/service.js';
-import { contacts, enrollments, resendConnections, sendIntents, sequences, sequenceVersions, suppressions, webhookEvents, workspaces } from '../apps/server/src/db/schema.js';
+import type { RachetService } from '../apps/server/src/domain/service.js';
+import { contacts, deliveryBlocks, enrollments, resendConnections, sendIntents, sequences, sequenceVersions, suppressions, webhookEvents, workspaces } from '../apps/server/src/db/schema.js';
 import { encryptIntegrationSecret, fingerprintIntegrationSecret } from '../apps/server/src/integrations/secret.js';
 import { ResendProvider } from '../apps/server/src/providers/resend.js';
 import { probeDbRuntime, type DbRuntime } from './helpers/db-runtime.js';
@@ -47,7 +47,7 @@ describe.skipIf(!runtime)('Resend webhook tenant correlation (postgres)', () => 
       ids.push({ workspaceId: workspace.id, intentId: intent.id, email });
     }
     vi.spyOn(ResendProvider.prototype, 'verifyWebhook').mockImplementation(async (raw) => JSON.parse(raw) as Record<string, unknown>);
-    app = createApp({ config, auth: {} as ReflowAuth, db: boot.db, service: {} as ReflowService, operations: {} });
+    app = createApp({ config, auth: {} as RachetAuth, db: boot.db, service: {} as RachetService, operations: {} });
   });
 
   afterAll(async () => {
@@ -56,10 +56,12 @@ describe.skipIf(!runtime)('Resend webhook tenant correlation (postgres)', () => 
     await boot.close();
   });
 
-  function payload(owner: typeof ids[number], emailId: string) {
+  function payload(owner: typeof ids[number], emailId: string, legacy = false) {
     return {
       type: 'email.bounced', created_at: '2026-09-21T10:00:00Z',
-      data: { email_id: emailId, to: [owner.email], tags: { reflow_workspace: owner.workspaceId, reflow_intent: owner.intentId } },
+      data: { email_id: emailId, to: [owner.email], tags: legacy
+        ? { reflow_workspace: owner.workspaceId, reflow_intent: owner.intentId }
+        : { rachet_workspace: owner.workspaceId, rachet_intent: owner.intentId } },
     };
   }
 
@@ -83,12 +85,41 @@ describe.skipIf(!runtime)('Resend webhook tenant correlation (postgres)', () => 
     expect(suppression?.active).toBe(true);
   });
 
+  it('retains bounce and complaint as separate delivery blocks', async () => {
+    const owner = fixture(0);
+    const eventId = crypto.randomUUID();
+    const complaint = { ...payload(owner, 'msg_early'), type: 'email.complained' };
+    expect((await post(owner.workspaceId, complaint, eventId)).status).toBe(200);
+    expect((await post(owner.workspaceId, complaint, eventId)).status).toBe(200);
+    const blocks = await boot.db.select().from(deliveryBlocks).where(and(eq(deliveryBlocks.workspaceId, owner.workspaceId), eq(deliveryBlocks.emailKey, owner.email)));
+    expect(blocks.map((block) => block.reason).sort()).toEqual(['email.bounced', 'email.complained']);
+  });
+
+  it('correlates a bounce from a send tagged before the rename', async () => {
+    const owner = fixture(1);
+    const response = await post(owner.workspaceId, payload(owner, 'msg_legacy', true));
+    expect(response.status).toBe(200);
+    const [intent] = await boot.db.select().from(sendIntents).where(eq(sendIntents.id, owner.intentId));
+    expect(intent?.providerMessageId).toBe('msg_legacy');
+  });
+
+  it('stores an opened event for a correlated send', async () => {
+    const owner = fixture(0);
+    const response = await post(owner.workspaceId, { ...payload(owner, 'msg_early'), type: 'email.opened' });
+    expect(response.status).toBe(200);
+    const events = await boot.db.select().from(webhookEvents).where(and(eq(webhookEvents.workspaceId, owner.workspaceId), eq(webhookEvents.eventType, 'email.opened')));
+    expect(events).toHaveLength(1);
+    expect(events[0]?.providerMessageId).toBe('msg_early');
+  });
+
   it('ignores the same signed account event at another workspace endpoint', async () => {
     const owner = fixture(0);
     const other = fixture(1);
+    const before = await boot.db.select().from(webhookEvents).where(eq(webhookEvents.workspaceId, other.workspaceId));
+    const suppressionsBefore = await boot.db.select().from(suppressions).where(eq(suppressions.workspaceId, other.workspaceId));
     expect((await post(other.workspaceId, payload(owner, 'msg_early'))).status).toBe(200);
-    expect(await boot.db.select().from(webhookEvents).where(eq(webhookEvents.workspaceId, other.workspaceId))).toHaveLength(0);
-    expect(await boot.db.select().from(suppressions).where(eq(suppressions.workspaceId, other.workspaceId))).toHaveLength(0);
+    expect(await boot.db.select().from(webhookEvents).where(eq(webhookEvents.workspaceId, other.workspaceId))).toHaveLength(before.length);
+    expect(await boot.db.select().from(suppressions).where(eq(suppressions.workspaceId, other.workspaceId))).toHaveLength(suppressionsBefore.length);
   });
 
   it('does not acknowledge an uncorrelated legacy bounce', async () => {

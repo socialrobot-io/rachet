@@ -1,6 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { eq } from 'drizzle-orm';
-import { ApplicationFailure } from '@temporalio/activity';
 import {
   contacts,
   enrollments,
@@ -146,8 +145,8 @@ describe.skipIf(!runtime)('email.send activity invariants (postgres + fake provi
     expect(provider.sent[0]?.message.subject).toBe('Hello Ada');
     expect(provider.sent[0]?.message.html).toContain('Hello Ada');
     expect(provider.sent[0]?.message.tags).toEqual([
-      { name: 'reflow_workspace', value: workspaceId },
-      { name: 'reflow_intent', value: expect.any(String) },
+      { name: 'rachet_workspace', value: workspaceId },
+      { name: 'rachet_intent', value: expect.any(String) },
     ]);
     expect(provider.sent[0]?.idempotencyKey).toBe(`enrollment/${enrollmentId}/welcome`);
 
@@ -156,7 +155,7 @@ describe.skipIf(!runtime)('email.send activity invariants (postgres + fake provi
     expect(intents.find((row) => row.stepId === 'welcome')?.state).toBe('accepted');
   });
 
-  it('rejects retries when the frozen payload would change', async () => {
+  it('reuses the accepted frozen payload after contact data changes', async () => {
     provider.sent.length = 0;
     provider.nextOutcome = { kind: 'accepted', messageId: 'msg_2' };
 
@@ -177,9 +176,32 @@ describe.skipIf(!runtime)('email.send activity invariants (postgres + fake provi
       enrollmentId,
       node: sendNode('reminder'),
       eventData: {},
-    })).rejects.toBeInstanceOf(ApplicationFailure);
+    })).resolves.toBe('succeeded');
 
     expect(provider.sent).toHaveLength(1);
+  });
+
+  it('keeps a paused send prepared and sends it after resume', async () => {
+    provider.sent.length = 0;
+    const [version] = await boot.db.select({ id: enrollments.sequenceVersionId })
+      .from(enrollments).where(eq(enrollments.id, enrollmentId)).limit(1);
+    if (!version) throw new Error('enrollment missing');
+    const pausedId = crypto.randomUUID();
+    await boot.db.insert(enrollments).values({
+      id: pausedId, workspaceId, sequenceVersionId: version.id, contactId,
+      workflowId: `test/${pausedId}`, input: {}, idempotencyKey: `paused-${pausedId}`, state: 'paused',
+    });
+    await expect(executeAction({ workspaceId, enrollmentId: pausedId, node: sendNode('paused-send'), eventData: {} })).resolves.toBe('paused');
+    const [prepared] = await boot.db.select().from(sendIntents).where(eq(sendIntents.enrollmentId, pausedId));
+    expect(prepared?.state).toBe('prepared');
+    expect(provider.sent).toHaveLength(0);
+
+    await boot.db.update(enrollments).set({ state: 'running' }).where(eq(enrollments.id, pausedId));
+    await expect(executeAction({ workspaceId, enrollmentId: pausedId, node: sendNode('paused-send'), eventData: {} })).resolves.toBe('succeeded');
+    expect(provider.sent).toHaveLength(1);
+    const [accepted] = await boot.db.select().from(sendIntents).where(eq(sendIntents.enrollmentId, pausedId));
+    expect(accepted?.id).toBe(prepared?.id);
+    expect(accepted?.state).toBe('accepted');
   });
 
   it('rejects suppressed recipients without calling the provider', async () => {
@@ -215,7 +237,7 @@ describe.skipIf(!runtime)('email.send activity invariants (postgres + fake provi
       enrollmentId: suppressedEnrollmentId,
       node: sendNode('welcome'),
       eventData: {},
-    })).rejects.toMatchObject({ type: 'SuppressedError' });
+    })).resolves.toBe('suppressed');
 
     expect(provider.sent).toHaveLength(0);
   });

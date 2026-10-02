@@ -1,34 +1,34 @@
-export type ReflowClientOptions = {
+export type RachetClientOptions = {
   url?: string;
   token?: string;
   apiKey?: string;
   fetch?: typeof globalThis.fetch;
 };
 
-export class ReflowClientError extends Error {
+export class RachetClientError extends Error {
   readonly code?: string | undefined;
   readonly hint?: string | undefined;
   readonly details?: Record<string, unknown> | undefined;
 
   constructor(readonly status: number, message: string, extras?: { code?: string; hint?: string; details?: Record<string, unknown> }) {
     super(message);
-    this.name = 'ReflowClientError';
+    this.name = 'RachetClientError';
     this.code = extras?.code;
     this.hint = extras?.hint;
     this.details = extras?.details;
   }
 }
 
-export class ReflowClient {
+export class RachetClient {
   private readonly baseUrl: string;
   private readonly token: string | undefined;
   private readonly apiKey: string | undefined;
   private readonly requestFetch: typeof globalThis.fetch;
 
-  constructor(options: ReflowClientOptions = {}) {
-    this.baseUrl = (options.url ?? process.env.REFLOW_URL ?? 'http://localhost:3000').replace(/\/$/, '');
-    this.token = options.token ?? process.env.REFLOW_TOKEN;
-    this.apiKey = options.apiKey ?? process.env.REFLOW_API_KEY;
+  constructor(options: RachetClientOptions = {}) {
+    this.baseUrl = (options.url ?? process.env.RACHET_URL ?? process.env.REFLOW_URL ?? 'http://localhost:3000').replace(/\/$/, '');
+    this.token = options.token ?? process.env.RACHET_TOKEN ?? process.env.REFLOW_TOKEN;
+    this.apiKey = options.apiKey ?? process.env.RACHET_API_KEY ?? process.env.REFLOW_API_KEY;
     this.requestFetch = options.fetch ?? globalThis.fetch;
   }
 
@@ -43,7 +43,7 @@ export class ReflowClient {
     if (!response.ok) {
       const record = typeof payload === 'object' && payload !== null ? payload as Record<string, unknown> : {};
       const message = typeof record.message === 'string' ? record.message : JSON.stringify(payload);
-      throw new ReflowClientError(response.status, message, {
+      throw new RachetClientError(response.status, message, {
         ...(typeof record.code === 'string' ? { code: record.code } : {}),
         ...(typeof record.hint === 'string' ? { hint: record.hint } : {}),
         ...(record.details && typeof record.details === 'object' ? { details: record.details as Record<string, unknown> } : {}),

@@ -97,7 +97,7 @@ export async function registerMcpPublicClient(
   const id = randomBytes(16).toString('hex');
   const resourceId = randomBytes(16).toString('hex');
   const now = new Date();
-  const allowedScopes = new Set(['openid', 'profile', 'email', 'offline_access', 'rachet:read', 'rachet:write', 'rachet:send']);
+  const allowedScopes = new Set(['openid', 'profile', 'email', 'offline_access', 'rachet:read', 'rachet:write', 'rachet:send', 'reflow:read', 'reflow:write', 'reflow:send']);
   const requestedScopes = body.scope?.split(' ').filter(Boolean)
     ?? ['openid', 'profile', 'email', 'offline_access', 'rachet:read', 'rachet:write', 'rachet:send'];
   if (requestedScopes.some((scope) => !allowedScopes.has(scope))) {

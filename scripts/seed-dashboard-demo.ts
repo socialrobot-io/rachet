@@ -37,7 +37,7 @@ function hash(value: unknown): string {
 
 function htmlFor(body: string): string {
   const paragraphs = body.split('\n\n').map((paragraph) => `<p style="margin:0 0 18px;line-height:1.6">${paragraph.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('\n', '<br>')}</p>`).join('');
-  return `<html><body style="background:#f7f5ef;padding:32px 12px;font-family:Arial,sans-serif;color:#302321"><div style="max-width:560px;margin:auto;background:white;border-radius:20px;padding:32px"><p style="font-size:22px;font-weight:bold;margin:0 0 28px">reflow.</p>${paragraphs}</div></body></html>`;
+  return `<html><body style="background:#f7f5ef;padding:32px 12px;font-family:Arial,sans-serif;color:#302321"><div style="max-width:560px;margin:auto;background:white;border-radius:20px;padding:32px"><p style="font-size:22px;font-weight:bold;margin:0 0 28px">Rachet</p>${paragraphs}</div></body></html>`;
 }
 
 function hoursAgo(hours: number): Date {

@@ -5,20 +5,20 @@
 On a Linux server with Docker Engine, Docker Compose, public DNS, and ports 80/443 available, point the hostname at the server and run:
 
 ```sh
-./scripts/deploy.sh reflow.example.com admin@example.com
+./scripts/deploy.sh rachet.example.com admin@example.com
 ```
 
-The script generates secrets under `.reflow/`, builds and starts the complete stack, enables Caddy TLS, and runs migrations. Re-run the same command to deploy an update. Configure magic-link or GitHub credentials in `.reflow/production.env`, then open the dashboard and use its one-time first-admin page with the generated `REFLOW_SETUP_SECRET`.
+For a new installation, the script generates secrets under `.rachet/`, builds and starts the stack, enables Caddy TLS, and runs migrations. Re-run the same command to deploy an update. For an installation created before the rename, the script reuses its production environment file, database, and Temporal namespace. Configure magic-link or GitHub credentials in the selected production environment file, then open the dashboard and use its one-time first-admin page with the setup secret in that file.
 
 The sections below cover manual deployments, external ingress, Coolify, backups, and production customization.
 
 ## Prerequisites
 
-Use a Linux host with Docker Engine and the Compose plugin, public DNS for `REFLOW_DOMAIN`, and an HTTPS ingress in front of `app:3000`. Workflow email requires each organization to connect its own verified Resend account and webhook at the organization-specific URL shown during onboarding.
+Use a Linux host with Docker Engine and the Compose plugin, public DNS for `RACHET_DOMAIN`, and an HTTPS ingress in front of `app:3000`. Workflow email requires each organization to connect its own verified Resend account and webhook at the organization-specific URL shown during onboarding.
 
 For local development without a public domain, use `compose.dev.yaml` and the host process workflow in [README.md](../README.md). Do not use `compose.yaml` on a laptop unless you have real DNS and a working HTTPS front door. Configure Resend using the [Resend setup guide](RESEND.md).
 
-Copy `.env.example` to `.env.local` and set `REFLOW_DOMAIN`, `DATABASE_URL`, `POSTGRES_PASSWORD`, `TEMPORAL_POSTGRES_PASSWORD`, `BETTER_AUTH_SECRET`, `REFLOW_SETUP_SECRET`, `INTEGRATION_ENCRYPTION_KEY`, and either the authentication Resend or GitHub settings. Generate the integration key with `openssl rand -base64 32` and back it up; it must be identical in the app and worker. Magic links require both `AUTH_RESEND_API_KEY` and `AUTH_EMAIL_FROM`; the sender domain must be verified in that separate authentication Resend account. Quote values containing spaces or shell punctuation. Keep `.env.local` mode `0600` and never commit it.
+Copy `.env.example` to `.env.local` and set `RACHET_DOMAIN`, `DATABASE_URL`, `POSTGRES_PASSWORD`, `TEMPORAL_POSTGRES_PASSWORD`, `BETTER_AUTH_SECRET`, `RACHET_SETUP_SECRET`, `INTEGRATION_ENCRYPTION_KEY`, and either the authentication Resend or GitHub settings. Generate the integration key with `openssl rand -base64 32` and back it up; it must be identical in the app and worker. Magic links require both `AUTH_RESEND_API_KEY` and `AUTH_EMAIL_FROM`; the sender domain must be verified in that separate authentication Resend account. Quote values containing spaces or shell punctuation. Keep `.env.local` mode `0600` and never commit it.
 
 Start and inspect the deployment:
 
@@ -29,11 +29,11 @@ docker compose ps
 docker compose --env-file .env.local logs migrate temporal-schema temporal-namespace
 ```
 
-After migrations finish, open `https://REFLOW_DOMAIN/auth/login`. The setup page appears only while there are no users and requires `REFLOW_SETUP_SECRET`. Setup is guarded by database locking and an initialization marker; a concurrent or later attempt cannot create another deployment administrator.
+After migrations finish, open `https://RACHET_DOMAIN/auth/login`. The setup page appears only while there are no users and requires `RACHET_SETUP_SECRET`. Setup is guarded by database locking and an initialization marker; a concurrent or later attempt cannot create another deployment administrator.
 
 ## Ingress
 
-By default the Compose stack does not publish host ports. Terminate TLS outside the stack (Coolify, Traefik, Cloudflare, nginx, or similar) and reverse-proxy to `app` on port `3000`. Set `REFLOW_DOMAIN`, `PUBLIC_URL`, and `TRUSTED_ORIGINS` to that HTTPS hostname. The operations console is served from the same `app` origin, so operators open `https://REFLOW_DOMAIN/` after signing in.
+By default the Compose stack does not publish host ports. Terminate TLS outside the stack (Coolify, Traefik, Cloudflare, nginx, or similar) and reverse-proxy to `app` on port `3000`. Set `RACHET_DOMAIN`, `PUBLIC_URL`, and `TRUSTED_ORIGINS` to that HTTPS hostname. The operations console is served from the same `app` origin, so operators open `https://RACHET_DOMAIN/` after signing in.
 
 Optional built-in Caddy is available for bare hosts that need Compose to own ports 80/443 and ACME certificates. It is gated behind the Compose profile `caddy` and is off unless you enable it:
 
@@ -78,12 +78,15 @@ Coolify can deploy the checked-in `compose.yaml` directly. Leave the `caddy` pro
 | Variable | Value |
 | --- | --- |
 | `POSTGRES_PASSWORD` | random PostgreSQL password |
-| `DATABASE_URL` | `postgresql://rachet:PASSWORD@postgres:5432/reflow` |
+| `COMPOSE_PROJECT_NAME` | `rachet` for a new stack; keep the existing value for an upgrade |
+| `RACHET_DB_NAME`, `RACHET_DB_USER` | `rachet` for a new database; keep the existing names for an upgrade |
+| `DATABASE_URL` | `postgresql://rachet:PASSWORD@postgres:5432/rachet` for a new stack |
 | `TEMPORAL_POSTGRES_PASSWORD` | random Temporal database password |
 | `BETTER_AUTH_SECRET` | `openssl rand -base64 32` output |
-| `REFLOW_SETUP_SECRET` | separate `openssl rand -base64 32` output |
+| `RACHET_SETUP_SECRET` | separate `openssl rand -base64 32` output |
+| `TEMPORAL_NAMESPACE`, `TEMPORAL_TASK_QUEUE` | `rachet` and `rachet-enrollments` for a new stack; keep the existing values for an upgrade |
 | `INTEGRATION_ENCRYPTION_KEY` | separate `openssl rand -base64 32` output; back up securely |
-| `REFLOW_API_KEY`, `REFLOW_WORKSPACE_ID` | Optional. A send-scoped API key and its organization, used by the product welcome SDK client. Set both, or leave both empty. |
+| `RACHET_API_KEY`, `RACHET_WORKSPACE_ID` | Optional. A send-scoped API key and its organization, used by the product welcome SDK client. Set both, or leave both empty. |
 | `AUTH_RESEND_API_KEY` | magic-link key from a Resend account separate from workflow delivery |
 | `AUTH_EMAIL_FROM` | explicit sender on a domain verified in the authentication Resend account; required for magic links |
 | `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET` | GitHub OAuth app credentials (alternative or additional sign-in) |
@@ -91,7 +94,9 @@ Coolify can deploy the checked-in `compose.yaml` directly. Leave the `caddy` pro
 | `OAUTH_PUBLIC_REDIRECT_ORIGINS` | comma-separated exact HTTPS origins for reviewed web clients; empty by default |
 | `OAUTH_PUBLIC_REDIRECT_SCHEMES` | comma-separated installed native-client schemes; defaults to `cursor` |
 
-Set `REFLOW_DOMAIN`, `PUBLIC_URL`, and `TRUSTED_ORIGINS` to the same HTTPS hostname Coolify assigns, then deploy. `ACME_EMAIL` is not required unless you enable the `caddy` profile.
+Set `RACHET_DOMAIN`, `PUBLIC_URL`, and `TRUSTED_ORIGINS` to the same HTTPS hostname Coolify assigns, then deploy. `ACME_EMAIL` is not required unless you enable the `caddy` profile.
+
+When upgrading an existing stack, keep its Compose project name, database URL and names, named volumes, Temporal namespace and task queue, and all secrets. `RACHET_*` settings accept the earlier names as fallbacks. Change one setting at a time only after confirming the running stack still reads its saved data.
 
 Leave `OAUTH_PUBLIC_REDIRECT_ORIGINS` empty for CLI and loopback MCP clients. Cursor's current MCP OAuth flow uses `https://www.cursor.com`; add that exact origin when enabling Cursor against a deployment. `OAUTH_PUBLIC_REDIRECT_SCHEMES` defaults to `cursor`; keep it to the comma-separated native clients installed in your environment. Add only exact HTTPS origins for web MCP clients you have reviewed. Operators authorize clients in the dashboard and can revoke grants from **Connected apps**.
 

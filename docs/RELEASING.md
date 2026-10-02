@@ -15,7 +15,7 @@ Both are licensed under the GNU Affero General Public License v3.0 only (`AGPL-3
 2. Configure npm trusted publishing for this GitHub repository and the workflow file `.github/workflows/release.yml` for both `@socialrobot-io/rachet` and `@socialrobot-io/rachet-sdk`.
 3. Protect the GitHub Environment named `npm` if release approvals are required.
 
-The workflow uses GitHub OIDC and npm provenance. It does not require a long-lived `NPM_TOKEN` secret. The new packages ship only Rachet names and commands. Keep the old `@socialrobot-io/reflow` registry entries only long enough to publish a deprecation message after the first Rachet release.
+The workflow uses GitHub OIDC and npm provenance. It does not require a long-lived `NPM_TOKEN` secret. The packages ship Rachet names and commands.
 
 ## Branch flow
 
@@ -34,14 +34,5 @@ The `next` and `main` branches require a PR and the repository sanity check. PRs
 5. On the resulting `main` commit, create and push `v<cli-version>`. The release workflow rejects a tag outside `main`, a mismatched CLI version, or missing notes.
 
 The release workflow runs the full check, rebuilds the CLI without Nx cache, verifies its publish artifact, publishes package versions that are not already in npm with public access and provenance, and creates the GitHub Release from the reviewed notes file.
-
-After the first successful Rachet publish, deprecate the old names from an authenticated npm session:
-
-```sh
-npm deprecate @socialrobot-io/reflow "This package moved to @socialrobot-io/rachet. Install the Rachet package instead."
-npm deprecate @socialrobot-io/reflow-sdk "This package moved to @socialrobot-io/rachet-sdk. Install the Rachet SDK instead."
-```
-
-Do not add compatibility exports or a `reflow` executable to the new packages. Deprecating the old registry entries is separate from runtime compatibility and lets npm show the migration message to anyone who tries to install an old name.
 
 Do not publish the repository root with `npm publish`; it is intentionally private.

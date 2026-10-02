@@ -181,12 +181,12 @@
 }
 
 @layer components {
-  .reflow-panel {
+  .rachet-panel {
     box-shadow: 0 6px 0 oklch(0.26 0.05 24 / 0.075), 0 14px 32px oklch(0.26 0.05 24 / 0.045);
   }
 
   /* Opaque reading surface: workflow trees should not sit on the grid. */
-  .reflow-document {
+  .rachet-document {
     position: relative;
     isolation: isolate;
     background: var(--card);
@@ -196,7 +196,7 @@
       0 22px 48px oklch(0.26 0.05 24 / 0.06);
   }
 
-  .reflow-document::before {
+  .rachet-document::before {
     content: "";
     position: absolute;
     inset: -1.75rem;
@@ -212,9 +212,9 @@
     filter: blur(14px);
   }
 
-  .reflow-workflow-card:nth-child(3n + 1) .reflow-card-art { background: var(--candy); }
-  .reflow-workflow-card:nth-child(3n + 2) .reflow-card-art { background: var(--mint); }
-  .reflow-workflow-card:nth-child(3n) .reflow-card-art { background: var(--sunny); }
+  .rachet-workflow-card:nth-child(3n + 1) .rachet-card-art { background: var(--candy); }
+  .rachet-workflow-card:nth-child(3n + 2) .rachet-card-art { background: var(--mint); }
+  .rachet-workflow-card:nth-child(3n) .rachet-card-art { background: var(--sunny); }
 }
 
 /* Single-screen landing uses the same tokens, typography, and surfaces as the console. */
@@ -245,9 +245,8 @@
 .landing h1 { font-family: var(--font-sans); font-size: clamp(52px, min(6.7vw, 10.4svh), 91px); line-height: 1.02; font-weight: 800; letter-spacing: -.045em; margin: 23px 0 27px; }
 .hero-highlight { position: relative; display: inline-block; isolation: isolate; }
 .hero-highlight::before { content: ''; position: absolute; z-index: -1; inset: 10% -5% -3%; background: var(--sunny); transform: rotate(-2deg); border-radius: 4px; }
-.hero-copy > p { font-size: 15px; line-height: 1.7; color: var(--muted-foreground); max-width: 490px; }
+.hero-copy > p { font-size: 15px; line-height: 1.7; color: var(--muted-foreground); max-width: 520px; }
 .hero-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 27px; }
-.hero-copy > .hero-note { font-family: var(--font-mono); font-size: 10px; margin-top: 19px; }
 .hero-mobile-mascot { display: none; }
 .hero-art { position: relative; height: 430px; width: 400px; max-width: 100%; justify-self: end; }
 .hero-art-path { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
@@ -300,7 +299,6 @@
   .hero-desktop-break { display: none; }
   .hero-actions { margin-top: 23px; gap: 3px; }
   .hero-actions [data-slot="button"] { padding-inline: 15px; font-size: 11px; height: 43px; }
-  .hero-copy > .hero-note { font-size: 8px; margin-top: 17px; }
   .hero-mobile-mascot { display: block; width: 104px; height: 104px; margin: 8px 0 0 auto; }
   .hero-art { display: none; }
   .landing-footer { min-height: 65px; font-size: 8px; gap: 13px; flex-wrap: wrap; justify-content: flex-start; padding-block: 15px; }
@@ -312,7 +310,6 @@
   .landing h1 { font-size: 54px; margin-block: 14px 20px; }
   .hero-art { transform: scale(.8); transform-origin: center; margin-block: -43px; }
   .hero-actions { margin-top: 17px; }
-  .hero-copy > .hero-note { margin-top: 12px; }
   .landing-footer { min-height: 50px; }
 }
 

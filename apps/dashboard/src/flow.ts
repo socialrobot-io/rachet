@@ -254,11 +254,14 @@ export function buildExecutionTrace(
         nodeType: node.type,
       });
     } else if (node.type === 'branch') {
-      const tookTrue = pathContains(nodes, node.onTrue, currentId);
+      const chosen = branchTarget(nodes, node.onTrue, node.onFalse, currentId, new Set(sent.keys()));
+      const tookTrue = chosen === node.onTrue;
       const lateMatchingEvent = node.condition.op === 'event_received'
         && typeof node.condition.eventType === 'string'
         && receivedEvents.some((event) => event.eventType === node.condition.eventType);
-      const outcome = tookTrue
+      const outcome = !chosen
+        ? 'Route not recorded'
+        : tookTrue
         ? 'Yes'
         : lateMatchingEvent
           ? 'No · matching event arrived after this decision'
@@ -297,11 +300,13 @@ export function buildExecutionTrace(
       if (towardEvent) markEventSeen(node.eventType);
       cursor = towardEvent ? node.onEvent : node.onTimeout;
     } else if (node.type === 'branch') {
-      const towardTrue = pathContains(nodes, node.onTrue, currentId);
+      const chosen = branchTarget(nodes, node.onTrue, node.onFalse, currentId, new Set(sent.keys()));
+      if (!chosen) break;
+      const towardTrue = chosen === node.onTrue;
       if (towardTrue && node.condition.op === 'event_received' && typeof node.condition.eventType === 'string') {
         markEventSeen(node.condition.eventType);
       }
-      cursor = towardTrue ? node.onTrue : node.onFalse;
+      cursor = chosen;
     } else break;
   }
 
@@ -387,6 +392,25 @@ export function pathContains(nodes: Map<string, FlowNode>, start: string, target
   return false;
 }
 
+function branchTarget(
+  nodes: Map<string, FlowNode>,
+  yes: string,
+  no: string,
+  currentId: string | null,
+  executedStepIds: Set<string>,
+): string | undefined {
+  const yesReaches = pathContains(nodes, yes, currentId);
+  const noReaches = pathContains(nodes, no, currentId);
+  if (yesReaches !== noReaches) return yesReaches ? yes : no;
+  if (!yesReaches) return undefined;
+  // A rejoin makes both arms reach the current step. Only an executed step
+  // exclusive to one arm proves which route was taken.
+  const yesEvidence = [...executedStepIds].some((id) => pathContains(nodes, yes, id) && !pathContains(nodes, no, id));
+  const noEvidence = [...executedStepIds].some((id) => pathContains(nodes, no, id) && !pathContains(nodes, yes, id));
+  if (yesEvidence === noEvidence) return undefined;
+  return yesEvidence ? yes : no;
+}
+
 export type EnrollmentPath = {
   /** Nodes the enrollment has visited, including the current node. */
   nodeIds: Set<string>;
@@ -402,6 +426,7 @@ export type EnrollmentPath = {
 export function computeEnrollmentPath(
   definition: WorkflowDefinition,
   enrollment: Pick<Enrollment, 'currentStepId'>,
+  executedStepIds: Set<string> = new Set(),
 ): EnrollmentPath {
   const nodes = new Map(definition.nodes.map((node) => [node.id, node]));
   const currentId = enrollment.currentStepId;
@@ -422,7 +447,7 @@ export function computeEnrollmentPath(
     else if (node.type === 'wait_for_event') {
       next = pathContains(nodes, node.onEvent, currentId) ? node.onEvent : node.onTimeout;
     } else if (node.type === 'branch') {
-      next = pathContains(nodes, node.onTrue, currentId) ? node.onTrue : node.onFalse;
+      next = branchTarget(nodes, node.onTrue, node.onFalse, currentId, executedStepIds);
     }
     if (!next) break;
     edgeKeys.add(`${cursor}->${next}`);

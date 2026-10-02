@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
-import { ArrowUpRight, CircleCheck, Layers3, Pause, Play, UsersRound, XCircle } from 'lucide-react';
+import { ArrowUpRight, Check, CircleCheck, Copy, Layers3, Pause, Play, UsersRound, XCircle } from 'lucide-react';
 import { api, ApiError } from '@/api';
 import { useAuth } from '@/auth';
 import {
@@ -21,12 +21,16 @@ import {
   countsByStep,
   formatElapsed,
   formatWhen,
+  humanizeId,
   isActiveEnrollment,
   nodeLabel,
 } from '@/flow';
-import type { Enrollment, Message, Workflow } from '@/types';
+import { enrollmentCounts, enrollmentExitReason, enrollmentGroup, type EnrollmentGroup } from '@/enrollment-list';
+import type { Enrollment, Message, SubscriptionEvent, Workflow } from '@/types';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -39,7 +43,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 
-function useWorkspaceData() {
+function useWorkspaceData(withMessages = true) {
   const { workspaceId } = useAuth();
   const [workflows, setWorkflows] = useState<Workflow[]>([]);
   const [enrollments, setEnrollments] = useState<Enrollment[]>([]);
@@ -61,7 +65,7 @@ function useWorkspaceData() {
     void Promise.all([
       api.workflows(workspaceId),
       api.enrollments(workspaceId),
-      api.messages(workspaceId),
+      withMessages ? api.messages(workspaceId) : Promise.resolve([]),
     ])
       .then(([nextWorkflows, nextEnrollments, nextMessages]) => {
         if (cancelled) return;
@@ -79,13 +83,25 @@ function useWorkspaceData() {
     return () => {
       cancelled = true;
     };
-  }, [workspaceId]);
+  }, [workspaceId, withMessages]);
 
   return { workspaceId, workflows, enrollments, messages, error, loading, setEnrollments };
 }
 
 function PageFrame({ children }: { children: ReactNode }) {
   return <div className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6 lg:px-8 lg:py-12">{children}</div>;
+}
+
+function CopyWorkflowId({ id }: { id: string }) {
+  const [message, setMessage] = useState('');
+  return <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+    <span>Workflow ID</span>
+    <code className="break-all font-mono text-foreground">{id}</code>
+    <Button type="button" variant="outline" size="xs" onClick={() => {
+      void navigator.clipboard.writeText(id).then(() => setMessage('Copied')).catch(() => setMessage('Select and copy the ID manually.'));
+    }}>{message === 'Copied' ? <Check data-icon="inline-start" /> : <Copy data-icon="inline-start" />}{message === 'Copied' ? 'Copied' : 'Copy'}</Button>
+    {message && <span role="status">{message}</span>}
+  </div>;
 }
 
 export function WorkflowsPage() {
@@ -131,9 +147,9 @@ export function WorkflowsPage() {
         </div>
 
         <section aria-label="Workspace overview" className="grid gap-3 sm:grid-cols-3">
-          <Card className="reflow-panel"><CardHeader><CardDescription className="flex items-center gap-2"><Layers3 className="size-4" /> Workflows</CardDescription><CardTitle className="text-3xl font-bold tabular-nums">{rows.length}</CardTitle></CardHeader></Card>
-          <Card className="reflow-panel"><CardHeader><CardDescription className="flex items-center gap-2"><CircleCheck className="size-4" /> Ready to review</CardDescription><CardTitle className="text-3xl font-bold tabular-nums">{drafts}</CardTitle></CardHeader></Card>
-          <Card className="reflow-panel"><CardHeader><CardDescription className="flex items-center gap-2"><UsersRound className="size-4" /> People in progress</CardDescription><CardTitle className="text-3xl font-bold tabular-nums">{active}</CardTitle></CardHeader></Card>
+          <Card className="rachet-panel"><CardHeader><CardDescription className="flex items-center gap-2"><Layers3 className="size-4" /> Workflows</CardDescription><CardTitle className="text-3xl font-bold tabular-nums">{rows.length}</CardTitle></CardHeader></Card>
+          <Card className="rachet-panel"><CardHeader><CardDescription className="flex items-center gap-2"><CircleCheck className="size-4" /> Ready to review</CardDescription><CardTitle className="text-3xl font-bold tabular-nums">{drafts}</CardTitle></CardHeader></Card>
+          <Card className="rachet-panel"><CardHeader><CardDescription className="flex items-center gap-2"><UsersRound className="size-4" /> People in progress</CardDescription><CardTitle className="text-3xl font-bold tabular-nums">{active}</CardTitle></CardHeader></Card>
         </section>
 
         {error && (
@@ -152,13 +168,13 @@ export function WorkflowsPage() {
             <span className="rounded-full bg-accent px-3 py-1 font-mono text-xs font-medium">{rows.length} total</span>
           </div>
           {rows.length === 0 ? (
-            <Card className="reflow-panel border-dashed"><CardHeader><CardTitle>No workflows yet</CardTitle><CardDescription>Create your first workflow through the CLI or MCP, then it will appear here.</CardDescription></CardHeader></Card>
+            <Card className="rachet-panel border-dashed"><CardHeader><CardTitle>No workflows yet</CardTitle><CardDescription>Create your first workflow through the CLI or MCP, then it will appear here.</CardDescription></CardHeader></Card>
           ) : (
             <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
               {rows.map(({ workflow, active, completed }, index) => (
-                <Card key={workflow.id} className="reflow-workflow-card reflow-panel group relative h-full min-h-[21rem] transition-transform duration-200 hover:-translate-y-1">
+                <Card key={workflow.id} className="rachet-workflow-card rachet-panel group relative h-full min-h-[21rem] transition-transform duration-200 hover:-translate-y-1">
                   <CardHeader className="gap-4">
-                    <div className="reflow-card-art relative flex h-28 items-start justify-between overflow-hidden rounded-xl p-4">
+                    <div className="rachet-card-art relative flex h-28 items-start justify-between overflow-hidden rounded-xl p-4">
                       <span className="relative z-10 rounded-full bg-card/80 px-3 py-1 font-mono text-[0.65rem] font-semibold uppercase tracking-wide">{workflow.definition.topic?.replaceAll('_', ' ') || 'Workflow'}</span>
                       <span className="absolute -bottom-10 right-2 text-[8rem] font-bold leading-none tracking-[-0.13em] text-foreground/10" aria-hidden="true">{String(index + 1).padStart(2, '0')}</span>
                     </div>
@@ -174,6 +190,109 @@ export function WorkflowsPage() {
           )}
         </section>
 
+      </div>
+    </PageFrame>
+  );
+}
+
+export function EnrollmentsPage() {
+  const { workspaceId, workflows, enrollments, error, loading } = useWorkspaceData(false);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const workflowId = searchParams.get('workflow') ?? 'all';
+  const requestedGroup = searchParams.get('status') ?? 'all';
+  const group: EnrollmentGroup = ['all', 'in_progress', 'needs_attention', 'exited'].includes(requestedGroup)
+    ? requestedGroup as EnrollmentGroup : 'all';
+  const query = searchParams.get('q') ?? '';
+
+  function setFilter(key: string, value: string) {
+    const next = new URLSearchParams(searchParams);
+    if (!value || value === 'all') next.delete(key);
+    else next.set(key, value);
+    setSearchParams(next, { replace: true });
+  }
+
+  const scoped = enrollments.filter((row) => workflowId === 'all' || row.sequenceId === workflowId);
+  const counts = enrollmentCounts(scoped);
+  const search = query.trim().toLocaleLowerCase();
+  const visible = scoped.filter((row) => {
+    if (group !== 'all' && enrollmentGroup(row) !== group) return false;
+    if (!search) return true;
+    return row.contactEmail.toLocaleLowerCase().includes(search)
+      || contactDisplayName(row.contactFields, row.contactEmail).toLocaleLowerCase().includes(search);
+  }).sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt));
+  const people = new Set(scoped.map((row) => row.contactId)).size;
+  const samples = scoped.some((row) => row.input.demo === true);
+
+  if (!workspaceId) return <PageFrame><Alert><AlertDescription>No workspace available for this account.</AlertDescription></Alert></PageFrame>;
+  if (loading) return <PageFrame><p className="font-mono text-sm text-muted-foreground">Loading enrollments…</p></PageFrame>;
+  if (error) return <PageFrame><Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert></PageFrame>;
+
+  return (
+    <PageFrame>
+      <div className="flex flex-col gap-7">
+        <div>
+          <p className="font-mono text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">People in journeys</p>
+          <h1 className="mt-2 text-4xl font-bold tracking-[-0.055em]">Enrollments</h1>
+          <p className="mt-2 text-sm text-muted-foreground">See who is in progress and how each journey ended. A person can have more than one enrollment.</p>
+        </div>
+
+        <section aria-label="Enrollment overview" className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          {[
+            { label: 'Enrollments', value: counts.total },
+            { label: 'In progress', value: counts.inProgress },
+            { label: 'Needs attention', value: counts.needsAttention },
+            { label: 'Exited', value: counts.exited },
+          ].map((metric) => (
+            <Card key={metric.label} className="rachet-panel"><CardHeader><CardDescription>{metric.label}</CardDescription><CardTitle className="text-3xl font-bold tabular-nums">{metric.value}</CardTitle></CardHeader></Card>
+          ))}
+        </section>
+
+        <section className="flex flex-col gap-4" aria-label="Enrollment list">
+          <div className="flex flex-wrap items-end justify-between gap-2">
+            <div>
+              <h2 className="text-xl font-semibold tracking-tight">People</h2>
+              <p className="text-sm text-muted-foreground">{people} {people === 1 ? 'contact' : 'contacts'} across {counts.total} {counts.total === 1 ? 'enrollment' : 'enrollments'}.</p>
+            </div>
+            <span className="font-mono text-xs text-muted-foreground">Showing {visible.length}</span>
+          </div>
+          {samples && <p className="text-xs text-muted-foreground">Counts include sample enrollments. Samples do not run or send email.</p>}
+          <div className="grid gap-3 sm:grid-cols-[minmax(12rem,1fr)_minmax(12rem,1fr)_minmax(12rem,1fr)]">
+            <Input aria-label="Search contacts" placeholder="Search name or email" value={query} onChange={(event) => setFilter('q', event.target.value)} />
+            <select aria-label="Filter by workflow" className="h-8 rounded-lg border border-input bg-background px-2.5 text-sm" value={workflowId} onChange={(event) => setFilter('workflow', event.target.value)}>
+              <option value="all">All workflows</option>
+              {workflows.map((workflow) => <option key={workflow.id} value={workflow.id}>{workflow.name}</option>)}
+            </select>
+            <select aria-label="Filter by status" className="h-8 rounded-lg border border-input bg-background px-2.5 text-sm" value={group} onChange={(event) => setFilter('status', event.target.value)}>
+              <option value="all">All statuses</option>
+              <option value="in_progress">In progress</option>
+              <option value="needs_attention">Needs attention</option>
+              <option value="exited">Exited</option>
+            </select>
+          </div>
+          {visible.length === 0 ? (
+            <div className="rounded-lg border border-dashed px-4 py-10 text-center text-sm text-muted-foreground">{counts.total === 0 ? 'No enrollments yet.' : 'No enrollments match these filters.'}</div>
+          ) : (
+            <div className="rounded-xl border">
+              <Table className="min-w-[850px]">
+                <TableHeader><TableRow>
+                  <TableHead>Contact</TableHead><TableHead>Workflow</TableHead><TableHead>Status</TableHead><TableHead>Step or exit reason</TableHead><TableHead>Enrolled</TableHead><TableHead>Last change</TableHead>
+                </TableRow></TableHeader>
+                <TableBody>{visible.map((row) => {
+                  const name = contactDisplayName(row.contactFields, row.contactEmail);
+                  const result = enrollmentExitReason(row);
+                  return <TableRow key={row.id}>
+                    <TableCell><Link className="font-medium text-foreground underline-offset-2 hover:underline" to={`/enrollments/${row.id}`}>{name}</Link><div className="text-xs text-muted-foreground">{row.contactEmail}{row.input.demo === true && ' · Sample'}</div></TableCell>
+                    <TableCell><Link className="hover:underline" to={`/workflows/${row.sequenceId}`}>{row.workflowName}</Link><div className="text-xs text-muted-foreground">Version {row.workflowVersion}</div></TableCell>
+                    <TableCell><StatusBadge value={row.state} /></TableCell>
+                    <TableCell className="max-w-[18rem] truncate" title={result ?? row.currentStepId ?? undefined}>{result ?? (row.currentStepId ? humanizeId(row.currentStepId) : 'Starting')}</TableCell>
+                    <TableCell className="text-muted-foreground">{formatWhen(row.createdAt)}</TableCell>
+                    <TableCell className="text-muted-foreground">{formatWhen(row.updatedAt)}</TableCell>
+                  </TableRow>;
+                })}</TableBody>
+              </Table>
+            </div>
+          )}
+        </section>
       </div>
     </PageFrame>
   );
@@ -209,14 +328,17 @@ export function WorkflowDetailPage() {
     setPreview({ kind: 'loading', title });
     try {
       const rendered = await renderWithSamples((props) =>
-        api.renderTemplate(workspaceId, templateVersionId, props),
+        api.renderTemplate(workspaceId, templateVersionId, props, definition?.purpose === 'marketing'),
       );
       setPreview({
         kind: 'ready',
         title,
         subject: rendered.subject,
         html: rendered.html,
-        note: 'Template preview with sample data. Enrollments render with real contact data.',
+        note: definition?.purpose === 'marketing'
+          ? 'Sample data. The unsubscribe footer appears after the workspace email policy is set. Preview links cannot change a preference.'
+          : 'Template preview with sample data. Enrollments render with real contact data.',
+        ...(definition?.purpose === 'marketing' ? { settingsHref: '/settings/integrations/resend' } : {}),
       });
     } catch (err) {
       setPreview({
@@ -263,6 +385,7 @@ export function WorkflowDetailPage() {
               <StatusBadge value={workflow.state} />
             </div>
             <p className="text-sm text-muted-foreground">{workflow.definition.description}</p>
+            <CopyWorkflowId id={workflow.id} />
           </div>
         </div>
 
@@ -307,9 +430,7 @@ export function WorkflowDetailPage() {
         <section className="flex flex-col gap-3">
           <div className="flex items-baseline justify-between gap-3">
             <h2 className="text-base font-semibold tracking-tight">Currently enrolled</h2>
-            <span className="font-mono text-sm text-muted-foreground tabular-nums">
-              {active.length} active
-            </span>
+            <div className="flex items-center gap-3"><span className="font-mono text-sm text-muted-foreground tabular-nums">{active.length} active</span><Link className="text-sm font-medium underline-offset-2 hover:underline" to={`/enrollments?workflow=${workflow.id}`}>View all</Link></div>
           </div>
           <EnrollmentList
             empty={stepFilter ? 'Nobody is at this step right now.' : 'No active enrollments.'}
@@ -335,6 +456,21 @@ export function EnrollmentDetailPage() {
   const [busy, setBusy] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [preview, setPreview] = useState<EmailPreview | null>(null);
+  const [subscriptionEvents, setSubscriptionEvents] = useState<SubscriptionEvent[] | null>(null);
+  const [subscriptionError, setSubscriptionError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!workspaceId) return;
+    let cancelled = false;
+    setSubscriptionEvents(null);
+    setSubscriptionError(null);
+    void api.subscriptionEvents(workspaceId).then((events) => {
+      if (!cancelled) setSubscriptionEvents(events);
+    }).catch(() => {
+      if (!cancelled) setSubscriptionError('Could not load marketing preference history.');
+    });
+    return () => { cancelled = true; };
+  }, [workspaceId]);
 
   const enrollmentMessages = useMemo(
     () => messages.filter((message) => message.enrollmentId === enrollmentId),
@@ -352,14 +488,15 @@ export function EnrollmentDetailPage() {
   }, [enrollment, enrollmentMessages]);
 
   const path = useMemo(
-    () => (enrollment ? computeEnrollmentPath(enrollment.definition, enrollment) : undefined),
-    [enrollment],
+    () => (enrollment ? computeEnrollmentPath(enrollment.definition, enrollment, new Set(enrollmentMessages.map((message) => message.stepId))) : undefined),
+    [enrollment, enrollmentMessages],
   );
 
   const nextItem = trace.find((item) => item.status === 'future');
   const name = enrollment
     ? contactDisplayName(enrollment.contactFields, enrollment.contactEmail)
     : '';
+  const addressEvents = subscriptionEvents?.filter((event) => event.emailKey === enrollment?.contactEmail.trim().toLowerCase());
 
   async function openEmailPreview(nodeId: string) {
     if (!enrollment || !workspaceId) return;
@@ -387,7 +524,7 @@ export function EnrollmentDetailPage() {
     setPreview({ kind: 'loading', title });
     try {
       const rendered = await renderWithSamples(
-        (props) => api.renderTemplate(workspaceId, templateVersionId, props),
+        (props) => api.renderTemplate(workspaceId, templateVersionId, props, enrollment.definition.purpose === 'marketing'),
         {
           contact: { email: enrollment.contactEmail, ...enrollment.contactFields },
           variables: enrollment.input,
@@ -400,6 +537,7 @@ export function EnrollmentDetailPage() {
         html: rendered.html,
         recipient: enrollment.contactEmail,
         note: 'Not sent yet. Preview rendered with this contact\u2019s data.',
+        ...(enrollment.definition.purpose === 'marketing' ? { settingsHref: '/settings/integrations/resend' } : {}),
       });
     } catch (err) {
       setPreview({
@@ -511,6 +649,7 @@ export function EnrollmentDetailPage() {
               {enrollment.workflowName} · enrolled {formatWhen(enrollment.createdAt)}
               {name !== enrollment.contactEmail.split('@')[0] ? ` · ${name}` : ''}
             </p>
+            <CopyWorkflowId id={enrollment.sequenceId} />
           </div>
         </div>
 
@@ -554,6 +693,25 @@ export function EnrollmentDetailPage() {
               </div>
               <ExecutionTimeline items={trace} />
             </section>
+
+            <section className="flex flex-col gap-3">
+              <h2 className="text-base font-semibold tracking-tight">Marketing preferences</h2>
+              <p className="text-sm text-muted-foreground">Changes for this email address across this workspace.</p>
+              {subscriptionError && <p role="alert" className="text-sm text-destructive">{subscriptionError}</p>}
+              {!subscriptionError && subscriptionEvents === null && <p className="text-sm text-muted-foreground">Loading preference history…</p>}
+              {!subscriptionError && addressEvents?.length === 0 && <p className="text-sm text-muted-foreground">No preference changes recorded.</p>}
+              {addressEvents?.slice().reverse().map((event) => (
+                <div key={event.id} className="rounded-md border p-3 text-sm">
+                  <p className="font-medium">{event.action === 'unsubscribe' ? 'Unsubscribed' : 'Consented'} · {formatWhen(event.createdAt)}</p>
+                  {event.origin ? (
+                    <p className="text-muted-foreground">From “{event.origin.subject}” in {event.origin.workflowName} (step {event.origin.stepId}).</p>
+                  ) : (
+                    <p className="text-muted-foreground">Recorded through {event.source}.</p>
+                  )}
+                  {event.origin && <p className="break-all font-mono text-xs text-muted-foreground">Send {event.origin.intentId}</p>}
+                </div>
+              ))}
+            </section>
           </div>
 
           <aside className="flex flex-col gap-6 lg:pt-[3.75rem]">
@@ -561,13 +719,14 @@ export function EnrollmentDetailPage() {
               title="Enrollment"
               rows={[
                 { label: 'Status', value: <StatusBadge value={enrollment.state} /> },
+                ...(enrollmentExitReason(enrollment) ? [{ label: 'Exit reason', value: enrollmentExitReason(enrollment) }] : []),
                 {
                   label: 'Current step',
                   value: <span className="font-mono text-xs">{enrollment.currentStepId ?? '—'}</span>,
                 },
                 { label: 'Started', value: formatWhen(enrollment.createdAt) },
                 { label: 'Elapsed', value: formatElapsed(enrollment.createdAt) },
-                { label: 'Emails', value: `${enrollmentMessages.length} sent` },
+                { label: 'Accepted sends', value: enrollmentMessages.filter((message) => message.state === 'accepted').length },
               ]}
             />
             <Separator />

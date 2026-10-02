@@ -3,7 +3,7 @@ import { createAuth } from './auth.js';
 import { createApp, startServer } from './app.js';
 import { loadConfig } from './config.js';
 import { createDatabase } from './db/index.js';
-import { ReflowService } from './domain/service.js';
+import { RachetService } from './domain/service.js';
 import { createOperations } from './operations.js';
 import { createTemporalClient } from './temporal/client.js';
 import { setWelcomeStarter, setWelcomeWorkflowCreated, signalProductWelcome, startProductWelcome } from './welcome.js';
@@ -12,7 +12,7 @@ const config = loadConfig();
 const { db, pool } = createDatabase(config);
 const auth = createAuth(config, pool);
 const temporal = await createTemporalClient(config);
-const service = new ReflowService(db, temporal, auth);
+const service = new RachetService(db, temporal, auth);
 const welcomeWorkspaceId = config.welcomeWorkspaceId;
 if (config.welcomeApiKey && welcomeWorkspaceId) {
   const sdk = new RachetSdk({

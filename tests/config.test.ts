@@ -3,25 +3,27 @@ import { loadConfig } from '../apps/server/src/config.js';
 
 const base = {
   NODE_ENV: 'production',
-  PUBLIC_URL: 'https://reflow.example.com',
-  TRUSTED_ORIGINS: 'https://reflow.example.com',
+  PUBLIC_URL: 'https://rachet.example.com',
+  TRUSTED_ORIGINS: 'https://rachet.example.com',
   BETTER_AUTH_SECRET: '12345678901234567890123456789012',
-  REFLOW_SETUP_SECRET: 'abcdefghijklmnopqrstuvwxyz123456',
+  RACHET_SETUP_SECRET: 'abcdefghijklmnopqrstuvwxyz123456',
   INTEGRATION_ENCRYPTION_KEY: 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=',
+  UNSUBSCRIBE_SIGNING_KEYS: 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=',
+  UNSUBSCRIBE_SUPPORT_EMAIL: 'support@example.com',
 };
 
 describe('production configuration', () => {
   it('rejects an insecure public URL', () => {
-    expect(() => loadConfig({ ...base, PUBLIC_URL: 'http://reflow.example.com' })).toThrow(/PUBLIC_URL/);
+    expect(() => loadConfig({ ...base, PUBLIC_URL: 'http://rachet.example.com' })).toThrow(/PUBLIC_URL/);
   });
 
   it('rejects insecure trusted origins', () => {
-    expect(() => loadConfig({ ...base, TRUSTED_ORIGINS: 'http://reflow.example.com' })).toThrow(/TRUSTED_ORIGINS/);
+    expect(() => loadConfig({ ...base, TRUSTED_ORIGINS: 'http://rachet.example.com' })).toThrow(/TRUSTED_ORIGINS/);
   });
 
   it('accepts HTTPS origins and a strong secret', () => {
     const config = loadConfig(base);
-    expect(config.publicUrl).toBe('https://reflow.example.com');
+    expect(config.publicUrl).toBe('https://rachet.example.com');
     expect(config.dashboardDir).toBe('apps/dashboard/dist');
     expect(config.oauthPublicRedirectSchemes).toEqual(['cursor:']);
   });
@@ -37,12 +39,27 @@ describe('production configuration', () => {
   });
 
   it('requires a strong setup secret', () => {
-    expect(() => loadConfig({ ...base, REFLOW_SETUP_SECRET: 'short' })).toThrow(/REFLOW_SETUP_SECRET/);
+    expect(() => loadConfig({ ...base, RACHET_SETUP_SECRET: 'short' })).toThrow(/RACHET_SETUP_SECRET/);
+  });
+
+  it('accepts existing deployment variables while preferring Rachet variables', () => {
+    const { RACHET_SETUP_SECRET: setupSecret, ...withoutNewSecret } = base;
+    expect(loadConfig({ ...withoutNewSecret, REFLOW_SETUP_SECRET: setupSecret }).setupSecret).toBe(setupSecret);
+    expect(loadConfig({ ...withoutNewSecret, REFLOW_SETUP_SECRET: 'short', RACHET_SETUP_SECRET: setupSecret }).setupSecret).toBe(setupSecret);
   });
 
   it('requires a 32-byte integration encryption key in production', () => {
     expect(() => loadConfig({ ...base, INTEGRATION_ENCRYPTION_KEY: '' })).toThrow(/INTEGRATION_ENCRYPTION_KEY/);
     expect(() => loadConfig({ ...base, INTEGRATION_ENCRYPTION_KEY: 'short' })).toThrow(/INTEGRATION_ENCRYPTION_KEY/);
+  });
+
+  it('requires a durable unsubscribe signing key in production', () => {
+    expect(() => loadConfig({ ...base, UNSUBSCRIBE_SIGNING_KEYS: '' })).toThrow(/UNSUBSCRIBE_SIGNING_KEYS/);
+    expect(() => loadConfig({ ...base, UNSUBSCRIBE_SIGNING_KEYS: 'short' })).toThrow(/UNSUBSCRIBE_SIGNING_KEYS/);
+  });
+
+  it('requires a support address for invalid unsubscribe links', () => {
+    expect(() => loadConfig({ ...base, UNSUBSCRIBE_SUPPORT_EMAIL: '' })).toThrow(/UNSUBSCRIBE_SUPPORT_EMAIL/);
   });
 
   it('requires both GitHub credentials', () => {
@@ -62,8 +79,8 @@ describe('production configuration', () => {
     expect(loadConfig({
       ...base,
       AUTH_RESEND_API_KEY: 're_auth_test',
-      AUTH_EMAIL_FROM: 'Reflow <login@auth.example.com>',
-    }).authFrom).toBe('Reflow <login@auth.example.com>');
+      AUTH_EMAIL_FROM: 'Rachet <login@auth.example.com>',
+    }).authFrom).toBe('Rachet <login@auth.example.com>');
   });
 
   it('rejects a malformed authentication sender', () => {

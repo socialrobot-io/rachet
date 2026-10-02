@@ -4,11 +4,12 @@ import {
   eventEmitSchema, eventTypeDefineSchema, workflowCreateSchema, workflowDeleteSchema, workflowPublishSchema, workflowReviseSchema, workflowSimulateSchema, workflowDefinitionSchema, templateCreateSchema,
   templateArchiveSchema, templatePublishSchema, templateReviseSchema, templateRenderSchema, workspaceIdSchema,
   enrollmentDeleteSchema,
+  emailPolicyUpdateSchema, contactPreferenceGetSchema, contactUnsubscribeSchema, contactResubscribeSchema,
   type OperationContext,
-} from '@reflow/contracts';
-import type { ReflowService } from './domain/service.js';
+} from '@rachet/contracts';
+import type { RachetService } from './domain/service.js';
 import { actionCatalog } from './domain/action-catalog.js';
-import { ReflowError } from './domain/errors.js';
+import { RachetError } from './domain/errors.js';
 
 type AnySchema = z.ZodType<Record<string, unknown>>;
 export type Operation = {
@@ -22,12 +23,14 @@ export type Operation = {
 
 export function authorizeOperation(operation: Operation, context: OperationContext): void {
   const required = operation.requiredScope ?? (operation.readOnly ? 'rachet:read' : 'rachet:write');
-  if (!context.principal.scopes.includes(required)) throw new ReflowError('FORBIDDEN', `Missing required scope: ${required}`, 403);
+  if (!context.principal.scopes.includes(required) && !context.principal.scopes.includes(required.replace('rachet:', 'reflow:'))) {
+    throw new RachetError('FORBIDDEN', `Missing required scope: ${required}`, 403);
+  }
 }
 
 const workspaceOnly = z.object({ workspaceId: workspaceIdSchema });
 
-export function createOperations(service: ReflowService): Record<string, Operation> {
+export function createOperations(service: RachetService): Record<string, Operation> {
   return {
     'system.capabilities': {
       description: 'Describe the implemented Rachet operations and runtime capabilities.', input: z.object({}), readOnly: true,
@@ -41,7 +44,7 @@ export function createOperations(service: ReflowService): Record<string, Operati
         operations: Object.keys(createOperations(service)).filter((name) => name !== 'credential.create'),
         agentCookbook: {
           beforeAuthoring: [
-            'Follow skill://reflow/SKILL.md. Use MCP. Do not use the CLI or write template files.',
+            'Follow skill://rachet/SKILL.md. Use MCP. Do not use the CLI or write template files.',
             'Call auth.whoami, then template.list and workflow.list. Reuse a live template. Skip archived templates.',
             'Include only emails, waits, and branches the user named. Do not add contact.update unless they asked to store a contact field. contact.update merges contact fields. It does not change the email.',
             'Do not insert an extra wait. timeoutSeconds is elapsed seconds. Two days is 172800.',
@@ -146,6 +149,30 @@ export function createOperations(service: ReflowService): Record<string, Operati
     'contact.list': {
       description: 'List contacts in a workspace.', input: workspaceOnly, readOnly: true,
       invoke: (context, input) => service.contactList(context, workspaceIdSchema.parse(input.workspaceId)),
+    },
+    'email_policy.get': {
+      description: 'Read recipient-facing sender name and support contact for marketing email.', input: workspaceOnly, readOnly: true,
+      invoke: (context, input) => service.emailPolicyGet(context, workspaceIdSchema.parse(input.workspaceId)),
+    },
+    'email_policy.update': {
+      description: 'For organization owners and admins, set the marketing sender address, recipient-facing sender name, and support email.', input: emailPolicyUpdateSchema, readOnly: false,
+      invoke: (context, input) => service.emailPolicyUpdate(context, emailPolicyUpdateSchema.parse(input)),
+    },
+    'contact.preferences.get': {
+      description: 'Read marketing and delivery eligibility for an address in this workspace.', input: contactPreferenceGetSchema, readOnly: true,
+      invoke: (context, input) => service.contactPreferencesGet(context, contactPreferenceGetSchema.parse(input)),
+    },
+    'contact.unsubscribe': {
+      description: 'Record an all-marketing opt-out from a support or product request. Keep eventId stable across retries.', input: contactUnsubscribeSchema, readOnly: false,
+      invoke: (context, input) => service.contactUnsubscribe(context, contactUnsubscribeSchema.parse(input)),
+    },
+    'contact.resubscribe': {
+      description: 'Record new recipient consent for all workspace marketing, with a consent reference. Does not clear delivery blocks or revive old enrollments.', input: contactResubscribeSchema, readOnly: false,
+      invoke: (context, input) => service.contactResubscribe(context, contactResubscribeSchema.parse(input)),
+    },
+    'subscription_event.list': {
+      description: 'List audited marketing preference changes, including the originating email and workflow for link opt-outs.', input: workspaceOnly, readOnly: true,
+      invoke: (context, input) => service.subscriptionEventList(context, workspaceIdSchema.parse(input.workspaceId)),
     },
     'enrollment.create': {
       description: 'Durably enroll a contact into a published workflow. This can perform side effects.', input: enrollmentCreateSchema, readOnly: false,

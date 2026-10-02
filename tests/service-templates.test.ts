@@ -1,15 +1,15 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { Client } from '@temporalio/client';
 import { eq } from 'drizzle-orm';
-import type { ReflowAuth } from '../apps/server/src/auth.js';
+import type { RachetAuth } from '../apps/server/src/auth.js';
 import { loadConfig } from '../apps/server/src/config.js';
 import { createDatabase, type Database } from '../apps/server/src/db/index.js';
 import { workspaces } from '../apps/server/src/db/schema.js';
 import type { OperationContext, WorkflowDefinition } from '../packages/contracts/src/index.js';
-import { ReflowService } from '../apps/server/src/domain/service.js';
+import { RachetService } from '../apps/server/src/domain/service.js';
 
 type Runtime = {
-  service: ReflowService;
+  service: RachetService;
   db: Database;
   close: () => Promise<void>;
 };
@@ -20,9 +20,9 @@ async function probeDatabase(): Promise<Runtime | null> {
     const database = createDatabase(config);
     await database.pool.query('select 1');
     const temporal = { workflow: { getHandle: () => ({ signal: async () => undefined }) } } as unknown as Client;
-    const auth = {} as ReflowAuth;
+    const auth = {} as RachetAuth;
     return {
-      service: new ReflowService(database.db, temporal, auth),
+      service: new RachetService(database.db, temporal, auth),
       db: database.db,
       close: async () => { await database.pool.end(); },
     };
@@ -33,7 +33,7 @@ async function probeDatabase(): Promise<Runtime | null> {
 
 const runtime = await probeDatabase();
 
-describe.skipIf(!runtime)('ReflowService template + workflow validation (postgres)', () => {
+describe.skipIf(!runtime)('RachetService template + workflow validation (postgres)', () => {
   // Runtime is non-null when the suite is not skipped.
   const boot = runtime as Runtime;
   let workspaceId = '';
@@ -93,6 +93,14 @@ describe.skipIf(!runtime)('ReflowService template + workflow validation (postgre
     expect(rendered.subject).toBe('Hi Ada');
     expect(rendered.html).toContain('Hello Ada');
     expect(rendered.plainText).toContain('Hello Ada');
+
+    const marketingPreview = await boot.service.templateRender(context, {
+      workspaceId,
+      templateVersionId,
+      props: { contact: { firstName: 'Ada' } },
+      marketingPreview: true,
+    });
+    expect(marketingPreview).toEqual(rendered);
   });
 
   it('does not republish an archived template', async () => {

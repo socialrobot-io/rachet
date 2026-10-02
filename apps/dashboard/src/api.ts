@@ -1,4 +1,4 @@
-import type { AccountSummary, ApiCredential, CreatedApiCredential, Enrollment, Message, OAuthClient, OAuthConsent, RenderedEmail, ResendConnectionStatus, SessionUser, SetupStatus, Workflow, Workspace } from './types';
+import type { AccountSummary, ApiCredential, CreatedApiCredential, EmailPolicy, Enrollment, Message, OAuthClient, OAuthConsent, RenderedEmail, ResendConnectionStatus, SessionUser, SetupStatus, SubscriptionEvent, Workflow, Workspace } from './types';
 import { authClient } from './auth-client';
 
 export class ApiError extends Error {
@@ -190,8 +190,8 @@ async function integrationRequest<T>(path: string, init?: RequestInit): Promise<
 
 export const api = {
   resendConnection: (workspaceId: string) => integrationRequest<ResendConnectionStatus>(`resend?workspaceId=${encodeURIComponent(workspaceId)}`),
-  saveResendConnection: (input: { workspaceId: string; from: string; apiKey: string; webhookSecret: string }) =>
-    integrationRequest<{ configured: true }>('resend', jsonPost(input)),
+  saveResendConnection: (input: { workspaceId: string; from: string; apiKey?: string; webhookSecret?: string; senderName?: string; supportEmail?: string; marketingFromAddress?: string }) =>
+    integrationRequest<{ configured: true; connectionChanged: boolean; marketingConfigured: boolean }>('resend', jsonPost(input)),
   skipResendOnboarding: (workspaceId: string) =>
     integrationRequest<{ onboardingComplete: true }>('resend/skip', jsonPost({ workspaceId })),
   testResendConnection: (workspaceId: string) =>
@@ -200,16 +200,20 @@ export const api = {
   accounts: () => callOperation<AccountSummary[]>('account.list'),
   workspaces: () => callOperation<Workspace[]>('workspace.list'),
   workflows: (workspaceId: string) => callOperation<Workflow[]>('workflow.list', { workspaceId }),
+  emailPolicy: (workspaceId: string) => callOperation<EmailPolicy | null>('email_policy.get', { workspaceId }),
+  updateEmailPolicy: (workspaceId: string, senderName: string, supportEmail: string, marketingFromAddress: string) =>
+    callOperation<EmailPolicy>('email_policy.update', { workspaceId, senderName, supportEmail, marketingFromAddress }),
   enrollments: (workspaceId: string) => callOperation<Enrollment[]>('enrollment.list', { workspaceId }),
   messages: (workspaceId: string) => callOperation<Message[]>('message.list', { workspaceId }),
+  subscriptionEvents: (workspaceId: string) => callOperation<SubscriptionEvent[]>('subscription_event.list', { workspaceId }),
   pause: (workspaceId: string, enrollmentId: string) =>
     callOperation('enrollment.pause', { workspaceId, enrollmentId }),
   resume: (workspaceId: string, enrollmentId: string) =>
     callOperation('enrollment.resume', { workspaceId, enrollmentId }),
   cancel: (workspaceId: string, enrollmentId: string) =>
     callOperation('enrollment.cancel', { workspaceId, enrollmentId }),
-  renderTemplate: (workspaceId: string, templateVersionId: string, props: Record<string, unknown>) =>
-    callOperation<RenderedEmail>('template.render', { workspaceId, templateVersionId, props }),
+  renderTemplate: (workspaceId: string, templateVersionId: string, props: Record<string, unknown>, marketingPreview = false) =>
+    callOperation<RenderedEmail>('template.render', { workspaceId, templateVersionId, props, marketingPreview }),
   credentials: (workspaceId: string) => callOperation<ApiCredential[]>('credential.list', { workspaceId }),
   createCredential: (workspaceId: string, name: string, scopes: string[], expiresInSeconds: number) =>
     callOperation<CreatedApiCredential>('credential.create', { workspaceId, name, scopes, expiresInSeconds }),

@@ -11,7 +11,7 @@ describe('CLI errors before login', () => {
   let directory = '';
   let environment: NodeJS.ProcessEnv;
   beforeAll(async () => {
-    directory = await mkdtemp(join(tmpdir(), 'reflow-errors-'));
+    directory = await mkdtemp(join(tmpdir(), 'rachet-errors-'));
     environment = { ...process.env, REFLOW_CONFIG_PATH: join(directory, 'missing.json'), REFLOW_URL: 'http://127.0.0.1:1' };
     // Nx sets FORCE_COLOR for task output; do not leak it into the child CLI's
     // exact stderr contract, especially when the host also sets NO_COLOR.
@@ -32,7 +32,7 @@ describe('CLI errors before login', () => {
   }
 
   it.each([
-    ['plain Reflow', []],
+    ['plain Rachet', []],
     ['generic operation', ['call', 'workflow.list']],
     ['workflow view', ['workflow', 'show', '--name', 'Onboarding']],
   ])('%s gives one actionable error without contacting the server', async (_name, arguments_) => {

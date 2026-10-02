@@ -3,7 +3,7 @@ import { eq } from 'drizzle-orm';
 import { sql } from 'drizzle-orm';
 import { auditEvents, contacts, enrollmentEvents, enrollments, memberships, outbox, sendIntents, sequenceVersions, sequences, workspaces } from '../apps/server/src/db/schema.js';
 import type { WorkflowDefinition } from '../packages/contracts/src/index.js';
-import { ReflowError } from '../apps/server/src/domain/errors.js';
+import { RachetError } from '../apps/server/src/domain/errors.js';
 import { adminContext, probeDbRuntime, roleContext, type DbRuntime } from './helpers/db-runtime.js';
 
 const runtime = await probeDbRuntime();
@@ -100,6 +100,23 @@ describe.skipIf(!runtime)('service invariants (postgres)', () => {
     }, 'pause')).rejects.toMatchObject({ code: 'FORBIDDEN' });
   });
 
+  it('reflects enrollment controls in the database immediately', async () => {
+    const suffix = crypto.randomUUID();
+    const email = `control-${suffix}@example.com`;
+    const [contact] = await boot.db.insert(contacts).values({ workspaceId, email, emailKey: email }).returning();
+    const [sequence] = await boot.db.insert(sequences).values({ workspaceId, name: `control-${suffix}`, definition: {} }).returning();
+    if (!contact || !sequence) throw new Error('control fixture failed');
+    const [version] = await boot.db.insert(sequenceVersions).values({ workspaceId, sequenceId: sequence.id, version: 1, contentHash: suffix, definition: {} }).returning();
+    if (!version) throw new Error('control version fixture failed');
+    const [enrollment] = await boot.db.insert(enrollments).values({ workspaceId, contactId: contact.id, sequenceVersionId: version.id, workflowId: `test/${suffix}`, idempotencyKey: suffix, state: 'waiting', currentStepId: 'delay' }).returning();
+    if (!enrollment) throw new Error('control enrollment fixture failed');
+    for (const [action, expected] of [['pause', 'paused'], ['resume', 'running'], ['cancel', 'cancelled']] as const) {
+      await boot.service.enrollmentControl(admin, { workspaceId, enrollmentId: enrollment.id }, action);
+      const [updated] = await boot.db.select().from(enrollments).where(eq(enrollments.id, enrollment.id));
+      expect(updated?.state).toBe(expected);
+    }
+  });
+
   it('denies cross-organization reads and writes before accessing tenant rows', async () => {
     const [foreignWorkspace] = await boot.db.insert(workspaces).values({
       name: 'Foreign access test', slug: `access-${crypto.randomUUID().slice(0, 8)}`,
@@ -119,6 +136,22 @@ describe.skipIf(!runtime)('service invariants (postgres)', () => {
     } finally {
       await boot.db.delete(workspaces).where(eq(workspaces.id, foreignWorkspace.id));
     }
+  });
+
+  it('lets only workspace owners and admins change unsubscribe settings', async () => {
+    const input = { workspaceId, senderName: 'Example', supportEmail: 'help@example.com', marketingFromAddress: 'news@example.com' };
+    await expect(boot.service.emailPolicyUpdate(roleContext(workspaceId, 'author'), input))
+      .rejects.toMatchObject({ code: 'FORBIDDEN' });
+    await expect(boot.service.emailPolicyUpdate(roleContext(workspaceId, 'viewer'), input))
+      .rejects.toMatchObject({ code: 'FORBIDDEN' });
+    await expect(boot.service.emailPolicyUpdate(roleContext(crypto.randomUUID(), 'owner'), input))
+      .rejects.toMatchObject({ code: 'FORBIDDEN' });
+    await expect(boot.service.emailPolicyUpdate(roleContext(workspaceId, 'owner'), input))
+      .resolves.toMatchObject({ senderName: 'Example' });
+    await expect(boot.service.emailPolicyUpdate(roleContext(workspaceId, 'admin'), { ...input, senderName: 'Example Team' }))
+      .resolves.toMatchObject({ senderName: 'Example Team' });
+    await expect(boot.service.emailPolicyGet(roleContext(workspaceId, 'viewer'), workspaceId))
+      .resolves.toMatchObject({ senderName: 'Example Team' });
   });
 
   it('upserts contacts by emailKey and preserves identity across case', async () => {
@@ -399,7 +432,7 @@ describe.skipIf(!runtime)('service invariants (postgres)', () => {
     });
 
     await expect(boot.service.templateArchive(admin, { workspaceId, templateId: created.id }))
-      .rejects.toBeInstanceOf(ReflowError);
+      .rejects.toBeInstanceOf(RachetError);
 
     // Replace draft pin with a different published template, publish a new version, then archive becomes possible
     // only if no published version still pins it. Published v1 still pins, so archive must remain blocked.

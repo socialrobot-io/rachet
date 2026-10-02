@@ -15,4 +15,4 @@ dev-infra-down:
 	docker compose -f compose.dev.yaml down
 
 install-skill:
-	python3 scripts/install_reflow_skill.py
+	python3 scripts/install_rachet_skill.py

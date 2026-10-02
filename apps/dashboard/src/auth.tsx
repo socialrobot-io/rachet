@@ -24,7 +24,19 @@ type AuthState = {
 };
 
 const AuthContext = createContext<AuthState | null>(null);
-const WORKSPACE_KEY = 'reflow.workspaceId';
+const WORKSPACE_KEY = 'rachet.workspaceId';
+const LEGACY_WORKSPACE_KEY = 'reflow.workspaceId';
+
+function savedWorkspaceId(): string | null {
+  const current = localStorage.getItem(WORKSPACE_KEY);
+  if (current) return current;
+  const legacy = localStorage.getItem(LEGACY_WORKSPACE_KEY);
+  if (legacy) {
+    localStorage.setItem(WORKSPACE_KEY, legacy);
+    localStorage.removeItem(LEGACY_WORKSPACE_KEY);
+  }
+  return legacy;
+}
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<SessionUser | null>(null);
@@ -32,7 +44,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [deploymentAdmin, setDeploymentAdmin] = useState(false);
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
   const [workspaceId, setWorkspaceIdState] = useState<string | null>(
-    () => localStorage.getItem(WORKSPACE_KEY),
+    savedWorkspaceId,
   );
 
   const setWorkspaceId = (id: string) => {
@@ -53,7 +65,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setDeploymentAdmin(principal.deploymentAdmin);
     const rows = await api.workspaces();
     setWorkspaces(rows);
-    const preferred = localStorage.getItem(WORKSPACE_KEY);
+    const preferred = savedWorkspaceId();
     const next = rows.find((row) => row.id === preferred)?.id ?? rows[0]?.id ?? null;
     if (next) setWorkspaceId(next);
     else setWorkspaceIdState(null);
@@ -78,6 +90,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setWorkspaces([]);
         setWorkspaceIdState(null);
         localStorage.removeItem(WORKSPACE_KEY);
+        localStorage.removeItem(LEGACY_WORKSPACE_KEY);
         if (result.redirect && result.url) window.location.assign(result.url);
       },
       refresh,
@@ -114,6 +127,7 @@ export function AppShell() {
             <Link to="/" aria-label="Rachet home"><RachetLogo className="h-7 w-auto" /></Link>
             <nav aria-label="Primary navigation" className="hidden items-center gap-1 md:flex">
               <Link to="/" className="rounded-full px-3 py-1.5 text-sm font-medium hover:bg-accent">Workflows</Link>
+              <Link to="/enrollments" className="rounded-full px-3 py-1.5 text-sm font-medium hover:bg-accent">Enrollments</Link>
               <Link to="/settings/integrations" className="rounded-full px-3 py-1.5 text-sm font-medium hover:bg-accent">Integrations</Link>
               <Link to="/settings/connected-apps" className="rounded-full px-3 py-1.5 text-sm font-medium hover:bg-accent">Connected apps</Link>
               <Link to="/settings/api-keys" className="rounded-full px-3 py-1.5 text-sm font-medium hover:bg-accent">API keys</Link>
@@ -145,6 +159,7 @@ export function AppShell() {
           </div>
           <nav aria-label="Mobile navigation" className="flex w-full items-center gap-1 overflow-x-auto pb-1 md:hidden">
             <Link to="/" className="shrink-0 rounded-full px-3 py-1.5 text-sm font-medium hover:bg-accent">Workflows</Link>
+            <Link to="/enrollments" className="shrink-0 rounded-full px-3 py-1.5 text-sm font-medium hover:bg-accent">Enrollments</Link>
             <Link to="/settings/integrations" className="shrink-0 rounded-full px-3 py-1.5 text-sm font-medium hover:bg-accent">Integrations</Link>
             <Link to="/settings/connected-apps" className="shrink-0 rounded-full px-3 py-1.5 text-sm font-medium hover:bg-accent">Apps</Link>
             <Link to="/settings/api-keys" className="shrink-0 rounded-full px-3 py-1.5 text-sm font-medium hover:bg-accent">API keys</Link>

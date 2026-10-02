@@ -2,7 +2,7 @@ import { createHmac } from 'node:crypto';
 import { sql } from 'drizzle-orm';
 import type { Config } from '../config.js';
 import type { Database } from '../db/index.js';
-import { ReflowError } from '../domain/errors.js';
+import { RachetError } from '../domain/errors.js';
 
 /** Atomic, deployment-wide limit shared by API replicas. Subjects are HMACed
  * so email addresses and other identifiers are not stored in bucket keys. */
@@ -22,6 +22,6 @@ export async function consumeRateLimit(
   const bucket = result.rows[0];
   if (bucket && bucket.count > maximum) {
     const retryAfterSeconds = Math.max(1, Math.ceil((new Date(bucket.reset_at).getTime() - Date.now()) / 1000));
-    throw new ReflowError('RATE_LIMITED', 'Too many requests; try again later', 429, true, { details: { retryAfterSeconds } });
+    throw new RachetError('RATE_LIMITED', 'Too many requests; try again later', 429, true, { details: { retryAfterSeconds } });
   }
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildExecutionTrace, contactUpdateSummary } from './flow';
+import { buildExecutionTrace, computeEnrollmentPath, contactUpdateSummary } from './flow';
 import type { Enrollment, WorkflowDefinition } from './types';
 
 const definition: WorkflowDefinition = {
@@ -64,6 +64,34 @@ describe('contactUpdateSummary', () => {
   it('returns nothing when the step has no fields', () => {
     expect(contactUpdateSummary({})).toBeUndefined();
     expect(contactUpdateSummary({ fields: { literal: {} } })).toBeUndefined();
+  });
+});
+
+describe('enrollment route after a branch rejoins', () => {
+  const localeDefinition: WorkflowDefinition = {
+    schemaVersion: '1', description: 'Locale', trigger: { type: 'manual' }, entryNodeId: 'locale',
+    nodes: [
+      { id: 'locale', type: 'branch', condition: { op: 'eq', left: { path: 'contact.locale' }, right: { literal: 'es' } }, onTrue: 'send_es', onFalse: 'send_en' },
+      { id: 'send_es', type: 'action', action: 'email.send', input: {}, next: 'wait' },
+      { id: 'send_en', type: 'action', action: 'email.send', input: {}, next: 'wait' },
+      { id: 'wait', type: 'delay', durationSeconds: 86_400, next: 'done' },
+      { id: 'done', type: 'end', reason: 'done' },
+    ],
+  };
+
+  it('uses the sent email to identify the EN route', () => {
+    const row = { ...enrollment, definition: localeDefinition, currentStepId: 'wait', contactFields: { locale: 'en' } };
+    const path = computeEnrollmentPath(localeDefinition, row, new Set(['send_en']));
+    expect(path.nodeIds.has('send_en')).toBe(true);
+    expect(path.nodeIds.has('send_es')).toBe(false);
+    const trace = buildExecutionTrace(localeDefinition, row, [{ stepId: 'send_en', state: 'accepted', subject: 'Welcome', createdAt: row.createdAt, acceptedAt: row.createdAt }]);
+    expect(trace.items.find((item) => item.id === 'locale')?.detail).toContain('No');
+  });
+
+  it('does not guess a route when both arms reach the current step', () => {
+    const path = computeEnrollmentPath(localeDefinition, { currentStepId: 'wait' });
+    expect(path.nodeIds.has('send_es')).toBe(false);
+    expect(path.nodeIds.has('send_en')).toBe(false);
   });
 });
 

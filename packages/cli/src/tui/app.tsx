@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Box, Text, useApp, useInput, useStdout } from 'ink';
-import type { ReflowClient } from '../client.js';
+import type { RachetClient } from '../client.js';
 import { workflowDefinitionSchema, type FlowNode, type WorkflowDefinition } from '../../../contracts/src/index.js';
 import { findNode, nodeDetails, nodeRoutes, nodeTitle } from './node-explorer.js';
 import { openWorkflowSvg } from './svg-preview.js';
@@ -109,7 +109,7 @@ function NodeScreen({ workflow, node, history, routeIndex, focused }: {
   </Box>;
 }
 
-export function ReflowTui({ client, workspaceId }: { client: ReflowClient; workspaceId: string }) {
+export function RachetTui({ client, workspaceId }: { client: RachetClient; workspaceId: string }) {
   const { exit } = useApp();
   const width = useTerminalWidth();
   const [workflows, setWorkflows] = useState<Workflow[]>([]);
@@ -195,7 +195,7 @@ export function ReflowTui({ client, workspaceId }: { client: ReflowClient; works
 
   return <Box flexDirection="column" paddingX={1}>
     <Box borderStyle="round" borderColor="cyan" paddingX={1} justifyContent="space-between">
-      <Text bold color="cyan">REFLOW</Text>
+      <Text bold color="cyan">RACHET</Text>
       <Text dimColor>{workspaceId}</Text>
     </Box>
     <Box marginTop={1} gap={1} flexDirection={compact ? 'column' : 'row'}>

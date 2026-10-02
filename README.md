@@ -104,9 +104,9 @@ pnpm install
 pnpm dev
 ```
 
-`pnpm dev` starts PostgreSQL, Temporal, the API, worker, dispatcher, and dashboard. Open the dashboard URL printed by the launcher. For sign-in, configure either `AUTH_RESEND_API_KEY` with `AUTH_EMAIL_FROM`, or `GITHUB_CLIENT_ID` with `GITHUB_CLIENT_SECRET` in `.env.local`. On a fresh database, use the generated `REFLOW_SETUP_SECRET` to create the first administrator. Registration is disabled by default; set `ALLOW_REGISTRATION=true` in `.env.local` and restart to test new accounts.
+`pnpm dev` starts PostgreSQL, Temporal, the API, worker, dispatcher, and dashboard. Open the dashboard URL printed by the launcher. For sign-in, configure either `AUTH_RESEND_API_KEY` with `AUTH_EMAIL_FROM`, or `GITHUB_CLIENT_ID` with `GITHUB_CLIENT_SECRET` in `.env.local`. On a fresh database, use the generated `RACHET_SETUP_SECRET` to create the first administrator. Registration is disabled by default; set `ALLOW_REGISTRATION=true` in `.env.local` and restart to test new accounts.
 
-After signing in, connect workflow delivery in **Integrations → Email → Resend**. To preview sample journeys, run `pnpm demo:seed --list` and then `pnpm demo:seed <workspace-slug>`. See [Local demo journeys](docs/DEMO_JOURNEYS.md) for details. Stop the app with `Ctrl+C` and its Docker services with `pnpm dev:infra:down`.
+After signing in, connect workflow delivery in **Integrations → Email → Resend**. Open **Enrollments** to see people in progress, exits, and the reason a journey ended. To preview sample journeys, run `pnpm demo:seed --list` and then `pnpm demo:seed <workspace-slug>`. See [Local demo journeys](docs/DEMO_JOURNEYS.md) for details. Stop the app with `Ctrl+C` and its Docker services with `pnpm dev:infra:down`.
 
 ## Usage
 
@@ -145,7 +145,7 @@ rachet call event.emit --input '{
 
 Keep `eventId` stable across retries. Production applications call the same `event.emit` operation over HTTP with a scoped machine credential, and MCP clients use `event_emit`. Complete CLI, HTTP, and MCP examples are in [Sending product events](docs/EVENTS.md).
 
-When `REFLOW_API_KEY` and `REFLOW_WORKSPACE_ID` are set, Rachet uses `@socialrobot-io/rachet-sdk` to enroll each new account in the published workflow named Welcome first workflow, and emits `workflow.created.v1` when that person creates a workflow.
+When `RACHET_API_KEY` and `RACHET_WORKSPACE_ID` are set, Rachet uses `@socialrobot-io/rachet-sdk` to enroll each new account in the published workflow named Welcome first workflow, and emits `workflow.created.v1` when that person creates a workflow.
 
 ### Trigger a journey from product code
 
@@ -153,9 +153,9 @@ When `REFLOW_API_KEY` and `REFLOW_WORKSPACE_ID` are set, Rachet uses `@socialrob
 import { RachetSdk } from '@socialrobot-io/rachet-sdk';
 
 const rachet = new RachetSdk({
-  url: process.env.REFLOW_URL,
-  workspaceId: process.env.REFLOW_WORKSPACE_ID,
-  apiKey: process.env.REFLOW_API_KEY, // user-bound key with the send scope
+  url: process.env.RACHET_URL,
+  workspaceId: process.env.RACHET_WORKSPACE_ID,
+  apiKey: process.env.RACHET_API_KEY, // user-bound key with the send scope
 });
 
 await rachet.trigger({
@@ -174,6 +174,8 @@ rachet workflow show --name "Activation welcome"
 rachet call enrollment.list
 rachet call message.list
 ```
+
+For marketing email, an organization owner or admin sets the marketing sender and unsubscribe details while configuring **Integrations → Email → Resend**, or with `email_policy.update`. Record the recipient's new consent with `contact.resubscribe` and a stable event ID before enrollment. Published marketing sends include an unsubscribe footer and mailbox one-click headers. `subscription_event.list` shows which email and workflow led to a link opt-out. See [Unsubscribe and consent](docs/UNSUBSCRIBE.md).
 
 The operations console at [rachet.dev](https://rachet.dev) shows journey graphs, live enrollments, timelines, messages, OAuth consent, and connected apps. Deployment administrators also get a Users page at `/admin/users`.
 
@@ -200,22 +202,24 @@ Server variables, documented in [`.env.example`](.env.example):
 
 | Variable | Purpose |
 | --- | --- |
-| `REFLOW_DOMAIN`, `PUBLIC_URL` | Public hostname and URL of the deployment |
+| `RACHET_DOMAIN`, `PUBLIC_URL` | Public hostname and URL of the deployment |
 | `GOOGLE_ANALYTICS_ID` | Optional Google Analytics measurement ID, for example `G-X7CL1NYLSM`; unset disables tracking |
 | `DATABASE_URL` | PostgreSQL connection string |
 | `BETTER_AUTH_SECRET` | Auth signing secret, at least 32 random characters |
-| `REFLOW_SETUP_SECRET` | High-entropy secret required by the one-time first-admin page |
+| `RACHET_SETUP_SECRET` | High-entropy secret required by the one-time first-admin page |
 | `ALLOW_REGISTRATION` | Public registration, disabled by default |
 | `TRUSTED_ORIGINS` | Origins allowed to call the API |
 | `OAUTH_PUBLIC_REDIRECT_ORIGINS`, `OAUTH_PUBLIC_REDIRECT_SCHEMES` | Explicit callback allowlists for public MCP clients |
 | `TEMPORAL_ADDRESS`, `TEMPORAL_NAMESPACE`, `TEMPORAL_TASK_QUEUE` | Temporal connection and task routing |
 | `INTEGRATION_ENCRYPTION_KEY` | Base64-encoded 32-byte key for encrypting organization integrations; required in production and must be backed up |
+| `UNSUBSCRIBE_SIGNING_KEYS` | Comma-separated base64 32-byte keys; first signs new links, older keys keep sent links valid |
+| `UNSUBSCRIBE_SUPPORT_EMAIL` | Support address shown when a recipient link is invalid or revoked |
 | `AUTH_RESEND_API_KEY`, `AUTH_EMAIL_FROM` | Separate Resend account/key and explicit verified sender used only for magic links; both are required to enable magic links |
-| `REFLOW_API_KEY`, `REFLOW_WORKSPACE_ID` | Optional send-scoped API key and organization for the product welcome. Set both, or neither. |
+| `RACHET_API_KEY`, `RACHET_WORKSPACE_ID` | Optional send-scoped API key and organization for the product welcome. Set both, or neither. |
 | `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET` | Optional GitHub sign-in provider |
 | `OAUTH_PROVIDER_ID`, `OAUTH_DISCOVERY_URL`, `OAUTH_CLIENT_ID`, `OAUTH_CLIENT_SECRET` | Optional human OAuth/OIDC provider |
 
-CLI and SDK environments use `REFLOW_URL` plus `REFLOW_TOKEN` or `REFLOW_API_KEY`; the SDK also reads `REFLOW_WORKSPACE_ID`.
+CLI and SDK environments use `RACHET_URL` plus `RACHET_TOKEN` or `RACHET_API_KEY`; the SDK also reads `RACHET_WORKSPACE_ID`.
 
 Validation and simulation work without Resend. Before a real enrollment can send email, connect the organization's Resend account in the dashboard and confirm a test send. Domain verification and webhook setup are covered in [Resend setup](docs/RESEND.md).
 
@@ -232,6 +236,7 @@ Every operation is defined once and exposed three ways: HTTP `POST /v1/operation
 | `workflow.actions` | List the installed action registry |
 | `workflow.create`, `workflow.revise`, `workflow.list`, `workflow.validate`, `workflow.simulate`, `workflow.publish`, `workflow.delete` | Author, revise, check, trace, version, and delete capability graphs. Workflow deletion requires explicit dangerous confirmation and fails while enrollments are in progress. |
 | `contact.upsert`, `contact.list` | Manage enrolled contacts |
+| `email_policy.get`, `email_policy.update`, `contact.preferences.get`, `contact.unsubscribe`, `contact.resubscribe`, `subscription_event.list` | Configure marketing mail and inspect or change consent |
 | `enrollment.create`, `enrollment.list`, `enrollment.pause`, `enrollment.resume`, `enrollment.cancel`, `enrollment.delete` | Start, inspect, control, and delete durable executions |
 | `event_type.define`, `event_type.list` | Define and inspect immutable JSON Schema contracts for product events |
 | `event.emit` | Durably accept a stable event ID; identical retries are no-ops |
@@ -278,7 +283,7 @@ Before enabling public signups, review the [production readiness assessment](doc
 Point a hostname at a Linux server with Docker and ports 80/443 available, then run:
 
 ```sh
-./scripts/deploy.sh reflow.example.com admin@example.com
+./scripts/deploy.sh rachet.example.com admin@example.com
 ```
 
 The script generates deployment secrets, builds the stack, configures Caddy TLS, runs migrations, and performs idempotent admin setup. See [Deployment](docs/DEPLOYMENT.md) for Coolify, external ingress, backups, and production topology.
@@ -293,7 +298,7 @@ Contributions follow the standard fork, branch, commit, pull request workflow. B
 make check
 ```
 
-It runs validation, linting, typechecks, tests, replay checks, builds, Compose validation, and an npm package dry run. Read [CONTRIBUTING.md](CONTRIBUTING.md) and follow the [writing guide](docs/WRITING.md). Update the docs and [agent skill](skills/reflow/SKILL.md) when behavior changes. The CLI release process is in [Releasing](docs/RELEASING.md).
+It runs validation, linting, typechecks, tests, replay checks, builds, Compose validation, and an npm package dry run. Read [CONTRIBUTING.md](CONTRIBUTING.md) and follow the [writing guide](docs/WRITING.md). Update the docs and [agent skill](skills/rachet/SKILL.md) when behavior changes. The CLI release process is in [Releasing](docs/RELEASING.md).
 
 Rachet is early. Open an issue with setup problems or missing journey actions.
 

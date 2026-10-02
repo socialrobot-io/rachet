@@ -6,7 +6,7 @@ import {
   throwTemplateRefIssues,
 } from '../apps/server/src/domain/template-refs.js';
 import { workflowDefinitionSchema } from '../packages/contracts/src/index.js';
-import { ReflowError } from '../apps/server/src/domain/errors.js';
+import { RachetError } from '../apps/server/src/domain/errors.js';
 
 const definition = workflowDefinitionSchema.parse({
   schemaVersion: '1',
@@ -47,15 +47,15 @@ describe('template references', () => {
     );
     expect(archived[0]?.problem).toBe('archived_template');
 
-    expect(() => throwTemplateRefIssues(missing)).toThrow(ReflowError);
+    expect(() => throwTemplateRefIssues(missing)).toThrow(RachetError);
     try {
       throwTemplateRefIssues(missing);
     } catch (error) {
-      expect(error).toBeInstanceOf(ReflowError);
-      const reflow = error as ReflowError;
-      expect(reflow.code).toBe('TEMPLATE_REFERENCE_INVALID');
-      expect(reflow.hint).toMatch(/template.push|template.create/i);
-      expect(reflow.details?.issues).toBeTruthy();
+      expect(error).toBeInstanceOf(RachetError);
+      const rachet = error as RachetError;
+      expect(rachet.code).toBe('TEMPLATE_REFERENCE_INVALID');
+      expect(rachet.hint).toMatch(/template.push|template.create/i);
+      expect(rachet.details?.issues).toBeTruthy();
     }
   });
 

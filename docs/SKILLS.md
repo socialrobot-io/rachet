@@ -3,25 +3,25 @@
 There are two kinds of skills in this project:
 
 - Official Resend, Temporal, and Better Auth skills guide implementation. Sources and immutable revisions are recorded in [skills.lock.json](../skills.lock.json).
-- The first-party [reflow skill](../skills/reflow/SKILL.md) guides agents in translating natural-language intent into validated workflows and operating them through MCP/CLI. Its reference files travel with the package.
+- The first-party [Rachet skill](../skills/rachet/SKILL.md) guides agents in translating natural-language intent into validated workflows and operating them through MCP/CLI. Its reference files travel with the package.
 
 ## MCP serving (SEP-2640 + FastMCP shape)
 
-The authenticated MCP server advertises `capabilities.extensions["io.modelcontextprotocol/skills"]` (and the same id under `experimental` for host compatibility). It answers `skills/list` / `skills/get` for `skill://reflow/SKILL.md`.
+The authenticated MCP server advertises `capabilities.extensions["io.modelcontextprotocol/skills"]` (and the same id under `experimental` for host compatibility). It answers `skills/list` / `skills/get` for `skill://rachet/SKILL.md`.
 
 Skill files are also ordinary MCP resources in the [FastMCP Skills Provider](https://gofastmcp.com/servers/providers/skills) shape that Cursor-style UIs discover via `resources/list`:
 
 | URI | Resource.name | Purpose |
 |---|---|---|
-| `skill://reflow/SKILL.md` | `reflow/SKILL.md` | Main instructions |
-| `skill://reflow/_manifest` | `reflow/_manifest` | JSON inventory (`path`, `size`, `hash`) |
-| `skill://reflow/{file}` | `reflow/{file}` | Supporting files |
+| `skill://rachet/SKILL.md` | `rachet/SKILL.md` | Main instructions |
+| `skill://rachet/_manifest` | `rachet/_manifest` | JSON inventory (`path`, `size`, `hash`) |
+| `skill://rachet/{file}` | `rachet/{file}` | Supporting files |
 
-Resources carry `_meta.fastmcp.skill`. Disclosure mode is FastMCP `resources` (every file listed). Server `instructions` point hosts at `skill://reflow/SKILL.md`. Override the on-disk skill root with `REFLOW_SKILL_DIR` when needed.
+Resources carry `_meta.fastmcp.skill`. Disclosure mode is FastMCP `resources` (every file listed). Server `instructions` point hosts at `skill://rachet/SKILL.md`. Override the on-disk skill root with `RACHET_SKILL_DIR` when needed.
 
-Until [typescript-sdk#2818](https://github.com/modelcontextprotocol/typescript-sdk/pull/2818) lands, Rachet uses the temporary workspace package `@reflow/mcp-ext-skills` (schemas, `installSkills`, and FastMCP `registerFastMcpSkills`, adapted for `@modelcontextprotocol/sdk`). Remove that package and switch to the official `@modelcontextprotocol/*/ext/skills` exports when they ship.
+Until [typescript-sdk#2818](https://github.com/modelcontextprotocol/typescript-sdk/pull/2818) lands, Rachet uses the temporary workspace package `@rachet/mcp-ext-skills` (schemas, `installSkills`, and FastMCP `registerFastMcpSkills`, adapted for `@modelcontextprotocol/sdk`). Remove that package and switch to the official `@modelcontextprotocol/*/ext/skills` exports when they ship.
 
-Hosts that already install the skill locally can keep using [scripts/install_reflow_skill.py](../scripts/install_reflow_skill.py). MCP discovery is additive, not a replacement for that installer.
+Hosts that already install the skill locally can keep using [scripts/install_rachet_skill.py](../scripts/install_rachet_skill.py). MCP discovery is additive, not a replacement for that installer.
 
 ## Official implementation skills
 
@@ -50,10 +50,10 @@ The [official Better Auth pack](https://better-auth.com/docs/ai-resources/skills
 Install the first-party skill with the repository's dependency-free installer:
 
 ```sh
-python3 scripts/install_reflow_skill.py
+python3 scripts/install_rachet_skill.py
 ```
 
-It defaults to `$CODEX_HOME/skills/reflow` (or `~/.codex/skills/reflow`), can target another skills root with `--dest`, and refuses to overwrite different existing content. An identical installation is a no-op. To update, inspect differences and explicitly replace the old installation; the installer does not silently discard local modifications. Start a new turn/session for discovery.
+It defaults to `$CODEX_HOME/skills/rachet` (or `~/.codex/skills/rachet`), can target another skills root with `--dest`, and refuses to overwrite different existing content. An identical installation is a no-op. To update, inspect differences and explicitly replace the old installation; the installer does not silently discard local modifications. Start a new turn/session for discovery.
 
 `make check` validates the first-party skill metadata and internal references. Release qualification must also exercise realistic MCP/CLI flows with that release's skill and discovered schemas. Maintain it alongside operation contracts.
 

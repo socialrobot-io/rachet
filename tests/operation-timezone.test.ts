@@ -1,19 +1,20 @@
 import { describe, expect, it } from 'vitest';
 import { createOperations } from '../apps/server/src/operations.js';
-import type { ReflowService } from '../apps/server/src/domain/service.js';
+import type { RachetService } from '../apps/server/src/domain/service.js';
 import { workflowDefinitionSchema } from '../packages/contracts/src/index.js';
 
 const workspaceId = '00000000-0000-4000-8000-000000000001';
 const definition = {
   schemaVersion: '1',
   description: 'Send once at a local clock time',
+  purpose: 'transactional',
   trigger: { type: 'schedule', at: '2026-07-01T09:00:00+02:00', timeZone: 'Europe/Amsterdam' },
   entryNodeId: 'done',
   nodes: [{ id: 'done', type: 'end', reason: 'done' }],
 };
 
 describe('CLI and MCP operation timezone contract', () => {
-  const operations = createOperations({} as ReflowService);
+  const operations = createOperations({} as RachetService);
 
   it.each(['workflow.create', 'workflow.validate', 'workflow.simulate'])('%s rejects a naive or mismatched schedule', (name) => {
     const input = { workspaceId, definition, ...(name === 'workflow.create' ? { name: 'Scheduled', intent: 'Send at 9am' } : {}) };

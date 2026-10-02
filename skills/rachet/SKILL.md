@@ -1,5 +1,5 @@
 ---
-name: reflow
+name: rachet
 description: Authors and operates Rachet workflows through MCP, including templates, validation, simulation, publishing, and enrollment. Use when the user wants a welcome sequence, email workflow, or other durable journey created or changed in Rachet.
 ---
 
@@ -16,6 +16,7 @@ Copy this checklist and check items off as you go:
 - [ ] Call `auth_whoami`. Use that workspace. Call `workspace_list` only when more than one workspace is returned.
 - [ ] Call `template_list` and `workflow_list` together. Reuse a live template with the same job. Skip archived templates.
 - [ ] Build the graph from the words the user used. See **Graph**.
+- [ ] Set `purpose` explicitly to `marketing` or `transactional`. For marketing, check `email_policy_get` and obtain new consent before live enrollment.
 - [ ] Lock tone before design. See **Tone**. Do not design branded chrome and strip it later.
 - [ ] Author copy and React Email once for the emails the user named. Render HTML + plain-text body locally so placeholders such as `{{contact.firstName}}` and `{{variables.*}}` stay literal.
 - [ ] Preview one representative email (prefer the first send) with `template_render` or local HTML before publishing the rest. Fix tone there, not after a full publish pass.
@@ -58,6 +59,8 @@ If they say no, leave the workflow as a draft. If the graph waits on events, war
 Include only the emails, waits, and branches the user named. Do not add a node because an example has one.
 
 - `email.send` sends one published template. Set `input.templateVersionId.literal` to the id from `template_publish`.
+- Marketing email gets a managed unsubscribe footer and mailbox headers at send time. Do not put a usable unsubscribe token in template copy or previews.
+- Pass `marketingPreview: true` to `template_render` when previewing a marketing email; the footer uses an inert URL.
 - A wait the user stated is `wait_for_event` or `delay`. `timeoutSeconds` and `durationSeconds` are elapsed seconds. Two days is `172800`. Do not insert another wait.
 - `contact.update` merges fields onto the contact record, such as `{ "onboardingStatus": "workflow_created" }`. It does not change the email. Add it only when the user asked to store a field.
 - Every `wait_for_event` has `onEvent` and `onTimeout`. Every `branch` has `onTrue` and `onFalse`. Every path reaches an `end` node.

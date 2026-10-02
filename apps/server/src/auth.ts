@@ -20,19 +20,19 @@ export function isGitHubCallback(context: {
   return context?.path === '/callback/:id' && context.params?.id === 'github';
 }
 
-export function reflowOAuthOptions(config: Config, pool?: Pool): OAuthOptions<Scope[]> {
+export function rachetOAuthOptions(config: Config, pool?: Pool): OAuthOptions<Scope[]> {
   return {
     disableJwtPlugin: process.env.BETTER_AUTH_SCHEMA_GENERATION === 'true',
     loginPage: `${config.publicUrl}/auth/login`,
     consentPage: `${config.publicUrl}/auth/consent`,
-    scopes: ['openid', 'profile', 'email', 'offline_access', 'rachet:read', 'rachet:write', 'rachet:send'],
+    scopes: ['openid', 'profile', 'email', 'offline_access', 'rachet:read', 'rachet:write', 'rachet:send', 'reflow:read', 'reflow:write', 'reflow:send'],
     // The MCP resource already exists in deployed databases. Keep its stored
     // allowedScopes in sync when the configured scope policy changes.
     resourceSeedMode: 'merge',
     // Cursor starts an MCP authorization with the standard OIDC `profile`
     // scope. It is an identity/bootstrap scope only: Rachet operations still
     // require their explicit rachet:* scope in authorizeOperation.
-    resources: process.env.BETTER_AUTH_SCHEMA_GENERATION === 'true' ? [] : [{ identifier: `${config.publicUrl}/mcp`, allowedScopes: ['profile', 'rachet:read', 'rachet:write', 'rachet:send'], accessTokenTtl: 900 }],
+    resources: process.env.BETTER_AUTH_SCHEMA_GENERATION === 'true' ? [] : [{ identifier: `${config.publicUrl}/mcp`, allowedScopes: ['profile', 'rachet:read', 'rachet:write', 'rachet:send', 'reflow:read', 'reflow:write', 'reflow:send'], accessTokenTtl: 900 }],
     allowDynamicClientRegistration: true,
     allowUnauthenticatedClientRegistration: false,
     clientRegistrationDefaultResources: process.env.BETTER_AUTH_SCHEMA_GENERATION === 'true' ? [] : [`${config.publicUrl}/mcp`],
@@ -46,7 +46,7 @@ export function reflowOAuthOptions(config: Config, pool?: Pool): OAuthOptions<Sc
 }
 
 export function createAuth(config: Config, pool: Pool) {
-  const oauthOptions = reflowOAuthOptions(config, pool);
+  const oauthOptions = rachetOAuthOptions(config, pool);
   const externalOAuth = config.oauthProviderId && config.oauthDiscoveryUrl && config.oauthClientId && config.oauthClientSecret
     ? genericOAuth({
         config: [{
@@ -125,7 +125,7 @@ export function createAuth(config: Config, pool: Pool) {
         if (!intent.rowCount) {
           throw new APIError('FORBIDDEN', { code: 'REGISTRATION_NOT_AUTHORIZED', message: 'Registration is not authorized or has expired' });
         }
-        await addOAuthServerContext({ reflowRegistrationIntentId: intentId });
+        await addOAuthServerContext({ rachetRegistrationIntentId: intentId });
       }),
     },
     databaseHooks: {
@@ -135,9 +135,11 @@ export function createAuth(config: Config, pool: Pool) {
             // Better Auth exposes the route pattern here, not the concrete URL.
             if (!isGitHubCallback(context)) return;
             const state = await getOAuthState();
-            const intentId = typeof state?.serverContext?.reflowRegistrationIntentId === 'string'
-              ? state.serverContext.reflowRegistrationIntentId
-              : undefined;
+            const intentId = typeof state?.serverContext?.rachetRegistrationIntentId === 'string'
+              ? state.serverContext.rachetRegistrationIntentId
+              : typeof state?.serverContext?.reflowRegistrationIntentId === 'string'
+                ? state.serverContext.reflowRegistrationIntentId
+                : undefined;
             if (!intentId) {
               throw new APIError('FORBIDDEN', { code: 'REGISTRATION_NOT_AUTHORIZED', message: 'Registration is not authorized or has expired' });
             }
@@ -204,9 +206,9 @@ export function createAuth(config: Config, pool: Pool) {
       jwt(),
       oauthProvider(oauthOptions) as unknown as BetterAuthPlugin,
       {
-        id: 'reflow-resource-server',
+        id: 'rachet-resource-server',
         endpoints: {
-          reflowToken: createAuthEndpoint('/reflow-token', { method: 'GET' }, async (context) => {
+          rachetToken: createAuthEndpoint('/rachet-token', { method: 'GET' }, async (context) => {
             const authorization = context.request?.headers.get('authorization');
             if (!authorization?.startsWith('Bearer ')) throw context.error('UNAUTHORIZED');
             return getOAuthProviderApi(context as unknown as Parameters<typeof getOAuthProviderApi>[0], oauthOptions).requireActiveAccessToken(authorization.slice(7));
@@ -218,4 +220,4 @@ export function createAuth(config: Config, pool: Pool) {
   });
 }
 
-export type ReflowAuth = ReturnType<typeof createAuth>;
+export type RachetAuth = ReturnType<typeof createAuth>;

@@ -8,19 +8,24 @@ const schema = z.object({
   BETTER_AUTH_SECRET: z.string().min(32).optional(),
   ALLOW_REGISTRATION: z.enum(['true', 'false']).default('false'),
   TRUSTED_ORIGINS: z.string().default('http://localhost:3000'),
-  REFLOW_DASHBOARD_DIR: z.string().min(1).default('apps/dashboard/dist'),
+  RACHET_DASHBOARD_DIR: z.string().min(1).optional(),
+  REFLOW_DASHBOARD_DIR: z.string().min(1).optional(),
   TEMPORAL_ADDRESS: z.string().min(1).default('localhost:7233'),
   TEMPORAL_NAMESPACE: z.string().min(1).default('reflow'),
   TEMPORAL_TASK_QUEUE: z.string().min(1).default('reflow-enrollments'),
   RESEND_API_KEY: z.string().optional(),
   RESEND_WEBHOOK_SECRET: z.string().optional(),
-  REFLOW_FROM: z.string().default('Rachet <onboarding@resend.dev>'),
+  RACHET_FROM: z.string().optional(),
+  REFLOW_FROM: z.string().optional(),
   INTEGRATION_ENCRYPTION_KEY: z.string().optional(),
+  UNSUBSCRIBE_SIGNING_KEYS: z.string().optional(),
+  UNSUBSCRIBE_SUPPORT_EMAIL: z.union([z.literal(''), z.email()]).optional(),
   AUTH_RESEND_API_KEY: z.string().optional(),
   AUTH_EMAIL_FROM: z.string().trim().optional(),
   GOOGLE_ANALYTICS_ID: z.string().regex(/^G-[A-Z0-9]+$/).optional(),
   GITHUB_CLIENT_ID: z.string().optional(),
   GITHUB_CLIENT_SECRET: z.string().optional(),
+  RACHET_SETUP_SECRET: z.string().optional(),
   REFLOW_SETUP_SECRET: z.string().optional(),
   OAUTH_PROVIDER_ID: z.string().optional(),
   OAUTH_DISCOVERY_URL: z.union([z.literal(''), z.url()]).optional(),
@@ -28,7 +33,9 @@ const schema = z.object({
   OAUTH_CLIENT_SECRET: z.string().optional(),
   OAUTH_PUBLIC_REDIRECT_ORIGINS: z.string().default(''),
   OAUTH_PUBLIC_REDIRECT_SCHEMES: z.string().default('cursor'),
+  RACHET_API_KEY: z.string().optional(),
   REFLOW_API_KEY: z.string().optional(),
+  RACHET_WORKSPACE_ID: z.string().optional(),
   REFLOW_WORKSPACE_ID: z.string().optional(),
 });
 
@@ -38,12 +45,16 @@ export function loadConfig(source: NodeJS.ProcessEnv = process.env) {
   if (!betterAuthSecret) throw new Error('BETTER_AUTH_SECRET is required');
   const publicUrl = parsed.PUBLIC_URL.replace(/\/$/, '');
   const trustedOrigins = parsed.TRUSTED_ORIGINS.split(',').map((origin) => origin.trim()).filter(Boolean);
-  const setupSecret = parsed.REFLOW_SETUP_SECRET;
+  const setupSecret = parsed.RACHET_SETUP_SECRET ?? parsed.REFLOW_SETUP_SECRET;
   const githubClientSecret = parsed.GITHUB_CLIENT_SECRET;
   const resendApiKey = parsed.RESEND_API_KEY;
   const authResendApiKey = parsed.AUTH_RESEND_API_KEY;
   const authFrom = parsed.AUTH_EMAIL_FROM || undefined;
   const integrationEncryptionKey = parsed.INTEGRATION_ENCRYPTION_KEY;
+  const unsubscribeSigningKeys = (parsed.UNSUBSCRIBE_SIGNING_KEYS ?? '').split(',').map((key) => key.trim()).filter(Boolean);
+  if (unsubscribeSigningKeys.some((key) => !/^[A-Za-z0-9+/]{43}=$/.test(key) || Buffer.from(key, 'base64').length !== 32)) {
+    throw new Error('UNSUBSCRIBE_SIGNING_KEYS must contain comma-separated base64-encoded 32-byte keys');
+  }
   if (integrationEncryptionKey && (!/^[A-Za-z0-9+/]{43}=$/.test(integrationEncryptionKey) || Buffer.from(integrationEncryptionKey, 'base64').length !== 32)) {
     throw new Error('INTEGRATION_ENCRYPTION_KEY must be a base64-encoded 32-byte key');
   }
@@ -57,13 +68,13 @@ export function loadConfig(source: NodeJS.ProcessEnv = process.env) {
   if (resendApiKey && authResendApiKey && resendApiKey === authResendApiKey) {
     throw new Error('AUTH_RESEND_API_KEY must use a separate credential from RESEND_API_KEY');
   }
-  const welcomeApiKey = parsed.REFLOW_API_KEY?.trim() || undefined;
-  const welcomeWorkspaceId = parsed.REFLOW_WORKSPACE_ID?.trim() || undefined;
+  const welcomeApiKey = (parsed.RACHET_API_KEY ?? parsed.REFLOW_API_KEY)?.trim() || undefined;
+  const welcomeWorkspaceId = (parsed.RACHET_WORKSPACE_ID ?? parsed.REFLOW_WORKSPACE_ID)?.trim() || undefined;
   if (Boolean(welcomeApiKey) !== Boolean(welcomeWorkspaceId)) {
-    throw new Error('REFLOW_API_KEY and REFLOW_WORKSPACE_ID must be configured together');
+    throw new Error('RACHET_API_KEY and RACHET_WORKSPACE_ID must be configured together');
   }
   if (welcomeWorkspaceId && !z.string().uuid().safeParse(welcomeWorkspaceId).success) {
-    throw new Error('REFLOW_WORKSPACE_ID must be a UUID');
+    throw new Error('RACHET_WORKSPACE_ID must be a UUID');
   }
   if (parsed.NODE_ENV === 'production') {
     if (!publicUrl.startsWith('https://')) throw new Error('PUBLIC_URL must use https:// in production');
@@ -72,10 +83,16 @@ export function loadConfig(source: NodeJS.ProcessEnv = process.env) {
       throw new Error('TRUSTED_ORIGINS must contain only https:// origins in production');
     }
     if (!setupSecret || setupSecret.length < 32) {
-      throw new Error('REFLOW_SETUP_SECRET must contain at least 32 characters in production');
+      throw new Error('RACHET_SETUP_SECRET must contain at least 32 characters in production');
     }
     if (!integrationEncryptionKey) {
       throw new Error('INTEGRATION_ENCRYPTION_KEY is required in production');
+    }
+    if (unsubscribeSigningKeys.length === 0) {
+      throw new Error('UNSUBSCRIBE_SIGNING_KEYS is required in production');
+    }
+    if (!parsed.UNSUBSCRIBE_SUPPORT_EMAIL) {
+      throw new Error('UNSUBSCRIBE_SUPPORT_EMAIL is required in production');
     }
     if (Boolean(parsed.GITHUB_CLIENT_ID) !== Boolean(githubClientSecret)) {
       throw new Error('GITHUB_CLIENT_ID and GITHUB_CLIENT_SECRET must be configured together');
@@ -89,14 +106,16 @@ export function loadConfig(source: NodeJS.ProcessEnv = process.env) {
     betterAuthSecret,
     allowRegistration: parsed.ALLOW_REGISTRATION === 'true',
     trustedOrigins,
-    dashboardDir: parsed.REFLOW_DASHBOARD_DIR,
+    dashboardDir: parsed.RACHET_DASHBOARD_DIR ?? parsed.REFLOW_DASHBOARD_DIR ?? 'apps/dashboard/dist',
     temporalAddress: parsed.TEMPORAL_ADDRESS,
     temporalNamespace: parsed.TEMPORAL_NAMESPACE,
     temporalTaskQueue: parsed.TEMPORAL_TASK_QUEUE,
     resendApiKey,
     resendWebhookSecret: parsed.RESEND_WEBHOOK_SECRET,
-    from: parsed.REFLOW_FROM,
+    from: parsed.RACHET_FROM ?? parsed.REFLOW_FROM ?? 'Rachet <onboarding@resend.dev>',
     integrationEncryptionKey,
+    unsubscribeSigningKeys,
+    unsubscribeSupportEmail: parsed.UNSUBSCRIBE_SUPPORT_EMAIL || undefined,
     authResendApiKey,
     authFrom,
     googleAnalyticsId: parsed.GOOGLE_ANALYTICS_ID,

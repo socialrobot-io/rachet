@@ -1,7 +1,7 @@
 import React from 'react';
 import { Body, Container, Head, Html, Preview, Text } from 'react-email';
 import { render, toPlainText } from 'react-email';
-import { ReflowError } from './errors.js';
+import { RachetError } from './errors.js';
 
 export type TemplateRenderable = {
   subject: string;
@@ -28,10 +28,10 @@ export function interpolate(input: string, props: Record<string, unknown>, optio
       return found === undefined ? undefined : record[found];
     }, props);
     if (value === undefined || value === null) {
-      throw new ReflowError('VALIDATION_FAILED', `Missing template property: ${key}`, 422);
+      throw new RachetError('VALIDATION_FAILED', `Missing template property: ${key}`, 422);
     }
     if (typeof value === 'object') {
-      throw new ReflowError('VALIDATION_FAILED', `Template property must be scalar: ${key}`, 422);
+      throw new RachetError('VALIDATION_FAILED', `Template property must be scalar: ${key}`, 422);
     }
     const rendered = String(value);
     return options?.escapeHtml ? escapeHtml(rendered) : rendered;
@@ -69,4 +69,15 @@ export async function renderEmail(template: TemplateRenderable, props: Record<st
   const body = interpolate(template.body, props);
   const wrapped = await wrapPlainBody(body, preheader);
   return { subject, preheader, html: wrapped.html, plainText: wrapped.plainText };
+}
+
+/** The managed footer is added after template rendering, so customer markup cannot remove it. */
+export function appendMarketingFooter(rendered: Awaited<ReturnType<typeof renderEmail>>, senderName: string, url: string) {
+  const label = `Unsubscribe from ${senderName} marketing emails`;
+  const footer = `<p style="font:13px Arial,sans-serif;color:#555;margin:24px 0"><a href="${escapeHtml(url)}">${escapeHtml(label)}</a></p>`;
+  return {
+    ...rendered,
+    html: /<\/body\s*>/i.test(rendered.html) ? rendered.html.replace(/<\/body\s*>/i, `${footer}</body>`) : `${rendered.html}${footer}`,
+    plainText: `${rendered.plainText.trimEnd()}\n\n${label}: ${url}\n`,
+  };
 }

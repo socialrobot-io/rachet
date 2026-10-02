@@ -36,7 +36,7 @@ describe('registration authorization', () => {
 
   it('offers magic links when the key and sender are configured', async () => {
     const { db } = databaseResults({ rows: [{ initialized: false, userCount: '0' }] });
-    await expect(registrationStatus(db, { ...config, authFrom: 'Reflow <login@auth.example.com>' })).resolves.toMatchObject({
+    await expect(registrationStatus(db, { ...config, authFrom: 'Rachet <login@auth.example.com>' })).resolves.toMatchObject({
       methods: { magicLink: true, github: false },
     });
   });

@@ -1,24 +1,27 @@
 name: reflow
 
-x-reflow: &reflow
+x-rachet: &rachet
   restart: unless-stopped
   environment:
     NODE_ENV: production
     PORT: 3000
-    PUBLIC_URL: https://${REFLOW_DOMAIN:?Set REFLOW_DOMAIN}
+    PUBLIC_URL: https://${RACHET_DOMAIN:-${REFLOW_DOMAIN:-}}
     GOOGLE_ANALYTICS_ID: '${GOOGLE_ANALYTICS_ID:-}'
     DATABASE_URL: '${DATABASE_URL:?Set DATABASE_URL}'
     BETTER_AUTH_SECRET: '${BETTER_AUTH_SECRET:?Set BETTER_AUTH_SECRET}'
-    REFLOW_SETUP_SECRET: '${REFLOW_SETUP_SECRET:?Set REFLOW_SETUP_SECRET}'
+    RACHET_SETUP_SECRET: '${RACHET_SETUP_SECRET:-${REFLOW_SETUP_SECRET:-}}'
     ALLOW_REGISTRATION: '${ALLOW_REGISTRATION:-false}'
-    TRUSTED_ORIGINS: 'https://${REFLOW_DOMAIN:?Set REFLOW_DOMAIN}'
+    TRUSTED_ORIGINS: 'https://${RACHET_DOMAIN:-${REFLOW_DOMAIN:-}}'
     TEMPORAL_ADDRESS: temporal:7233
-    TEMPORAL_NAMESPACE: reflow
+    TEMPORAL_NAMESPACE: '${TEMPORAL_NAMESPACE:-reflow}'
+    TEMPORAL_TASK_QUEUE: '${TEMPORAL_TASK_QUEUE:-reflow-enrollments}'
     INTEGRATION_ENCRYPTION_KEY: '${INTEGRATION_ENCRYPTION_KEY:?Set INTEGRATION_ENCRYPTION_KEY}'
+    UNSUBSCRIBE_SIGNING_KEYS: '${UNSUBSCRIBE_SIGNING_KEYS:?Set UNSUBSCRIBE_SIGNING_KEYS}'
+    UNSUBSCRIBE_SUPPORT_EMAIL: '${UNSUBSCRIBE_SUPPORT_EMAIL:?Set UNSUBSCRIBE_SUPPORT_EMAIL}'
     AUTH_RESEND_API_KEY: '${AUTH_RESEND_API_KEY:-}'
     AUTH_EMAIL_FROM: '${AUTH_EMAIL_FROM:-}'
-    REFLOW_API_KEY: '${REFLOW_API_KEY:-}'
-    REFLOW_WORKSPACE_ID: '${REFLOW_WORKSPACE_ID:-}'
+    RACHET_API_KEY: '${RACHET_API_KEY:-${REFLOW_API_KEY:-}}'
+    RACHET_WORKSPACE_ID: '${RACHET_WORKSPACE_ID:-${REFLOW_WORKSPACE_ID:-}}'
     GITHUB_CLIENT_ID: '${GITHUB_CLIENT_ID:-}'
     GITHUB_CLIENT_SECRET: '${GITHUB_CLIENT_SECRET:-}'
     OAUTH_PROVIDER_ID: '${OAUTH_PROVIDER_ID:-}'
@@ -36,19 +39,19 @@ x-reflow: &reflow
   security_opt: ['no-new-privileges:true']
 
 x-temporal-admin-tools: &temporal-admin-tools
-  image: reflow-temporal-admin-tools:${REFLOW_VERSION:-local}
+  image: rachet-temporal-admin-tools:${RACHET_VERSION:-${REFLOW_VERSION:-local}}
   build:
     context: .
     dockerfile: docker/temporal/admin-tools.Dockerfile
 
 x-temporal-server: &temporal-server
-  image: reflow-temporal-server:${REFLOW_VERSION:-local}
+  image: rachet-temporal-server:${RACHET_VERSION:-${REFLOW_VERSION:-local}}
   build:
     context: .
     dockerfile: docker/temporal/server.Dockerfile
 
 x-caddy: &caddy
-  image: reflow-caddy:${REFLOW_VERSION:-local}
+  image: rachet-caddy:${RACHET_VERSION:-${REFLOW_VERSION:-local}}
   build:
     context: .
     dockerfile: docker/caddy.Dockerfile
@@ -58,11 +61,11 @@ services:
     image: postgres:16.10-bookworm
     restart: unless-stopped
     environment:
-      POSTGRES_DB: reflow
-      POSTGRES_USER: reflow
+      POSTGRES_DB: '${RACHET_DB_NAME:-reflow}'
+      POSTGRES_USER: '${RACHET_DB_USER:-reflow}'
       POSTGRES_PASSWORD: '${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}'
     volumes: ['reflow-db:/var/lib/postgresql/data']
-    healthcheck: { test: [CMD-SHELL, pg_isready -U reflow -d reflow], interval: 5s, timeout: 5s, retries: 20 }
+    healthcheck: { test: [CMD-SHELL, 'pg_isready -U ${RACHET_DB_USER:-reflow} -d ${RACHET_DB_NAME:-reflow}'], interval: 5s, timeout: 5s, retries: 20 }
     networks: [reflow]
 
   temporal-postgres:
@@ -110,22 +113,22 @@ services:
     <<: *temporal-admin-tools
     restart: on-failure:5
     depends_on: { temporal: { condition: service_healthy } }
-    environment: { TEMPORAL_ADDRESS: 'temporal:7233', DEFAULT_NAMESPACE: reflow }
+    environment: { TEMPORAL_ADDRESS: 'temporal:7233', DEFAULT_NAMESPACE: '${TEMPORAL_NAMESPACE:-reflow}' }
     entrypoint: [/bin/sh]
     command: [/scripts/create-namespace.sh]
     networks: [reflow]
 
   migrate:
-    <<: *reflow
-    image: reflow-worker:${REFLOW_VERSION:-local}
+    <<: *rachet
+    image: rachet-worker:${RACHET_VERSION:-${REFLOW_VERSION:-local}}
     build: { context: ., target: worker }
     restart: 'no'
     command: [node, dist/apps/server/db/migrate.js]
     depends_on: { postgres: { condition: service_healthy } }
 
   app:
-    <<: *reflow
-    image: reflow-app:${REFLOW_VERSION:-local}
+    <<: *rachet
+    image: rachet-app:${RACHET_VERSION:-${REFLOW_VERSION:-local}}
     build: { context: ., target: app }
     healthcheck:
       test: [CMD, node, docker/healthcheck-ready.js]
@@ -135,13 +138,13 @@ services:
       start_period: 40s
 
   worker:
-    <<: *reflow
-    image: reflow-worker:${REFLOW_VERSION:-local}
+    <<: *rachet
+    image: rachet-worker:${RACHET_VERSION:-${REFLOW_VERSION:-local}}
     build: { context: ., target: worker }
 
   dispatcher:
-    <<: *reflow
-    image: reflow-dispatcher:${REFLOW_VERSION:-local}
+    <<: *rachet
+    image: rachet-dispatcher:${RACHET_VERSION:-${REFLOW_VERSION:-local}}
     build: { context: ., target: dispatcher }
 
   # Opt-in TLS ingress for bare hosts. Off by default so Coolify (or any
@@ -153,7 +156,7 @@ services:
     restart: unless-stopped
     depends_on: { app: { condition: service_healthy } }
     environment:
-      REFLOW_DOMAIN: '${REFLOW_DOMAIN:?Set REFLOW_DOMAIN}'
+      RACHET_DOMAIN: '${RACHET_DOMAIN:-${REFLOW_DOMAIN:-}}'
       ACME_EMAIL: '${ACME_EMAIL:-}'
     ports: ['80:80', '443:443', '443:443/udp']
     volumes: ['caddy-data:/data', 'caddy-config:/config']

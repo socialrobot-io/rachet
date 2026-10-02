@@ -26,20 +26,36 @@ export type CliContext = {
 function normalizeUrl(value: string): string { return value.replace(/\/$/, ''); }
 
 export function cliStatePath(environment: NodeJS.ProcessEnv = process.env): string {
+  if (environment.RACHET_CONFIG_PATH) return environment.RACHET_CONFIG_PATH;
   if (environment.REFLOW_CONFIG_PATH) return environment.REFLOW_CONFIG_PATH;
   const root = environment.XDG_CONFIG_HOME ?? join(homedir(), '.config');
-  return join(root, 'reflow', 'config.json');
+  return join(root, 'rachet', 'config.json');
 }
 
 async function readState(environment: NodeJS.ProcessEnv = process.env): Promise<CliState> {
+  const path = cliStatePath(environment);
+  let source = path;
+  let raw: string;
   try {
-    const value = JSON.parse(await readFile(cliStatePath(environment), 'utf8')) as unknown;
+    raw = await readFile(path, 'utf8');
+  } catch (error) {
+    if (!(error instanceof Error && 'code' in error && error.code === 'ENOENT')) throw error;
+    if (environment.RACHET_CONFIG_PATH || environment.REFLOW_CONFIG_PATH) return { version: 2, servers: {} };
+    source = join(environment.XDG_CONFIG_HOME ?? join(homedir(), '.config'), 'reflow', 'config.json');
+    try {
+      raw = await readFile(source, 'utf8');
+    } catch (legacyError) {
+      if (legacyError instanceof Error && 'code' in legacyError && legacyError.code === 'ENOENT') return { version: 2, servers: {} };
+      throw legacyError;
+    }
+  }
+  try {
+    const value = JSON.parse(raw) as unknown;
     if (typeof value !== 'object' || value === null || !('servers' in value) || typeof value.servers !== 'object' || value.servers === null) throw new Error('invalid');
     const record = value as { currentUrl?: unknown; servers: Record<string, SavedServer> };
     return { version: 2, servers: record.servers, ...(typeof record.currentUrl === 'string' ? { currentUrl: record.currentUrl } : {}) };
   } catch (error) {
-    if (error instanceof Error && 'code' in error && error.code === 'ENOENT') return { version: 2, servers: {} };
-    throw new Error(`Invalid Rachet CLI state at ${cliStatePath(environment)}`, { cause: error });
+    throw new Error(`Invalid Rachet CLI state at ${source}`, { cause: error });
   }
 }
 
@@ -55,11 +71,12 @@ async function writeState(state: CliState, environment: NodeJS.ProcessEnv = proc
 
 export async function resolveCliContext(environment: NodeJS.ProcessEnv = process.env): Promise<CliContext> {
   const state = await readState(environment);
-  const url = normalizeUrl(environment.REFLOW_URL ?? state.currentUrl ?? 'https://rachet.dev');
+  const url = normalizeUrl(environment.RACHET_URL ?? environment.REFLOW_URL ?? state.currentUrl ?? 'https://rachet.dev');
   const saved = state.servers[url] ?? {};
-  const token = environment.REFLOW_TOKEN ?? saved.oauth?.accessToken ?? saved.token;
-  const apiKey = environment.REFLOW_API_KEY ?? saved.apiKey;
-  const workspaceId = environment.REFLOW_WORKSPACE_ID;
+  const tokenOverride = environment.RACHET_TOKEN ?? environment.REFLOW_TOKEN;
+  const token = tokenOverride ?? saved.oauth?.accessToken ?? saved.token;
+  const apiKey = environment.RACHET_API_KEY ?? environment.REFLOW_API_KEY ?? saved.apiKey;
+  const workspaceId = environment.RACHET_WORKSPACE_ID ?? environment.REFLOW_WORKSPACE_ID;
   const workspace = workspaceId
     ? { id: workspaceId, name: workspaceId, slug: workspaceId }
     : saved.workspace;
@@ -67,7 +84,7 @@ export async function resolveCliContext(environment: NodeJS.ProcessEnv = process
     url,
     ...(token ? { token } : {}),
     ...(apiKey ? { apiKey } : {}),
-    ...(saved.oauth && !environment.REFLOW_TOKEN ? { oauth: saved.oauth } : {}),
+    ...(saved.oauth && !tokenOverride ? { oauth: saved.oauth } : {}),
     ...(workspace ? { workspace } : {}),
   };
 }
