@@ -59,11 +59,12 @@ describe('workflow revision contract', () => {
       workspaceId,
       workflowId: '00000000-0000-4000-8000-000000000002',
       expectedRevision: 1,
-      definition: { schemaVersion: '1', description: 'Finish', trigger: { type: 'manual' }, entryNodeId: 'done', nodes: [{ id: 'done', type: 'end', reason: 'done' }] },
+      definition: { schemaVersion: '1', description: 'Finish', trigger: { type: 'manual' }, purpose: 'transactional', entryNodeId: 'done', nodes: [{ id: 'done', type: 'end', reason: 'done' }] },
     };
     expect(workflowReviseSchema.safeParse(request).success).toBe(true);
     expect(workflowReviseSchema.safeParse({ ...request, expectedRevision: undefined }).success).toBe(false);
     expect(workflowReviseSchema.safeParse({ ...request, definition: undefined }).success).toBe(false);
+    expect(workflowReviseSchema.safeParse({ ...request, definition: { ...request.definition, purpose: undefined } }).success).toBe(false);
   });
 });
 
@@ -81,7 +82,7 @@ describe('typed event contracts', () => {
     }).success).toBe(false);
 
     const definition = {
-      schemaVersion: '1', description: 'Wait for activation.', trigger: { type: 'manual' }, entryNodeId: 'wait',
+      schemaVersion: '1', description: 'Wait for activation.', trigger: { type: 'manual' }, purpose: 'transactional', entryNodeId: 'wait',
       nodes: [
         { id: 'wait', type: 'wait_for_event', eventType: 'product.activated.v1', timeoutSeconds: 30, onEvent: 'done', onTimeout: 'done' },
         { id: 'done', type: 'end', reason: 'done' },

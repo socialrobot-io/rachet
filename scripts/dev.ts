@@ -65,6 +65,12 @@ if (!localEnvironment.INTEGRATION_ENCRYPTION_KEY) {
   console.log('Generated an INTEGRATION_ENCRYPTION_KEY in .env.local');
 }
 
+if (!localEnvironment.UNSUBSCRIBE_SIGNING_KEYS) {
+  localEnvironment.UNSUBSCRIBE_SIGNING_KEYS = randomBytes(32).toString('base64');
+  await saveLocalEnvironmentValue('UNSUBSCRIBE_SIGNING_KEYS', localEnvironment.UNSUBSCRIBE_SIGNING_KEYS);
+  console.log('Generated an UNSUBSCRIBE_SIGNING_KEYS key in .env.local');
+}
+
 async function run(command: string, args: string[]): Promise<void> {
   await new Promise<void>((resolve, reject) => {
     const child = spawn(command, args, { stdio: 'inherit', env: localEnvironment });

@@ -1,7 +1,7 @@
-import { condition, patched, proxyActivities, setHandler } from '@temporalio/workflow';
+import { condition, patched, proxyActivities, setHandler, sleep } from '@temporalio/workflow';
 import type { FlowNode, WorkflowDefinition } from '@rachet/contracts';
 import type * as activities from './activities.js';
-import { cancelEnrollment, enrollmentEvent, enrollmentStatus, pauseEnrollment, resumeEnrollment, type EnrollmentWorkflowState } from './shared.js';
+import { cancelEnrollment, enrollmentEvent, enrollmentStatus, pauseEnrollment, resumeEnrollment, unsubscribeEnrollment, type EnrollmentWorkflowState } from './shared.js';
 
 const activity = proxyActivities<typeof activities>({ startToCloseTimeout: '30 seconds', scheduleToCloseTimeout: '23 hours', retry: { initialInterval: '2 seconds', backoffCoefficient: 2, maximumInterval: '5 minutes', maximumAttempts: 12, nonRetryableErrorTypes: ['ValidationError', 'SuppressedError', 'SendOutcomeUnknown'] } });
 export type EnrollmentWorkflowInput = { workspaceId: string; enrollmentId: string; definition: WorkflowDefinition };
@@ -26,6 +26,7 @@ export async function enrollmentWorkflow(input: EnrollmentWorkflowInput): Promis
   setHandler(pauseEnrollment, () => { paused = true; state.state = 'paused'; });
   setHandler(resumeEnrollment, () => { paused = false; state.state = 'running'; });
   setHandler(cancelEnrollment, () => { cancelled = true; state.state = 'cancelled'; });
+  setHandler(unsubscribeEnrollment, () => { cancelled = true; state.state = 'cancelled'; state.result = 'unsubscribed'; });
   setHandler(enrollmentStatus, () => ({ ...state }));
   if (input.definition.trigger.type === 'schedule') {
     const delay = new Date(input.definition.trigger.at).getTime() - Date.now();
@@ -38,7 +39,12 @@ export async function enrollmentWorkflow(input: EnrollmentWorkflowInput): Promis
     state.state = 'running';
   }
   while (true) {
-    if (cancelled) { state.state = 'cancelled'; state.result = 'cancelled'; await activity.recordEnrollmentState(input.enrollmentId, 'cancelled', current); return 'cancelled'; }
+    if (cancelled) {
+      const result = state.result === 'unsubscribed' ? 'unsubscribed' : 'cancelled';
+      state.state = 'cancelled'; state.result = result;
+      await activity.recordEnrollmentState(input.enrollmentId, result === 'unsubscribed' ? 'suppressed' : 'cancelled', current);
+      return result;
+    }
     if (paused) await condition(() => !paused || cancelled);
     if (cancelled) continue;
     const node = nodes.get(current); if (!node) throw new Error(`Missing workflow node ${current}`);
@@ -46,12 +52,18 @@ export async function enrollmentWorkflow(input: EnrollmentWorkflowInput): Promis
     await activity.recordEnrollmentState(input.enrollmentId, node.type === 'delay' || node.type === 'wait_for_event' ? 'waiting' : 'running', current);
     if (node.type === 'end') { state.state = 'completed'; state.result = node.reason; await activity.recordEnrollmentState(input.enrollmentId, 'completed', current); return node.reason; }
     current = await executeNode(node, input, events, state);
+    if (state.result === 'unsubscribed' || state.result === 'suppressed') {
+      await activity.recordEnrollmentState(input.enrollmentId, 'suppressed', state.currentStepId);
+      return state.result;
+    }
   }
 }
 
 async function executeNode(node: Exclude<FlowNode, { type: 'end' }>, input: EnrollmentWorkflowInput, events: Map<string, { eventId: string; data: Record<string, unknown> }>, state: EnrollmentWorkflowState): Promise<string> {
   if (node.type === 'action') {
     const outcome = await activity.executeAction({ workspaceId: input.workspaceId, enrollmentId: input.enrollmentId, node, eventData: Object.fromEntries(events) });
+    if (outcome === 'paused') { await sleep('1 second'); return node.id; }
+    if (outcome === 'unsubscribed' || outcome === 'suppressed') { state.result = outcome; return node.next; }
     if (outcome === 'needs_attention' || (outcome === 'failed' && node.onError === 'attention')) { state.state = 'needs_attention'; await activity.recordEnrollmentState(input.enrollmentId, 'needs_attention', node.id); await condition(() => state.state === 'cancelled'); }
     if (outcome === 'failed' && node.onError === 'fail') throw new Error(`Action ${node.action} failed`);
     return node.next;

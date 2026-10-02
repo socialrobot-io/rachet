@@ -8,7 +8,7 @@ import { mountDashboard } from '../apps/server/src/dashboard.js';
 const root = mkdtempSync(join(tmpdir(), 'rachet-seo-'));
 const template = readFileSync('apps/dashboard/index.html', 'utf8');
 writeFileSync(join(root, 'index.html'), template);
-writeFileSync(join(root, 'landing.html'), template.replace('<div id="root"></div>', '<div id="root"><h1>Build customer journeys by asking.</h1></div>'));
+writeFileSync(join(root, 'landing.html'), template.replace('<div id="root"></div>', '<div id="root"><h1>Every signup gets followed up. Automatically.</h1></div>'));
 writeFileSync(join(root, 'login.html'), template.replace('<div id="root"></div>', '<div id="root"><p>Back to home</p></div>'));
 mkdirSync(join(root, 'brand'));
 writeFileSync(join(root, 'brand/rachet-og.png'), readFileSync('apps/dashboard/public/brand/rachet-og.png'));
@@ -25,7 +25,7 @@ describe('landing SEO and static serving', () => {
     const response = await app.request(`https://untrusted.example${path}`, { headers: { 'X-Forwarded-Host': 'untrusted.example' } });
     const html = await response.text();
     expect(response.status).toBe(200);
-    expect(html).toContain('<h1>Build customer journeys by asking.</h1>');
+    expect(html).toContain('<h1>Every signup gets followed up. Automatically.</h1>');
     expect(html).toContain('<link rel="canonical" href="https://rachet.example.test/"');
     expect(html).toContain('content="https://rachet.example.test/brand/rachet-og.png"');
     expect(html).toContain('content="summary_large_image"');

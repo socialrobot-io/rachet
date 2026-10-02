@@ -138,6 +138,22 @@ describe.skipIf(!runtime)('service invariants (postgres)', () => {
     }
   });
 
+  it('lets only workspace owners and admins change unsubscribe settings', async () => {
+    const input = { workspaceId, senderName: 'Example', supportEmail: 'help@example.com', marketingFromAddress: 'news@example.com' };
+    await expect(boot.service.emailPolicyUpdate(roleContext(workspaceId, 'author'), input))
+      .rejects.toMatchObject({ code: 'FORBIDDEN' });
+    await expect(boot.service.emailPolicyUpdate(roleContext(workspaceId, 'viewer'), input))
+      .rejects.toMatchObject({ code: 'FORBIDDEN' });
+    await expect(boot.service.emailPolicyUpdate(roleContext(crypto.randomUUID(), 'owner'), input))
+      .rejects.toMatchObject({ code: 'FORBIDDEN' });
+    await expect(boot.service.emailPolicyUpdate(roleContext(workspaceId, 'owner'), input))
+      .resolves.toMatchObject({ senderName: 'Example' });
+    await expect(boot.service.emailPolicyUpdate(roleContext(workspaceId, 'admin'), { ...input, senderName: 'Example Team' }))
+      .resolves.toMatchObject({ senderName: 'Example Team' });
+    await expect(boot.service.emailPolicyGet(roleContext(workspaceId, 'viewer'), workspaceId))
+      .resolves.toMatchObject({ senderName: 'Example Team' });
+  });
+
   it('upserts contacts by emailKey and preserves identity across case', async () => {
     const first = await boot.service.contactUpsert(admin, {
       workspaceId,

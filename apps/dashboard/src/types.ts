@@ -51,6 +51,15 @@ export type ResendConnectionStatus = {
   webhookUrl: string;
 };
 
+export type EmailPolicy = {
+  workspaceId: string;
+  senderName: string;
+  supportEmail: string;
+  marketingFromAddress: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type PublishedVersion = {
   id: string;
   sequenceId: string;
@@ -110,6 +119,26 @@ export type Message = {
   plainText: string;
   createdAt: string;
   acceptedAt: string | null;
+};
+
+export type SubscriptionEvent = {
+  id: string;
+  workspaceId: string;
+  emailKey: string;
+  eventId: string;
+  action: 'consent' | 'unsubscribe';
+  source: string;
+  createdAt: string;
+  origin: null | {
+    intentId: string;
+    enrollmentId: string;
+    workflowId: string;
+    workflowVersionId: string;
+    workflowName: string;
+    stepId: string;
+    templateVersionId: string;
+    subject: string;
+  };
 };
 
 export type RenderedEmail = {

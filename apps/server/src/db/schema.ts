@@ -40,6 +40,75 @@ export const workspaces = pgTable('workspaces', {
   ...timestamps,
 });
 
+export const emailPolicies = pgTable('email_policies', {
+  workspaceId: uuid('workspace_id').primaryKey().references(() => workspaces.id, { onDelete: 'cascade' }),
+  senderName: text('sender_name').notNull(),
+  supportEmail: text('support_email').notNull(),
+  marketingFromAddress: text('marketing_from_address'),
+  ...timestamps,
+});
+
+export const marketingConsents = pgTable('marketing_consents', {
+  workspaceId: uuid('workspace_id').notNull().references(() => workspaces.id, { onDelete: 'cascade' }),
+  emailKey: text('email_key').notNull(),
+  consentReference: text('consent_reference').notNull(),
+  source: text('source').notNull(),
+  ...timestamps,
+}, (table) => [primaryKey({ columns: [table.workspaceId, table.emailKey] })]);
+
+export const marketingOptOuts = pgTable('marketing_opt_outs', {
+  workspaceId: uuid('workspace_id').notNull().references(() => workspaces.id, { onDelete: 'cascade' }),
+  emailKey: text('email_key').notNull(),
+  eventId: text('event_id').notNull(),
+  source: text('source').notNull(),
+  ...timestamps,
+}, (table) => [primaryKey({ columns: [table.workspaceId, table.emailKey] })]);
+
+export const deliveryBlocks = pgTable('delivery_blocks', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  workspaceId: uuid('workspace_id').notNull().references(() => workspaces.id, { onDelete: 'cascade' }),
+  emailKey: text('email_key').notNull(),
+  eventId: text('event_id').notNull(),
+  reason: text('reason').notNull(),
+  source: text('source').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [uniqueIndex('delivery_block_event_unique').on(table.workspaceId, table.eventId), index('delivery_block_address_idx').on(table.workspaceId, table.emailKey)]);
+
+export type UnsubscribeOrigin = {
+  intentId: string;
+  enrollmentId: string;
+  workflowId: string;
+  workflowVersionId: string;
+  workflowName: string;
+  stepId: string;
+  templateVersionId: string;
+  subject: string;
+};
+
+export const subscriptionEvents = pgTable('subscription_events', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  workspaceId: uuid('workspace_id').notNull().references(() => workspaces.id, { onDelete: 'cascade' }),
+  emailKey: text('email_key').notNull(),
+  eventId: text('event_id').notNull(),
+  action: text('action').$type<'consent' | 'unsubscribe'>().notNull(),
+  source: text('source').notNull(),
+  actorId: text('actor_id'),
+  consentReference: text('consent_reference'),
+  origin: jsonb('origin').$type<UnsubscribeOrigin>(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [uniqueIndex('subscription_event_identity_unique').on(table.workspaceId, table.eventId)]);
+
+export const unsubscribeTokens = pgTable('unsubscribe_tokens', {
+  id: uuid('id').primaryKey(),
+  workspaceId: uuid('workspace_id').notNull().references(() => workspaces.id, { onDelete: 'cascade' }),
+  intentId: uuid('intent_id').notNull().unique(),
+  emailKey: text('email_key').notNull(),
+  tokenDigest: text('token_digest').notNull().unique(),
+  origin: jsonb('origin').$type<UnsubscribeOrigin>(),
+  revokedAt: timestamp('revoked_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
 export const resendConnections = pgTable('resend_connections', {
   workspaceId: uuid('workspace_id').primaryKey().references(() => workspaces.id, { onDelete: 'cascade' }),
   apiKeyEncrypted: text('api_key_encrypted').notNull(),
@@ -162,6 +231,7 @@ export const sequenceVersions = pgTable('sequence_versions', {
   version: integer('version').notNull(),
   contentHash: text('content_hash').notNull(),
   definition: jsonb('definition').$type<Record<string, unknown>>().notNull(),
+  purposeReviewedAt: timestamp('purpose_reviewed_at', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 }, (table) => [uniqueIndex('sequence_version_unique').on(table.sequenceId, table.version)]);
 
@@ -223,6 +293,7 @@ export const sendIntents = pgTable('send_intents', {
   subject: text('subject').notNull(),
   html: text('html').notNull(),
   plainText: text('plain_text').notNull(),
+  headers: jsonb('headers').$type<Record<string, string>>().notNull().default({}),
   providerMessageId: text('provider_message_id'),
   errorCode: text('error_code'),
   firstAttemptAt: timestamp('first_attempt_at', { withTimezone: true }),

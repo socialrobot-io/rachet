@@ -1,4 +1,5 @@
 import { Loader2, Mail } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import {
   Sheet,
   SheetContent,
@@ -20,6 +21,7 @@ export type EmailPreview =
       state?: string | undefined;
       sentAt?: string | null | undefined;
       note?: string | undefined;
+      settingsHref?: string | undefined;
     };
 
 /**
@@ -55,6 +57,7 @@ export function EmailPreviewSheet({
                   .join(' · ')}
               </span>
               {preview.note && <span className="text-xs">{preview.note}</span>}
+              {preview.settingsHref && <Link className="text-xs font-medium text-foreground underline underline-offset-4" to={preview.settingsHref}>Manage marketing email settings</Link>}
             </SheetDescription>
           )}
         </SheetHeader>

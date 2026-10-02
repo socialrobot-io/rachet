@@ -89,4 +89,16 @@ export class RachetSdk {
     });
     return { contact, enrollment };
   }
+
+  async preferences(email: string) {
+    return this.call('contact.preferences.get', { workspaceId: this.options.workspaceId, email });
+  }
+
+  async unsubscribe(input: { email: string; eventId: string; source: 'support' | 'product' | 'import' }) {
+    return this.call('contact.unsubscribe', { workspaceId: this.options.workspaceId, ...input });
+  }
+
+  async resubscribe(input: { email: string; eventId: string; source: 'product' | 'support'; consentReference: string }) {
+    return this.call('contact.resubscribe', { workspaceId: this.options.workspaceId, ...input });
+  }
 }

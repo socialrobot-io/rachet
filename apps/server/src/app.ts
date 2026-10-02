@@ -6,10 +6,11 @@ import { cors } from 'hono/cors';
 import { secureHeaders } from 'hono/secure-headers';
 import { ZodError } from 'zod';
 import { z } from 'zod';
+import { emailPolicyUpdateSchema } from '@rachet/contracts';
 import type { Config } from './config.js';
 import type { RachetAuth } from './auth.js';
 import type { Database } from './db/index.js';
-import { resendConnections, sendIntents, suppressions, webhookEvents, workspaces } from './db/schema.js';
+import { auditEvents, deliveryBlocks, emailPolicies, marketingOptOuts, resendConnections, sendIntents, suppressions, unsubscribeTokens, webhookEvents, workspaces } from './db/schema.js';
 import type { RachetService } from './domain/service.js';
 import { RachetError, errorPayload } from './domain/errors.js';
 import { createMcpServer } from './mcp.js';
@@ -19,6 +20,8 @@ import { decryptIntegrationSecret, encryptIntegrationSecret, fingerprintIntegrat
 import { authorizeRegistrationIntent, registrationIntentSchema, registrationStatus } from './registration.js';
 import { consumeRateLimit } from './security/rate-limit.js';
 import { mountDashboard } from './dashboard.js';
+import { changePreference, lockEmailAddress, mailboxAddress } from './domain/email-policy.js';
+import { tokenDigest, validUnsubscribeToken } from './security/unsubscribe-token.js';
 import {
   inferNativeApplicationType,
   needsMcpPublicClientRegistration,
@@ -57,8 +60,23 @@ export function createApp(dependencies: Dependencies) {
   const connectionInput = z.object({
     workspaceId: workspaceIdInput,
     from: senderInput,
-    apiKey: z.string().trim().regex(/^re_[A-Za-z0-9_-]{8,200}$/, 'Enter a Resend API key'),
-    webhookSecret: resendWebhookSecretInput,
+    apiKey: z.string().trim().regex(/^re_[A-Za-z0-9_-]{8,200}$/, 'Enter a Resend API key').optional(),
+    webhookSecret: resendWebhookSecretInput.optional(),
+    senderName: emailPolicyUpdateSchema.shape.senderName.optional(),
+    supportEmail: emailPolicyUpdateSchema.shape.supportEmail.optional(),
+    marketingFromAddress: emailPolicyUpdateSchema.shape.marketingFromAddress.optional(),
+  }).superRefine((input, issue) => {
+    const hasMarketing = input.senderName !== undefined || input.supportEmail !== undefined || input.marketingFromAddress !== undefined;
+    if (hasMarketing) {
+      if (input.senderName === undefined) issue.addIssue({ code: 'custom', path: ['senderName'], message: 'Enter the sender name' });
+      if (input.supportEmail === undefined) issue.addIssue({ code: 'custom', path: ['supportEmail'], message: 'Enter a support email' });
+      if (input.marketingFromAddress === undefined) issue.addIssue({ code: 'custom', path: ['marketingFromAddress'], message: 'Enter a marketing From address' });
+    }
+    if (input.marketingFromAddress && mailboxAddress(input.from) === mailboxAddress(input.marketingFromAddress)) {
+      issue.addIssue({ code: 'custom', path: ['marketingFromAddress'], message: 'Use a different address from transactional email' });
+    }
+    if (input.apiKey && !input.webhookSecret) issue.addIssue({ code: 'custom', path: ['webhookSecret'], message: 'Enter the webhook signing secret too' });
+    if (input.webhookSecret && !input.apiKey) issue.addIssue({ code: 'custom', path: ['apiKey'], message: 'Enter the sending API key too' });
   });
   async function integrationMember(request: Request, workspaceId: string, admin: boolean) {
     const session = await auth.api.getSession({ headers: request.headers });
@@ -91,6 +109,56 @@ export function createApp(dependencies: Dependencies) {
     }
     return new TextDecoder('utf-8', { fatal: true }).decode(Buffer.concat(chunks));
   }
+  const escapeHtml = (value: string) => value.replace(/[&<>"']/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character] ?? character);
+  const unsubscribeHeaders = { 'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer', 'Content-Security-Policy': "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; base-uri 'none'" };
+  function unsubscribePage(title: string, content: string, supportEmail?: string) {
+    const support = supportEmail ? `<p>Need help? <a href="mailto:${escapeHtml(supportEmail)}">Contact support</a>.</p>` : '';
+    return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(title)}</title><style>body{font:16px system-ui,sans-serif;color:#222;max-width:32rem;margin:10vh auto;padding:1.5rem}button{font:inherit;padding:.8rem 1.2rem;cursor:pointer}a{color:#174d83}</style></head><body><main><h1>${escapeHtml(title)}</h1>${content}${support}</main></body></html>`;
+  }
+  async function lookupUnsubscribe(token: string) {
+    if (!validUnsubscribeToken(config, token)) return null;
+    const [row] = await db.select({ token: unsubscribeTokens, policy: emailPolicies }).from(unsubscribeTokens)
+      .innerJoin(emailPolicies, eq(emailPolicies.workspaceId, unsubscribeTokens.workspaceId))
+      .where(eq(unsubscribeTokens.tokenDigest, tokenDigest(token))).limit(1);
+    return row && !row.token.revokedAt ? row : null;
+  }
+  app.get('/unsubscribe/:token', async (context) => {
+    const token = context.req.param('token');
+    const row = await lookupUnsubscribe(token);
+    if (!row) return context.html(unsubscribePage('Link unavailable', '<p>This unsubscribe link is invalid or has been revoked.</p>', config.unsubscribeSupportEmail), 404, unsubscribeHeaders);
+    const [optOut] = await db.select({ workspaceId: marketingOptOuts.workspaceId }).from(marketingOptOuts)
+      .where(and(eq(marketingOptOuts.workspaceId, row.token.workspaceId), eq(marketingOptOuts.emailKey, row.token.emailKey))).limit(1);
+    const sender = escapeHtml(row.policy.senderName);
+    if (optOut) {
+      return context.html(unsubscribePage('Unsubscribed', `<p>You're unsubscribed from ${sender} marketing emails.</p><p>Necessary account and service messages may still arrive.</p>`, row.policy.supportEmail), 200, unsubscribeHeaders);
+    }
+    const content = `<p>Stop marketing emails from ${sender}?</p><form method="post" action="/unsubscribe/${encodeURIComponent(token)}"><input type="hidden" name="action" value="unsubscribe"><button type="submit">Unsubscribe from ${sender} marketing emails</button></form><p>Necessary account and service messages may still arrive.</p>`;
+    return context.html(unsubscribePage('Unsubscribe', content, row.policy.supportEmail), 200, unsubscribeHeaders);
+  });
+  app.post('/unsubscribe/:token', async (context) => {
+    const token = context.req.param('token');
+    const row = await lookupUnsubscribe(token);
+    if (!row) return context.html(unsubscribePage('Link unavailable', '<p>This unsubscribe link is invalid or has been revoked.</p>', config.unsubscribeSupportEmail), 404, unsubscribeHeaders);
+    try {
+      await consumeRateLimit(db, config, 'unsubscribe', context.req.header('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown', 300, 60);
+      const contentType = context.req.header('content-type') ?? '';
+      if (!contentType.startsWith('application/x-www-form-urlencoded') && !contentType.startsWith('multipart/form-data')) return context.text('Invalid form', 415, unsubscribeHeaders);
+      const raw = await limitedText(context.req.raw, 16 * 1024);
+      const form = await new Request('https://localhost/', { method: 'POST', headers: { 'content-type': contentType }, body: raw }).formData();
+      const oneClick = form.getAll('List-Unsubscribe').length === 1 && form.get('List-Unsubscribe') === 'One-Click' && !form.has('action');
+      const browser = form.getAll('action').length === 1 && form.get('action') === 'unsubscribe' && !form.has('List-Unsubscribe');
+      let unknownField = false;
+      form.forEach((_value, key) => { if (key !== 'action' && key !== 'List-Unsubscribe') unknownField = true; });
+      if ((!oneClick && !browser) || unknownField) return context.text('Invalid form', 400, unsubscribeHeaders);
+      await changePreference(db, { workspaceId: row.token.workspaceId, address: row.token.emailKey, eventId: `unsubscribe:${crypto.randomUUID()}`, source: oneClick ? 'mailbox' : 'recipient', action: 'unsubscribe', origin: row.token.origin });
+      if (oneClick) return context.body(null, 200, unsubscribeHeaders);
+      const sender = escapeHtml(row.policy.senderName);
+      return context.html(unsubscribePage('Unsubscribed', `<p>You're unsubscribed from ${sender} marketing emails.</p><p>Necessary account and service messages may still arrive.</p>`, row.policy.supportEmail), 200, unsubscribeHeaders);
+    } catch (error) {
+      if (error instanceof RachetError && error.status < 500) return context.text('Request could not be completed', error.status as 400, unsubscribeHeaders);
+      return context.html(unsubscribePage('Please try again', `<p>Your preference was not changed.</p><form method="post" action="/unsubscribe/${encodeURIComponent(token)}"><input type="hidden" name="action" value="unsubscribe"><button type="submit">Try again</button></form>`, row.policy.supportEmail), 503, unsubscribeHeaders);
+    }
+  });
   function integrationError(error: unknown) {
     if (error instanceof RachetError) return { status: error.status, body: errorPayload(error) };
     if (error instanceof ZodError) return { status: 422, body: { code: 'VALIDATION_FAILED', message: 'Check the integration fields', fieldErrors: z.flattenError(error).fieldErrors } };
@@ -131,25 +199,47 @@ export function createApp(dependencies: Dependencies) {
       const principal = await integrationMember(context.req.raw, input.workspaceId, true);
       await consumeRateLimit(db, config, 'resend-connection-save', input.workspaceId, 20, 3600);
       if (!config.integrationEncryptionKey) throw new RachetError('NOT_CONFIGURED', 'Integration encryption is not configured on this deployment', 503);
-      if (input.apiKey === config.authResendApiKey || input.apiKey === config.resendApiKey) {
+      if (input.apiKey && (input.apiKey === config.authResendApiKey || input.apiKey === config.resendApiKey)) {
         throw new RachetError('VALIDATION_FAILED', 'Use a dedicated Resend key for this organization', 422);
       }
-      const apiKeyEncrypted = encryptIntegrationSecret(config, input.workspaceId, 'resend-api-key', input.apiKey);
-      const webhookSecretEncrypted = encryptIntegrationSecret(config, input.workspaceId, 'resend-webhook-secret', input.webhookSecret);
-      const apiKeyFingerprint = fingerprintIntegrationSecret(config, 'resend-api-key', input.apiKey);
-      const webhookSecretFingerprint = fingerprintIntegrationSecret(config, 'resend-webhook-secret', input.webhookSecret);
-      await db.transaction(async (transaction) => {
-        await transaction.insert(resendConnections).values({
-          workspaceId: input.workspaceId, apiKeyEncrypted, apiKeyFingerprint, webhookSecretEncrypted, webhookSecretFingerprint, fromAddress: input.from,
-        }).onConflictDoUpdate({ target: resendConnections.workspaceId, set: {
-          apiKeyEncrypted, apiKeyFingerprint, webhookSecretEncrypted, webhookSecretFingerprint, fromAddress: input.from,
-          version: sql`${resendConnections.version} + 1`, lastTestAcceptedAt: null, updatedAt: new Date(),
-        } });
-        await transaction.update(workspaces).set({ sendingEnabled: false, updatedAt: new Date() })
-          .where(eq(workspaces.id, input.workspaceId));
+      const result = await db.transaction(async (transaction) => {
+        await transaction.select({ id: workspaces.id }).from(workspaces).where(eq(workspaces.id, input.workspaceId)).for('update').limit(1);
+        const [current] = await transaction.select().from(resendConnections).where(eq(resendConnections.workspaceId, input.workspaceId)).for('update').limit(1);
+        const [policy] = await transaction.select({ marketingFromAddress: emailPolicies.marketingFromAddress }).from(emailPolicies).where(eq(emailPolicies.workspaceId, input.workspaceId)).for('update').limit(1);
+        const marketingFromAddress = input.marketingFromAddress ?? policy?.marketingFromAddress;
+        if (marketingFromAddress && mailboxAddress(input.from) === mailboxAddress(marketingFromAddress)) {
+          throw new RachetError('VALIDATION_FAILED', 'Marketing and transactional sender addresses must differ', 422);
+        }
+        const connectionChanged = !current || current.fromAddress !== input.from || !!input.apiKey;
+        if (connectionChanged) {
+          if (!input.apiKey || !input.webhookSecret) throw new RachetError('VALIDATION_FAILED', 'Enter both Resend secrets to connect or change the sender', 422);
+          const apiKeyEncrypted = encryptIntegrationSecret(config, input.workspaceId, 'resend-api-key', input.apiKey);
+          const webhookSecretEncrypted = encryptIntegrationSecret(config, input.workspaceId, 'resend-webhook-secret', input.webhookSecret);
+          const apiKeyFingerprint = fingerprintIntegrationSecret(config, 'resend-api-key', input.apiKey);
+          const webhookSecretFingerprint = fingerprintIntegrationSecret(config, 'resend-webhook-secret', input.webhookSecret);
+          await transaction.insert(resendConnections).values({
+            workspaceId: input.workspaceId, apiKeyEncrypted, apiKeyFingerprint, webhookSecretEncrypted, webhookSecretFingerprint, fromAddress: input.from,
+          }).onConflictDoUpdate({ target: resendConnections.workspaceId, set: {
+            apiKeyEncrypted, apiKeyFingerprint, webhookSecretEncrypted, webhookSecretFingerprint, fromAddress: input.from,
+            version: sql`${resendConnections.version} + 1`, lastTestAcceptedAt: null, updatedAt: new Date(),
+          } });
+          await transaction.update(workspaces).set({ sendingEnabled: false, updatedAt: new Date() })
+            .where(eq(workspaces.id, input.workspaceId));
+        }
+        if (input.senderName && input.supportEmail && input.marketingFromAddress) {
+          await transaction.insert(emailPolicies).values({
+            workspaceId: input.workspaceId, senderName: input.senderName, supportEmail: input.supportEmail, marketingFromAddress: input.marketingFromAddress,
+          }).onConflictDoUpdate({ target: emailPolicies.workspaceId, set: {
+            senderName: input.senderName, supportEmail: input.supportEmail, marketingFromAddress: input.marketingFromAddress, updatedAt: new Date(),
+          } });
+          await transaction.insert(auditEvents).values({
+            workspaceId: input.workspaceId, actorId: principal.userId, action: 'email_policy.update', targetType: 'email_policy', targetId: input.workspaceId,
+          });
+        }
+        return { configured: true as const, connectionChanged, marketingConfigured: !!marketingFromAddress };
       });
-      console.info('Resend connection configured', { workspaceId: input.workspaceId, actorId: principal.userId });
-      return context.json({ configured: true });
+      console.info('Email settings configured', { workspaceId: input.workspaceId, actorId: principal.userId, connectionChanged: result.connectionChanged });
+      return context.json(result);
     } catch (error) {
       const { status, body } = integrationError(error);
       return context.json(body, status as 400);
@@ -475,7 +565,12 @@ export function createApp(dependencies: Dependencies) {
     await db.insert(webhookEvents).values({ workspaceId: workspaceId.data, provider: 'resend', eventId, eventType, providerMessageId, payload: event, occurredAt: typeof event.created_at === 'string' ? new Date(event.created_at) : null }).onConflictDoNothing();
     if (providerMessageId) {
       if (intent && (eventType === 'email.bounced' || eventType === 'email.complained' || eventType === 'email.suppressed')) {
-        await db.insert(suppressions).values({ workspaceId: intent.workspaceId, emailKey: intent.recipient.trim().toLowerCase(), reason: eventType, source: 'resend' }).onConflictDoUpdate({ target: [suppressions.workspaceId, suppressions.emailKey, suppressions.topic], set: { active: true, reason: eventType, updatedAt: new Date() } });
+        await db.transaction(async (tx) => {
+          const address = intent.recipient.trim().toLowerCase();
+          await lockEmailAddress(tx as unknown as Database, intent.workspaceId, address);
+          await tx.insert(deliveryBlocks).values({ workspaceId: intent.workspaceId, emailKey: address, eventId: `resend:${eventId}`, reason: eventType, source: 'resend' }).onConflictDoNothing();
+          await tx.insert(suppressions).values({ workspaceId: intent.workspaceId, emailKey: address, reason: eventType, source: 'resend' }).onConflictDoUpdate({ target: [suppressions.workspaceId, suppressions.emailKey, suppressions.topic], set: { active: true, reason: eventType, updatedAt: new Date() } });
+        });
       }
     }
     await db.update(webhookEvents).set({ processedAt: new Date() }).where(and(eq(webhookEvents.workspaceId, workspaceId.data), eq(webhookEvents.provider, 'resend'), eq(webhookEvents.eventId, eventId)));

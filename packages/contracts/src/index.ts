@@ -54,7 +54,7 @@ export const templateReviseSchema = z.object({
   }
 });
 export const templateArchiveSchema = z.object({ workspaceId: workspaceIdSchema, templateId: z.uuid() });
-export const templateRenderSchema = z.object({ workspaceId: workspaceIdSchema, templateVersionId: z.uuid(), props: z.record(z.string(), z.unknown()).default({}) });
+export const templateRenderSchema = z.object({ workspaceId: workspaceIdSchema, templateVersionId: z.uuid(), props: z.record(z.string(), z.unknown()).default({}), marketingPreview: z.boolean().default(false) });
 
 export const timeZoneSchema = z.string().min(1).max(100).refine(
   (value) => value === 'UTC' || Intl.supportedValuesOf('timeZone').includes(value),
@@ -113,7 +113,7 @@ export type FlowNode = z.infer<typeof flowNodeSchema>;
 
 export const workflowDefinitionSchema = z.object({
   schemaVersion: z.literal('1'), description: z.string().min(1).max(2000), trigger: triggerSchema,
-  entryNodeId: z.string().min(1), purpose: z.enum(['transactional', 'marketing']).default('transactional'),
+  entryNodeId: z.string().min(1), purpose: z.enum(['transactional', 'marketing']),
   topic: z.string().min(1).default('transactional'), nodes: z.array(flowNodeSchema).min(1).max(100),
 }).superRefine((definition, context) => {
   const ids = new Set<string>();
@@ -141,6 +141,10 @@ export const simulatedEventSchema = z.object({ eventType: eventTypeNameSchema, d
 export type SimulatedEvent = z.infer<typeof simulatedEventSchema>;
 export const workflowSimulateSchema = z.object({ workspaceId: workspaceIdSchema, definition: workflowDefinitionSchema, contact: z.record(z.string(), z.unknown()).default({}), variables: z.record(z.string(), z.unknown()).default({}), receivedEvents: z.array(simulatedEventSchema).default([]) });
 export const contactUpsertSchema = z.object({ workspaceId: workspaceIdSchema, externalId: z.string().min(1).max(200).optional(), email: z.email(), timezone: timeZoneSchema.optional(), fields: z.record(z.string(), z.unknown()).default({}) });
+export const emailPolicyUpdateSchema = z.object({ workspaceId: workspaceIdSchema, senderName: z.string().trim().min(1).max(120), supportEmail: z.email(), marketingFromAddress: z.email() });
+export const contactPreferenceGetSchema = z.object({ workspaceId: workspaceIdSchema, email: z.email() });
+export const contactUnsubscribeSchema = z.object({ workspaceId: workspaceIdSchema, email: z.email(), eventId: z.string().min(1).max(200), source: z.enum(['support', 'product', 'import']) });
+export const contactResubscribeSchema = z.object({ workspaceId: workspaceIdSchema, email: z.email(), eventId: z.string().min(1).max(200), source: z.enum(['product', 'support']), consentReference: z.string().trim().min(1).max(500) });
 export const enrollmentCreateSchema = z.object({ workspaceId: workspaceIdSchema, workflowVersionId: z.uuid(), contactId: z.uuid(), variables: z.record(z.string(), z.unknown()).default({}), idempotencyKey: z.string().min(1).max(200) });
 export const enrollmentControlSchema = z.object({ workspaceId: workspaceIdSchema, enrollmentId: z.uuid() });
 export const enrollmentDeleteSchema = z.object({ workspaceId: workspaceIdSchema, enrollmentId: z.uuid() });

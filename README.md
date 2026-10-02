@@ -106,7 +106,7 @@ pnpm dev
 
 `pnpm dev` starts PostgreSQL, Temporal, the API, worker, dispatcher, and dashboard. Open the dashboard URL printed by the launcher. For sign-in, configure either `AUTH_RESEND_API_KEY` with `AUTH_EMAIL_FROM`, or `GITHUB_CLIENT_ID` with `GITHUB_CLIENT_SECRET` in `.env.local`. On a fresh database, use the generated `RACHET_SETUP_SECRET` to create the first administrator. Registration is disabled by default; set `ALLOW_REGISTRATION=true` in `.env.local` and restart to test new accounts.
 
-After signing in, connect workflow delivery in **Integrations → Email → Resend**. To preview sample journeys, run `pnpm demo:seed --list` and then `pnpm demo:seed <workspace-slug>`. See [Local demo journeys](docs/DEMO_JOURNEYS.md) for details. Stop the app with `Ctrl+C` and its Docker services with `pnpm dev:infra:down`.
+After signing in, connect workflow delivery in **Integrations → Email → Resend**. Open **Enrollments** to see people in progress, exits, and the reason a journey ended. To preview sample journeys, run `pnpm demo:seed --list` and then `pnpm demo:seed <workspace-slug>`. See [Local demo journeys](docs/DEMO_JOURNEYS.md) for details. Stop the app with `Ctrl+C` and its Docker services with `pnpm dev:infra:down`.
 
 ## Usage
 
@@ -175,6 +175,8 @@ rachet call enrollment.list
 rachet call message.list
 ```
 
+For marketing email, an organization owner or admin sets the marketing sender and unsubscribe details while configuring **Integrations → Email → Resend**, or with `email_policy.update`. Record the recipient's new consent with `contact.resubscribe` and a stable event ID before enrollment. Published marketing sends include an unsubscribe footer and mailbox one-click headers. `subscription_event.list` shows which email and workflow led to a link opt-out. See [Unsubscribe and consent](docs/UNSUBSCRIBE.md).
+
 The operations console at [rachet.dev](https://rachet.dev) shows journey graphs, live enrollments, timelines, messages, OAuth consent, and connected apps. Deployment administrators also get a Users page at `/admin/users`.
 
 The public landing page is at `/` and `/welcome`. Signed-in users go to `/workflows`. Run `pnpm dev:dashboard` to work on the landing page. Sign-in and the operations console need the full development stack.
@@ -210,6 +212,8 @@ Server variables, documented in [`.env.example`](.env.example):
 | `OAUTH_PUBLIC_REDIRECT_ORIGINS`, `OAUTH_PUBLIC_REDIRECT_SCHEMES` | Explicit callback allowlists for public MCP clients |
 | `TEMPORAL_ADDRESS`, `TEMPORAL_NAMESPACE`, `TEMPORAL_TASK_QUEUE` | Temporal connection and task routing |
 | `INTEGRATION_ENCRYPTION_KEY` | Base64-encoded 32-byte key for encrypting organization integrations; required in production and must be backed up |
+| `UNSUBSCRIBE_SIGNING_KEYS` | Comma-separated base64 32-byte keys; first signs new links, older keys keep sent links valid |
+| `UNSUBSCRIBE_SUPPORT_EMAIL` | Support address shown when a recipient link is invalid or revoked |
 | `AUTH_RESEND_API_KEY`, `AUTH_EMAIL_FROM` | Separate Resend account/key and explicit verified sender used only for magic links; both are required to enable magic links |
 | `RACHET_API_KEY`, `RACHET_WORKSPACE_ID` | Optional send-scoped API key and organization for the product welcome. Set both, or neither. |
 | `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET` | Optional GitHub sign-in provider |
@@ -232,6 +236,7 @@ Every operation is defined once and exposed three ways: HTTP `POST /v1/operation
 | `workflow.actions` | List the installed action registry |
 | `workflow.create`, `workflow.revise`, `workflow.list`, `workflow.validate`, `workflow.simulate`, `workflow.publish`, `workflow.delete` | Author, revise, check, trace, version, and delete capability graphs. Workflow deletion requires explicit dangerous confirmation and fails while enrollments are in progress. |
 | `contact.upsert`, `contact.list` | Manage enrolled contacts |
+| `email_policy.get`, `email_policy.update`, `contact.preferences.get`, `contact.unsubscribe`, `contact.resubscribe`, `subscription_event.list` | Configure marketing mail and inspect or change consent |
 | `enrollment.create`, `enrollment.list`, `enrollment.pause`, `enrollment.resume`, `enrollment.cancel`, `enrollment.delete` | Start, inspect, control, and delete durable executions |
 | `event_type.define`, `event_type.list` | Define and inspect immutable JSON Schema contracts for product events |
 | `event.emit` | Durably accept a stable event ID; identical retries are no-ops |

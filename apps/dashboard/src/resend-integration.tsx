@@ -3,7 +3,7 @@ import { Link, Navigate, Outlet, useNavigate, useSearchParams } from 'react-rout
 import { Check, Copy } from 'lucide-react';
 import { api, ApiError } from '@/api';
 import { useAuth } from '@/auth';
-import type { ResendConnectionStatus } from '@/types';
+import type { EmailPolicy, ResendConnectionStatus } from '@/types';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -52,7 +52,10 @@ export function IntegrationsPage({ onboarding = false }: { onboarding?: boolean 
   useEffect(() => {
     if (!workspaceId) return;
     let active = true;
-    void api.resendConnection(workspaceId).then((next) => { if (active) setStatus(next); })
+    void api.resendConnection(workspaceId).then((next) => {
+      if (!active) return;
+      setStatus(next);
+    })
       .catch((reason: unknown) => { if (active) setError(reason instanceof Error ? reason.message : 'Could not load integrations'); });
     return () => { active = false; };
   }, [workspaceId]);
@@ -114,6 +117,11 @@ export function ResendIntegrationPage({ onboarding = false }: { onboarding?: boo
   const completionTarget = oauthQuery ? `/auth/login?oauth_query=${encodeURIComponent(oauthQuery)}` : '/';
   const [status, setStatus] = useState<ResendConnectionStatus | null>(null);
   const [from, setFrom] = useState('');
+  const [policy, setPolicy] = useState<EmailPolicy | null>(null);
+  const [configureMarketing, setConfigureMarketing] = useState(false);
+  const [senderName, setSenderName] = useState('');
+  const [supportEmail, setSupportEmail] = useState('');
+  const [marketingFromAddress, setMarketingFromAddress] = useState('');
   const [apiKey, setApiKey] = useState('');
   const [webhookSecret, setWebhookSecret] = useState('');
   const [saving, setSaving] = useState(false);
@@ -123,14 +131,21 @@ export function ResendIntegrationPage({ onboarding = false }: { onboarding?: boo
   const [testAccepted, setTestAccepted] = useState(false);
   const role = workspaces.find((workspace) => workspace.id === workspaceId)?.role;
   const canManage = role === 'owner' || role === 'admin';
+  const needsSecrets = !status?.configured || from.trim() !== (status.from ?? '').trim() || Boolean(apiKey || webhookSecret);
+  const previewText = `From: ${marketingFromAddress.trim() || 'news@example.com'}\nTo: recipient@example.com\nSubject: Example marketing email\n\nYour message content\n\nUnsubscribe from ${senderName.trim() || 'Your organization'} marketing emails: https://example.invalid/unsubscribe-preview`;
 
   useEffect(() => {
     if (!workspaceId) return;
     let active = true;
-    void api.resendConnection(workspaceId).then((next) => {
+    void Promise.all([api.resendConnection(workspaceId), api.emailPolicy(workspaceId)]).then(([next, currentPolicy]) => {
       if (!active) return;
       setStatus(next);
       setFrom(next.from ?? '');
+      setPolicy(currentPolicy);
+      setConfigureMarketing(!!currentPolicy);
+      setSenderName(currentPolicy?.senderName ?? '');
+      setSupportEmail(currentPolicy?.supportEmail ?? '');
+      setMarketingFromAddress(currentPolicy?.marketingFromAddress ?? '');
     }).catch((reason: unknown) => {
       if (active) setLoadError(reason instanceof Error ? reason.message : 'Could not load Resend settings');
     });
@@ -144,15 +159,27 @@ export function ResendIntegrationPage({ onboarding = false }: { onboarding?: boo
     setFeedback(null);
     setFieldErrors({});
     try {
-      await api.saveResendConnection({ workspaceId, from: from.trim(), apiKey: apiKey.trim(), webhookSecret: webhookSecret.trim() });
+      const result = await api.saveResendConnection({
+        workspaceId,
+        from: from.trim(),
+        ...(apiKey.trim() ? { apiKey: apiKey.trim() } : {}),
+        ...(webhookSecret.trim() ? { webhookSecret: webhookSecret.trim() } : {}),
+        ...(configureMarketing ? {
+          senderName: senderName.trim(), supportEmail: supportEmail.trim(), marketingFromAddress: marketingFromAddress.trim(),
+        } : {}),
+      });
       setApiKey('');
       setWebhookSecret('');
-      setTestAccepted(false);
+      if (result.connectionChanged) setTestAccepted(false);
       try {
-        setStatus(await api.resendConnection(workspaceId));
-        setFeedback({ action: 'save', kind: 'success', message: 'Resend settings saved. Send a test email to enable workflow sending. The key and signing secret are now hidden.' });
+        const [nextStatus, nextPolicy] = await Promise.all([api.resendConnection(workspaceId), api.emailPolicy(workspaceId)]);
+        setStatus(nextStatus);
+        setPolicy(nextPolicy);
+        setFeedback({ action: 'save', kind: 'success', message: result.connectionChanged || !nextStatus.lastTestAcceptedAt
+          ? 'Email settings saved. Send a test email to enable workflow sending.'
+          : 'Email settings saved. Your tested connection remains active.' });
       } catch {
-        setFeedback({ action: 'save', kind: 'success', message: 'Resend settings were saved, but the connection status could not be refreshed. Reload this page before sending a test email.' });
+        setFeedback({ action: 'save', kind: 'success', message: 'Email settings were saved, but the status could not be refreshed. Reload this page before sending.' });
       }
     } catch (reason) {
       if (reason instanceof ApiError && reason.fieldErrors) {
@@ -209,7 +236,7 @@ export function ResendIntegrationPage({ onboarding = false }: { onboarding?: boo
       </div>
 
       {loadError && <Alert variant="destructive"><AlertDescription>{loadError}</AlertDescription></Alert>}
-      {status?.configured && <Alert><AlertDescription>Configured with sender {status.from}. {status.lastTestAcceptedAt ? 'A test send was accepted.' : 'Workflow sending is disabled until a test send is accepted.'} Re-enter both secrets below to replace this connection.</AlertDescription></Alert>}
+      {status?.configured && <Alert><AlertDescription>Configured with sender {status.from}. {status.lastTestAcceptedAt ? 'A test send was accepted.' : 'Workflow sending is disabled until a test send is accepted.'} Leave both secrets blank to keep this connection.</AlertDescription></Alert>}
       {status?.lastTestAcceptedAt && <Alert><AlertDescription>Resend accepted a connection test on {new Date(status.lastTestAcceptedAt).toLocaleString()}. Check your inbox or Resend delivery logs to confirm delivery.</AlertDescription></Alert>}
       {status?.configured && canManage && <div className="flex flex-col gap-3">
         <Button type="button" variant="outline" disabled={saving} onClick={() => { void test(); }}>Send a test email to {user?.email}</Button>
@@ -235,31 +262,63 @@ export function ResendIntegrationPage({ onboarding = false }: { onboarding?: boo
 
       <Card>
         <CardHeader>
-          <CardTitle>{status?.configured ? 'Replace Resend connection' : 'Save Resend connection'}</CardTitle>
-          <CardDescription>Use a sender on the exact domain you verified in this Resend account.</CardDescription>
+          <CardTitle>Email settings</CardTitle>
+          <CardDescription>Set the transactional sender. Add marketing details here if you plan to publish marketing workflows.</CardDescription>
         </CardHeader>
         <CardContent>
           {canManage ? (
             <form onSubmit={(event) => { void save(event); }}>
               <FieldGroup>
                 <Field data-invalid={Boolean(fieldErrors.from)}>
-                  <FieldLabel htmlFor="resend-from">From address</FieldLabel>
+                  <FieldLabel htmlFor="resend-from">Transactional From address</FieldLabel>
                   <Input id="resend-from" type="text" autoComplete="off" required value={from} aria-invalid={Boolean(fieldErrors.from)} onChange={(event) => { setFrom(event.target.value); setFieldErrors((current) => ({ ...current, from: '' })); }} placeholder="Your team <hello@example.com>" />
-                  <FieldDescription>Recipients will see this sender. The domain must be verified in the same Resend account.</FieldDescription>
+                  <FieldDescription>The domain must be verified in this Resend account. Changing this address requires both secrets and a new test send.</FieldDescription>
                   <FieldError>{fieldErrors.from}</FieldError>
                 </Field>
                 <Field data-invalid={Boolean(fieldErrors.apiKey)}>
                   <FieldLabel htmlFor="resend-key">Sending API key</FieldLabel>
-                  <Input id="resend-key" type="password" autoComplete="off" required value={apiKey} aria-invalid={Boolean(fieldErrors.apiKey)} onChange={(event) => { setApiKey(event.target.value); setFieldErrors((current) => ({ ...current, apiKey: '' })); }} placeholder="re_…" />
-                  <FieldDescription>Use the sending API key from Resend, which starts with re_. This is not your Resend password.</FieldDescription>
+                  <Input id="resend-key" type="password" autoComplete="off" required={needsSecrets} value={apiKey} aria-invalid={Boolean(fieldErrors.apiKey)} onChange={(event) => { setApiKey(event.target.value); setFieldErrors((current) => ({ ...current, apiKey: '' })); }} placeholder={status?.configured ? 'Leave blank to keep current key' : 're_…'} />
+                  <FieldDescription>Use a sending API key from Resend. Leave blank with the signing secret to keep your tested connection.</FieldDescription>
                   <FieldError>{fieldErrors.apiKey}</FieldError>
                 </Field>
                 <Field data-invalid={Boolean(fieldErrors.webhookSecret)}>
                   <FieldLabel htmlFor="resend-secret">Webhook signing secret</FieldLabel>
-                  <Input id="resend-secret" type="password" autoComplete="off" required value={webhookSecret} aria-invalid={Boolean(fieldErrors.webhookSecret)} onChange={(event) => { setWebhookSecret(event.target.value); setFieldErrors((current) => ({ ...current, webhookSecret: '' })); }} placeholder="whsec_…" />
+                  <Input id="resend-secret" type="password" autoComplete="off" required={needsSecrets} value={webhookSecret} aria-invalid={Boolean(fieldErrors.webhookSecret)} onChange={(event) => { setWebhookSecret(event.target.value); setFieldErrors((current) => ({ ...current, webhookSecret: '' })); }} placeholder={status?.configured ? 'Leave blank to keep current secret' : 'whsec_…'} />
                   <FieldError>{fieldErrors.webhookSecret}</FieldError>
                 </Field>
-                <Button type="submit" disabled={saving || !status}>{saving ? 'Saving…' : 'Save connection'}</Button>
+                <div className="space-y-4 border-t pt-4">
+                  {!policy && <label className="flex items-start gap-3 text-sm">
+                    <input type="checkbox" checked={configureMarketing} onChange={(event) => setConfigureMarketing(event.target.checked)} className="mt-1 size-4" />
+                    <span><span className="font-medium">Set up marketing email</span><span className="block text-muted-foreground">Required before publishing a marketing workflow. Transactional-only senders can leave this off.</span></span>
+                  </label>}
+                  {configureMarketing && <div className="space-y-4">
+                    {policy && <h2 className="text-sm font-medium">Marketing email</h2>}
+                    <Field data-invalid={Boolean(fieldErrors.senderName)}>
+                      <FieldLabel htmlFor="marketing-sender-name">Sender name</FieldLabel>
+                      <Input id="marketing-sender-name" required maxLength={120} value={senderName} aria-invalid={Boolean(fieldErrors.senderName)} onChange={(event) => { setSenderName(event.target.value); setFieldErrors((current) => ({ ...current, senderName: '' })); }} placeholder="Acme" />
+                      <FieldDescription>Shown in the unsubscribe link and on the recipient page.</FieldDescription>
+                      <FieldError>{fieldErrors.senderName}</FieldError>
+                    </Field>
+                    <Field data-invalid={Boolean(fieldErrors.marketingFromAddress)}>
+                      <FieldLabel htmlFor="marketing-from">Marketing From address</FieldLabel>
+                      <Input id="marketing-from" type="email" required value={marketingFromAddress} aria-invalid={Boolean(fieldErrors.marketingFromAddress)} onChange={(event) => { setMarketingFromAddress(event.target.value); setFieldErrors((current) => ({ ...current, marketingFromAddress: '' })); }} placeholder="news@example.com" />
+                      <FieldDescription>Use an address verified by your email provider. Keep it separate from the transactional sender.</FieldDescription>
+                      <FieldError>{fieldErrors.marketingFromAddress}</FieldError>
+                    </Field>
+                    <Field data-invalid={Boolean(fieldErrors.supportEmail)}>
+                      <FieldLabel htmlFor="marketing-support-email">Support email</FieldLabel>
+                      <Input id="marketing-support-email" type="email" required value={supportEmail} aria-invalid={Boolean(fieldErrors.supportEmail)} onChange={(event) => { setSupportEmail(event.target.value); setFieldErrors((current) => ({ ...current, supportEmail: '' })); }} placeholder="support@example.com" />
+                      <FieldDescription>Shown if a recipient needs help with an unsubscribe link.</FieldDescription>
+                      <FieldError>{fieldErrors.supportEmail}</FieldError>
+                    </Field>
+                    <div className="space-y-2 text-sm">
+                      <p className="font-medium">Email preview</p>
+                      <pre className="whitespace-pre-wrap break-words rounded-md border bg-background p-4 font-mono text-xs leading-relaxed">{previewText}</pre>
+                      <p className="text-xs text-muted-foreground">Example only. A real email gets a recipient-specific link.</p>
+                    </div>
+                  </div>}
+                </div>
+                <Button type="submit" disabled={saving || !status}>{saving ? 'Saving…' : 'Save email settings'}</Button>
                 {feedback?.action === 'save' && <Alert variant={feedback.kind === 'error' ? 'destructive' : 'default'} role={feedback.kind === 'error' ? 'alert' : 'status'}><AlertDescription>{feedback.message}</AlertDescription></Alert>}
               </FieldGroup>
             </form>

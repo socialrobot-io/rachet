@@ -6,7 +6,7 @@ export function RouteMetadata() {
   const { pathname } = useLocation();
   useEffect(() => {
     const landing = pathname === '/' || pathname === '/welcome';
-    document.title = landing ? 'Rachet | Build customer journeys by asking' : 'Rachet | Dashboard';
+    document.title = landing ? 'Rachet | Customer journeys for AI agents' : 'Rachet | Dashboard';
     const robots = document.querySelector<HTMLMetaElement>('meta[name="robots"]');
     if (robots) robots.content = landing && !import.meta.env.DEV ? 'index, follow, max-image-preview:large' : 'noindex, nofollow';
     let canonical = document.querySelector<HTMLLinkElement>('link[rel="canonical"]');

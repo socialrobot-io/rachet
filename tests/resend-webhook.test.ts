@@ -4,7 +4,7 @@ import { createApp } from '../apps/server/src/app.js';
 import type { RachetAuth } from '../apps/server/src/auth.js';
 import type { Config } from '../apps/server/src/config.js';
 import type { RachetService } from '../apps/server/src/domain/service.js';
-import { contacts, enrollments, resendConnections, sendIntents, sequences, sequenceVersions, suppressions, webhookEvents, workspaces } from '../apps/server/src/db/schema.js';
+import { contacts, deliveryBlocks, enrollments, resendConnections, sendIntents, sequences, sequenceVersions, suppressions, webhookEvents, workspaces } from '../apps/server/src/db/schema.js';
 import { encryptIntegrationSecret, fingerprintIntegrationSecret } from '../apps/server/src/integrations/secret.js';
 import { ResendProvider } from '../apps/server/src/providers/resend.js';
 import { probeDbRuntime, type DbRuntime } from './helpers/db-runtime.js';
@@ -83,6 +83,16 @@ describe.skipIf(!runtime)('Resend webhook tenant correlation (postgres)', () => 
     expect(intent?.providerMessageId).toBe('msg_early');
     const [suppression] = await boot.db.select().from(suppressions).where(and(eq(suppressions.workspaceId, owner.workspaceId), eq(suppressions.emailKey, owner.email)));
     expect(suppression?.active).toBe(true);
+  });
+
+  it('retains bounce and complaint as separate delivery blocks', async () => {
+    const owner = fixture(0);
+    const eventId = crypto.randomUUID();
+    const complaint = { ...payload(owner, 'msg_early'), type: 'email.complained' };
+    expect((await post(owner.workspaceId, complaint, eventId)).status).toBe(200);
+    expect((await post(owner.workspaceId, complaint, eventId)).status).toBe(200);
+    const blocks = await boot.db.select().from(deliveryBlocks).where(and(eq(deliveryBlocks.workspaceId, owner.workspaceId), eq(deliveryBlocks.emailKey, owner.email)));
+    expect(blocks.map((block) => block.reason).sort()).toEqual(['email.bounced', 'email.complained']);
   });
 
   it('correlates a bounce from a send tagged before the rename', async () => {
