@@ -64,6 +64,7 @@ export type PublishedVersion = {
   id: string;
   sequenceId: string;
   version: number;
+  definition: WorkflowDefinition;
   createdAt: string;
 };
 

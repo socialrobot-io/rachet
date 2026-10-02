@@ -542,6 +542,7 @@ export class RachetService {
       id: sequenceVersions.id,
       sequenceId: sequenceVersions.sequenceId,
       version: sequenceVersions.version,
+      definition: sequenceVersions.definition,
       createdAt: sequenceVersions.createdAt,
     }).from(sequenceVersions).where(eq(sequenceVersions.workspaceId, workspaceId)).orderBy(asc(sequenceVersions.version));
     const bySequence = new Map<string, typeof versions>();
