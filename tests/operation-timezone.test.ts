@@ -7,6 +7,7 @@ const workspaceId = '00000000-0000-4000-8000-000000000001';
 const definition = {
   schemaVersion: '1',
   description: 'Send once at a local clock time',
+  purpose: 'transactional',
   trigger: { type: 'schedule', at: '2026-07-01T09:00:00+02:00', timeZone: 'Europe/Amsterdam' },
   entryNodeId: 'done',
   nodes: [{ id: 'done', type: 'end', reason: 'done' }],

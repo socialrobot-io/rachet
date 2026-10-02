@@ -70,3 +70,14 @@ export async function renderEmail(template: TemplateRenderable, props: Record<st
   const wrapped = await wrapPlainBody(body, preheader);
   return { subject, preheader, html: wrapped.html, plainText: wrapped.plainText };
 }
+
+/** The managed footer is added after template rendering, so customer markup cannot remove it. */
+export function appendMarketingFooter(rendered: Awaited<ReturnType<typeof renderEmail>>, senderName: string, url: string) {
+  const label = `Unsubscribe from ${senderName} marketing emails`;
+  const footer = `<p style="font:13px Arial,sans-serif;color:#555;margin:24px 0"><a href="${escapeHtml(url)}">${escapeHtml(label)}</a></p>`;
+  return {
+    ...rendered,
+    html: /<\/body\s*>/i.test(rendered.html) ? rendered.html.replace(/<\/body\s*>/i, `${footer}</body>`) : `${rendered.html}${footer}`,
+    plainText: `${rendered.plainText.trimEnd()}\n\n${label}: ${url}\n`,
+  };
+}

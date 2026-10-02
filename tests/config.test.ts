@@ -8,6 +8,8 @@ const base = {
   BETTER_AUTH_SECRET: '12345678901234567890123456789012',
   RACHET_SETUP_SECRET: 'abcdefghijklmnopqrstuvwxyz123456',
   INTEGRATION_ENCRYPTION_KEY: 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=',
+  UNSUBSCRIBE_SIGNING_KEYS: 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=',
+  UNSUBSCRIBE_SUPPORT_EMAIL: 'support@example.com',
 };
 
 describe('production configuration', () => {
@@ -49,6 +51,15 @@ describe('production configuration', () => {
   it('requires a 32-byte integration encryption key in production', () => {
     expect(() => loadConfig({ ...base, INTEGRATION_ENCRYPTION_KEY: '' })).toThrow(/INTEGRATION_ENCRYPTION_KEY/);
     expect(() => loadConfig({ ...base, INTEGRATION_ENCRYPTION_KEY: 'short' })).toThrow(/INTEGRATION_ENCRYPTION_KEY/);
+  });
+
+  it('requires a durable unsubscribe signing key in production', () => {
+    expect(() => loadConfig({ ...base, UNSUBSCRIBE_SIGNING_KEYS: '' })).toThrow(/UNSUBSCRIBE_SIGNING_KEYS/);
+    expect(() => loadConfig({ ...base, UNSUBSCRIBE_SIGNING_KEYS: 'short' })).toThrow(/UNSUBSCRIBE_SIGNING_KEYS/);
+  });
+
+  it('requires a support address for invalid unsubscribe links', () => {
+    expect(() => loadConfig({ ...base, UNSUBSCRIBE_SUPPORT_EMAIL: '' })).toThrow(/UNSUBSCRIBE_SUPPORT_EMAIL/);
   });
 
   it('requires both GitHub credentials', () => {

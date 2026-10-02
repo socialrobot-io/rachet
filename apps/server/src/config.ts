@@ -18,6 +18,8 @@ const schema = z.object({
   RACHET_FROM: z.string().optional(),
   REFLOW_FROM: z.string().optional(),
   INTEGRATION_ENCRYPTION_KEY: z.string().optional(),
+  UNSUBSCRIBE_SIGNING_KEYS: z.string().optional(),
+  UNSUBSCRIBE_SUPPORT_EMAIL: z.union([z.literal(''), z.email()]).optional(),
   AUTH_RESEND_API_KEY: z.string().optional(),
   AUTH_EMAIL_FROM: z.string().trim().optional(),
   GOOGLE_ANALYTICS_ID: z.string().regex(/^G-[A-Z0-9]+$/).optional(),
@@ -49,6 +51,10 @@ export function loadConfig(source: NodeJS.ProcessEnv = process.env) {
   const authResendApiKey = parsed.AUTH_RESEND_API_KEY;
   const authFrom = parsed.AUTH_EMAIL_FROM || undefined;
   const integrationEncryptionKey = parsed.INTEGRATION_ENCRYPTION_KEY;
+  const unsubscribeSigningKeys = (parsed.UNSUBSCRIBE_SIGNING_KEYS ?? '').split(',').map((key) => key.trim()).filter(Boolean);
+  if (unsubscribeSigningKeys.some((key) => !/^[A-Za-z0-9+/]{43}=$/.test(key) || Buffer.from(key, 'base64').length !== 32)) {
+    throw new Error('UNSUBSCRIBE_SIGNING_KEYS must contain comma-separated base64-encoded 32-byte keys');
+  }
   if (integrationEncryptionKey && (!/^[A-Za-z0-9+/]{43}=$/.test(integrationEncryptionKey) || Buffer.from(integrationEncryptionKey, 'base64').length !== 32)) {
     throw new Error('INTEGRATION_ENCRYPTION_KEY must be a base64-encoded 32-byte key');
   }
@@ -82,6 +88,12 @@ export function loadConfig(source: NodeJS.ProcessEnv = process.env) {
     if (!integrationEncryptionKey) {
       throw new Error('INTEGRATION_ENCRYPTION_KEY is required in production');
     }
+    if (unsubscribeSigningKeys.length === 0) {
+      throw new Error('UNSUBSCRIBE_SIGNING_KEYS is required in production');
+    }
+    if (!parsed.UNSUBSCRIBE_SUPPORT_EMAIL) {
+      throw new Error('UNSUBSCRIBE_SUPPORT_EMAIL is required in production');
+    }
     if (Boolean(parsed.GITHUB_CLIENT_ID) !== Boolean(githubClientSecret)) {
       throw new Error('GITHUB_CLIENT_ID and GITHUB_CLIENT_SECRET must be configured together');
     }
@@ -102,6 +114,8 @@ export function loadConfig(source: NodeJS.ProcessEnv = process.env) {
     resendWebhookSecret: parsed.RESEND_WEBHOOK_SECRET,
     from: parsed.RACHET_FROM ?? parsed.REFLOW_FROM ?? 'Rachet <onboarding@resend.dev>',
     integrationEncryptionKey,
+    unsubscribeSigningKeys,
+    unsubscribeSupportEmail: parsed.UNSUBSCRIBE_SUPPORT_EMAIL || undefined,
     authResendApiKey,
     authFrom,
     googleAnalyticsId: parsed.GOOGLE_ANALYTICS_ID,

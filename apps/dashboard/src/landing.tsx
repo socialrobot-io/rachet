@@ -45,11 +45,10 @@ export function LandingPage() {
       </header>
       <main className="landing-hero" id="main">
         <div className="hero-copy">
-          <span className="hero-eyebrow"><span /> THE JOURNEY ENGINE FOR AI AGENTS</span>
-          <h1>Build customer<br />journeys<br /><span className="hero-highlight">by asking.</span></h1>
-          <p>Describe what should happen. Your agent builds the workflow.<br className="hero-desktop-break" /> Rachet keeps it moving for days, weeks, or months.</p>
-          <div className="hero-actions"><Button asChild size="lg" className="h-12 rounded-full px-6"><Link to="/login">Build your first journey <ArrowRight data-icon="inline-end" /></Link></Button><Button asChild variant="ghost" size="lg" className="h-12 rounded-full px-4"><a href={repository}><GitHubIcon /> Explore the code</a></Button></div>
-          <p className="hero-note">Your agent authors. You approve. Rachet runs.</p>
+          <span className="hero-eyebrow"><span /> CUSTOMER JOURNEYS FOR AI AGENTS</span>
+          <h1>Every signup gets<br />followed up.<br /><span className="hero-highlight">Automatically.</span></h1>
+          <p>Onboarding emails, trial nudges and win-backs. Tell your agent what should happen, approve it, and Rachet runs it for days, weeks or months, with no step missed and nobody stuck halfway.</p>
+          <div className="hero-actions"><Button asChild size="lg" className="h-12 rounded-full px-6"><Link to="/login">Get started free <ArrowRight data-icon="inline-end" /></Link></Button><Button asChild variant="ghost" size="lg" className="h-12 rounded-full px-4"><a href={repository}><GitHubIcon /> View on GitHub</a></Button></div>
           <img className="hero-mobile-mascot" src="/brand/rachet-mascot.png" alt="" aria-hidden="true" width="104" height="104" />
         </div>
         <JourneyIllustration />

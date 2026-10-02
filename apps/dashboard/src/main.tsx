@@ -2,7 +2,7 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { ApiKeysPage, AppShell, AuthProvider, ConnectedAppsPage, ConsentPage, LoginPage, RequireAuth, useAuth } from '@/auth';
-import { EnrollmentDetailPage, WorkflowDetailPage, WorkflowsPage } from '@/pages';
+import { EnrollmentDetailPage, EnrollmentsPage, WorkflowDetailPage, WorkflowsPage } from '@/pages';
 import { UsersPage } from '@/admin-users';
 import { IntegrationsPage, RequireResendOnboarding, ResendIntegrationPage } from '@/resend-integration';
 import { TooltipProvider } from '@/components/ui/tooltip';
@@ -34,9 +34,11 @@ createRoot(document.getElementById('root')!).render(
                 <Route path="/admin/users" element={<UsersPage />} />
                 <Route path="/settings/integrations" element={<IntegrationsPage />} />
                 <Route path="/settings/integrations/resend" element={<ResendIntegrationPage />} />
+                <Route path="/settings/integrations/unsubscribe" element={<Navigate to="/settings/integrations/resend" replace />} />
                 <Route element={<RequireResendOnboarding />}>
                   <Route path="/workflows" element={<WorkflowsPage />} />
                   <Route path="/workflows/:workflowId" element={<WorkflowDetailPage />} />
+                  <Route path="/enrollments" element={<EnrollmentsPage />} />
                   <Route path="/enrollments/:enrollmentId" element={<EnrollmentDetailPage />} />
                   <Route path="/settings/connected-apps" element={<ConnectedAppsPage />} />
                   <Route path="/settings/api-keys" element={<ApiKeysPage />} />

@@ -6,14 +6,14 @@ import type { RachetAuth } from '../auth.js';
 import type { Database } from '../db/index.js';
 import {
   auditEvents, contacts, enrollmentEvents, enrollments, eventTypes, memberships, outbox, profiles, sendIntents,
-  sequences, sequenceVersions, templates, templateVersions, webhookEvents, workspaces,
+  sequences, sequenceVersions, templates, templateVersions, webhookEvents, workspaces, emailPolicies, subscriptionEvents, resendConnections,
 } from '../db/schema.js';
 import type { OperationContext, Principal, SimulatedEvent, WorkflowDefinition } from '@rachet/contracts';
 import { validateActionNodes } from './action-catalog.js';
 import { simulateWorkflow } from './simulate.js';
 import { RachetError, isUniqueViolation } from './errors.js';
 import { compileEventSchema, validateEventData } from './event-types.js';
-import { renderEmail } from './render.js';
+import { appendMarketingFooter, renderEmail } from './render.js';
 import {
   buildTemplateRefIssues,
   collectEmailSendTemplateRefs,
@@ -22,6 +22,7 @@ import {
 } from './template-refs.js';
 import { cancelEnrollment, enrollmentEvent, pauseEnrollment, resumeEnrollment } from '../temporal/shared.js';
 import { runWelcomeWorkflowCreated } from '../welcome.js';
+import { changePreference, emailEligibility, emailKey, lockEmailAddress, mailboxAddress } from './email-policy.js';
 
 function hash(value: unknown): string {
   return createHash('sha256').update(JSON.stringify(value)).digest('hex');
@@ -467,11 +468,15 @@ export class RachetService {
     });
   }
 
-  async templateRender(context: OperationContext, input: { workspaceId: string; templateVersionId: string; props: Record<string, unknown> }) {
+  async templateRender(context: OperationContext, input: { workspaceId: string; templateVersionId: string; props: Record<string, unknown>; marketingPreview?: boolean }) {
     this.workspace(context, input.workspaceId);
     const [version] = await this.db.select().from(templateVersions).where(and(eq(templateVersions.id, input.templateVersionId), eq(templateVersions.workspaceId, input.workspaceId))).limit(1);
     if (!version) throw new RachetError('NOT_FOUND', 'Template version not found', 404);
-    return renderEmail(version, input.props);
+    const rendered = await renderEmail(version, input.props);
+    if (!input.marketingPreview) return rendered;
+    const [policy] = await this.db.select().from(emailPolicies).where(eq(emailPolicies.workspaceId, input.workspaceId)).limit(1);
+    if (!policy) return rendered;
+    return appendMarketingFooter(rendered, policy.senderName, 'https://example.invalid/unsubscribe-preview');
   }
 
   async workflowCreate(context: OperationContext, input: { workspaceId: string; name: string; intent: string; definition: WorkflowDefinition }) {
@@ -558,11 +563,16 @@ export class RachetService {
       if (!draft) throw new RachetError('NOT_FOUND', 'Workflow not found', 404);
       if (draft.revision !== input.expectedRevision) throw new RachetError('REVISION_CONFLICT', 'Workflow revision changed', 409);
       const definition = draft.definition as WorkflowDefinition;
+      if (definition.purpose !== 'marketing' && definition.purpose !== 'transactional') throw new RachetError('VALIDATION_FAILED', 'Choose an explicit email purpose before publishing', 422);
+      if (definition.purpose === 'marketing') {
+        const [policy] = await tx.select({ marketingFromAddress: emailPolicies.marketingFromAddress }).from(emailPolicies).where(eq(emailPolicies.workspaceId, input.workspaceId)).limit(1);
+        if (!policy?.marketingFromAddress) throw new RachetError('EMAIL_POLICY_REQUIRED', 'Configure the marketing sender and unsubscribe settings before publishing marketing email', 422);
+      }
       validateActionNodes(definition.nodes);
       await this.assertEventTypes(input.workspaceId, definition);
       await this.assertTemplateRefs(input.workspaceId, definition);
       const countRows = await tx.select({ count: sql<number>`count(*)::int` }).from(sequenceVersions).where(eq(sequenceVersions.sequenceId, draft.id));
-      const [version] = await tx.insert(sequenceVersions).values({ workspaceId: input.workspaceId, sequenceId: draft.id, version: Number(countRows[0]?.count ?? 0) + 1, contentHash: hash(definition), definition }).returning();
+      const [version] = await tx.insert(sequenceVersions).values({ workspaceId: input.workspaceId, sequenceId: draft.id, version: Number(countRows[0]?.count ?? 0) + 1, contentHash: hash(definition), definition, purposeReviewedAt: new Date() }).returning();
       await tx.update(sequences).set({ state: 'published', updatedAt: new Date() }).where(eq(sequences.id, draft.id));
       await tx.insert(auditEvents).values({ workspaceId: input.workspaceId, actorId: context.principal.userId, action: 'workflow.publish', targetType: 'workflow_version', targetId: version?.id });
       return version;
@@ -654,15 +664,69 @@ export class RachetService {
     return this.db.select().from(contacts).where(eq(contacts.workspaceId, workspaceId)).orderBy(asc(contacts.email));
   }
 
+  async emailPolicyGet(context: OperationContext, workspaceId: string) {
+    this.workspace(context, workspaceId);
+    const [policy] = await this.db.select().from(emailPolicies).where(eq(emailPolicies.workspaceId, workspaceId)).limit(1);
+    return policy ?? null;
+  }
+
+  async emailPolicyUpdate(context: OperationContext, input: { workspaceId: string; senderName: string; supportEmail: string; marketingFromAddress: string }) {
+    if (!context.principal.deploymentAdmin && !['owner', 'admin'].includes(context.principal.workspaceRoles[input.workspaceId] ?? '')) {
+      throw new RachetError('FORBIDDEN', 'Workspace owner or admin permission required', 403);
+    }
+    const policy = await this.db.transaction(async (tx) => {
+      const [workspace] = await tx.select({ id: workspaces.id }).from(workspaces).where(eq(workspaces.id, input.workspaceId)).for('update').limit(1);
+      if (!workspace) throw new RachetError('NOT_FOUND', 'Organization not found', 404);
+      const [connection] = await tx.select({ fromAddress: resendConnections.fromAddress }).from(resendConnections).where(eq(resendConnections.workspaceId, input.workspaceId)).limit(1);
+      if (connection && mailboxAddress(connection.fromAddress) === mailboxAddress(input.marketingFromAddress)) {
+        throw new RachetError('VALIDATION_FAILED', 'Marketing and transactional sender addresses must differ', 422);
+      }
+      const [updated] = await tx.insert(emailPolicies).values(input).onConflictDoUpdate({
+        target: emailPolicies.workspaceId,
+        set: { senderName: input.senderName, supportEmail: input.supportEmail, marketingFromAddress: input.marketingFromAddress, updatedAt: new Date() },
+      }).returning();
+      return updated;
+    });
+    await this.audit(context, 'email_policy.update', input.workspaceId, 'email_policy', input.workspaceId);
+    return policy;
+  }
+
+  async contactPreferencesGet(context: OperationContext, input: { workspaceId: string; email: string }) {
+    this.workspace(context, input.workspaceId);
+    const address = emailKey(input.email);
+    const [marketing, delivery] = await Promise.all([
+      emailEligibility(this.db, input.workspaceId, address, 'marketing'),
+      emailEligibility(this.db, input.workspaceId, address, 'transactional'),
+    ]);
+    return { email: address, marketing, delivery };
+  }
+
+  async contactUnsubscribe(context: OperationContext, input: { workspaceId: string; email: string; eventId: string; source: 'support' | 'product' | 'import' }) {
+    this.workspace(context, input.workspaceId, 'operate');
+    return changePreference(this.db, { workspaceId: input.workspaceId, address: input.email, eventId: input.eventId, source: input.source, actorId: context.principal.userId, action: 'unsubscribe' });
+  }
+
+  async contactResubscribe(context: OperationContext, input: { workspaceId: string; email: string; eventId: string; source: 'product' | 'support'; consentReference: string }) {
+    this.workspace(context, input.workspaceId, 'author');
+    return changePreference(this.db, { workspaceId: input.workspaceId, address: input.email, eventId: input.eventId, source: input.source, actorId: context.principal.userId, action: 'consent', consentReference: input.consentReference });
+  }
+
+  async subscriptionEventList(context: OperationContext, workspaceId: string) {
+    this.workspace(context, workspaceId);
+    return this.db.select().from(subscriptionEvents).where(eq(subscriptionEvents.workspaceId, workspaceId)).orderBy(asc(subscriptionEvents.createdAt));
+  }
+
   async enrollmentCreate(context: OperationContext, input: { workspaceId: string; workflowVersionId: string; contactId: string; variables: Record<string, unknown>; idempotencyKey: string }) {
     this.workspace(context, input.workspaceId, 'send');
     const [contact, version] = await Promise.all([
-      this.db.select({ id: contacts.id }).from(contacts)
+      this.db.select({ id: contacts.id, emailKey: contacts.emailKey }).from(contacts)
         .where(and(eq(contacts.id, input.contactId), eq(contacts.workspaceId, input.workspaceId))).limit(1),
-      this.db.select({ id: sequenceVersions.id }).from(sequenceVersions)
+      this.db.select({ id: sequenceVersions.id, definition: sequenceVersions.definition, purposeReviewedAt: sequenceVersions.purposeReviewedAt }).from(sequenceVersions)
         .where(and(eq(sequenceVersions.id, input.workflowVersionId), eq(sequenceVersions.workspaceId, input.workspaceId))).limit(1),
     ]);
     if (!contact[0] || !version[0]) throw new RachetError('NOT_FOUND', 'Contact or workflow version not found in this organization', 404);
+    const contactRow = contact[0];
+    const versionRow = version[0];
     const id = crypto.randomUUID();
     const workflowId = `workspace/${input.workspaceId}/enrollment/${id}`;
     try {
@@ -670,6 +734,10 @@ export class RachetService {
         // Serialize admission per workspace across API replicas. A single
         // organization must not flood the shared Temporal queue.
         await tx.execute(sql`SELECT id FROM workspaces WHERE id = ${input.workspaceId} FOR UPDATE`);
+        if (!versionRow.purposeReviewedAt) throw new RachetError('PURPOSE_REVIEW_REQUIRED', 'Republish this workflow after reviewing its email purpose', 422);
+        const purpose = versionRow.definition.purpose;
+        if (purpose !== 'marketing' && purpose !== 'transactional') throw new RachetError('PURPOSE_REVIEW_REQUIRED', 'Workflow email purpose is missing', 422);
+        await lockEmailAddress(tx as unknown as Database, input.workspaceId, contactRow.emailKey);
         const [existing] = await tx.select().from(enrollments).where(and(eq(enrollments.workspaceId, input.workspaceId), eq(enrollments.idempotencyKey, input.idempotencyKey))).limit(1);
         if (existing) {
           if (existing.contactId !== input.contactId || existing.sequenceVersionId !== input.workflowVersionId || stableHash(existing.input) !== stableHash(input.variables)) {
@@ -677,6 +745,8 @@ export class RachetService {
           }
           return existing;
         }
+        const eligibility = await emailEligibility(tx as unknown as Database, input.workspaceId, contactRow.emailKey, purpose);
+        if (!eligibility.eligible) throw new RachetError('EMAIL_POLICY_BLOCKED', `Enrollment blocked: ${eligibility.reason}`, 422);
         const [recent] = await tx.select({ count: sql<number>`count(*)` }).from(enrollments)
           .where(and(eq(enrollments.workspaceId, input.workspaceId), sql`${enrollments.createdAt} >= now() - interval '1 minute'`));
         if (Number(recent?.count ?? 0) >= 100) throw new RachetError('WORKSPACE_RATE_LIMIT', 'This organization can start at most 100 workflows per minute', 429, true);
@@ -782,13 +852,22 @@ export class RachetService {
     } catch (error) {
       if (!(error instanceof RachetError && error.code === 'ENROLLMENT_NOT_RUNNING') || action !== 'cancel') throw error;
       // Temporal has no execution for this enrollment (e.g. a dev Temporal reset while
-      // Postgres kept data): it is already stopped in practice, so reconcile the row
-      // instead of leaving operators with a stale 'running' record they cannot clear.
-      await this.db.update(enrollments).set({ state: 'cancelled' }).where(eq(enrollments.id, row.id));
+      // Postgres kept data). The guarded update below reconciles the row.
     }
-    await this.db.update(enrollments).set({
+    const activeStates = ['pending_start', 'running', 'waiting', 'paused', 'needs_attention'] as const;
+    const [updated] = await this.db.update(enrollments).set({
       state: action === 'pause' ? 'paused' : action === 'cancel' ? 'cancelled' : 'running',
-    }).where(and(eq(enrollments.id, row.id), eq(enrollments.workspaceId, input.workspaceId)));
+      updatedAt: new Date(),
+    }).where(and(
+      eq(enrollments.id, row.id), eq(enrollments.workspaceId, input.workspaceId),
+      action === 'resume' ? eq(enrollments.state, 'paused') : inArray(enrollments.state, activeStates),
+    )).returning({ id: enrollments.id });
+    if (!updated) {
+      const [current] = await this.db.select({ state: enrollments.state }).from(enrollments)
+        .where(and(eq(enrollments.id, row.id), eq(enrollments.workspaceId, input.workspaceId))).limit(1);
+      const requestedState = action === 'pause' ? 'paused' : action === 'cancel' ? 'cancelled' : 'running';
+      if (current?.state !== requestedState) throw new RachetError('ENROLLMENT_NOT_RUNNING', 'Enrollment stopped while the control request was in progress', 409);
+    }
     await this.audit(context, `enrollment.${action}`, input.workspaceId, 'enrollment', row.id);
     return { id: row.id, control: action, status: 'requested' };
   }
@@ -940,7 +1019,9 @@ export class RachetService {
 
   async messageList(context: OperationContext, workspaceId: string) {
     this.workspace(context, workspaceId);
-    return this.db.select().from(sendIntents).where(eq(sendIntents.workspaceId, workspaceId)).orderBy(asc(sendIntents.createdAt));
+    const rows = await this.db.select().from(sendIntents).where(eq(sendIntents.workspaceId, workspaceId)).orderBy(asc(sendIntents.createdAt));
+    const redact = (content: string) => content.replace(/https?:\/\/[^\s"'<>]+\/unsubscribe\/[A-Za-z0-9._-]+/g, 'https://example.invalid/unsubscribe-preview');
+    return rows.map((row) => ({ ...row, html: redact(row.html), plainText: redact(row.plainText), headers: {} }));
   }
 
   async webhookEventList(context: OperationContext) {

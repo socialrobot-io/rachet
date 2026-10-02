@@ -28,6 +28,7 @@ if [[ ! -f "$env_file" ]]; then
   auth_secret="$(openssl rand -base64 48 | tr -d '\n')"
   setup_secret="$(openssl rand -base64 48 | tr -d '\n')"
   integration_key="$(openssl rand -base64 32 | tr -d '\n')"
+  unsubscribe_key="$(openssl rand -base64 32 | tr -d '\n')"
   cat > "$env_file" <<EOF
 COMPOSE_PROJECT_NAME=rachet
 RACHET_DOMAIN=$domain
@@ -40,6 +41,8 @@ TEMPORAL_POSTGRES_PASSWORD=$temporal_password
 BETTER_AUTH_SECRET=$auth_secret
 RACHET_SETUP_SECRET=$setup_secret
 INTEGRATION_ENCRYPTION_KEY=$integration_key
+UNSUBSCRIBE_SIGNING_KEYS=$unsubscribe_key
+UNSUBSCRIBE_SUPPORT_EMAIL=$admin_email
 TEMPORAL_NAMESPACE=rachet
 TEMPORAL_TASK_QUEUE=rachet-enrollments
 AUTH_EMAIL_FROM=
@@ -50,6 +53,15 @@ ALLOW_REGISTRATION=false
 OAUTH_PUBLIC_REDIRECT_ORIGINS=
 OAUTH_PUBLIC_REDIRECT_SCHEMES=cursor
 EOF
+  chmod 600 "$env_file"
+fi
+
+if ! grep -q '^UNSUBSCRIBE_SIGNING_KEYS=' "$env_file"; then
+  printf 'UNSUBSCRIBE_SIGNING_KEYS=%s\n' "$(openssl rand -base64 32 | tr -d '\n')" >> "$env_file"
+  chmod 600 "$env_file"
+fi
+if ! grep -q '^UNSUBSCRIBE_SUPPORT_EMAIL=' "$env_file"; then
+  printf 'UNSUBSCRIBE_SUPPORT_EMAIL=%s\n' "$admin_email" >> "$env_file"
   chmod 600 "$env_file"
 fi
 

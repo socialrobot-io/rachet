@@ -4,6 +4,7 @@ import {
   eventEmitSchema, eventTypeDefineSchema, workflowCreateSchema, workflowDeleteSchema, workflowPublishSchema, workflowReviseSchema, workflowSimulateSchema, workflowDefinitionSchema, templateCreateSchema,
   templateArchiveSchema, templatePublishSchema, templateReviseSchema, templateRenderSchema, workspaceIdSchema,
   enrollmentDeleteSchema,
+  emailPolicyUpdateSchema, contactPreferenceGetSchema, contactUnsubscribeSchema, contactResubscribeSchema,
   type OperationContext,
 } from '@rachet/contracts';
 import type { RachetService } from './domain/service.js';
@@ -148,6 +149,30 @@ export function createOperations(service: RachetService): Record<string, Operati
     'contact.list': {
       description: 'List contacts in a workspace.', input: workspaceOnly, readOnly: true,
       invoke: (context, input) => service.contactList(context, workspaceIdSchema.parse(input.workspaceId)),
+    },
+    'email_policy.get': {
+      description: 'Read recipient-facing sender name and support contact for marketing email.', input: workspaceOnly, readOnly: true,
+      invoke: (context, input) => service.emailPolicyGet(context, workspaceIdSchema.parse(input.workspaceId)),
+    },
+    'email_policy.update': {
+      description: 'For organization owners and admins, set the marketing sender address, recipient-facing sender name, and support email.', input: emailPolicyUpdateSchema, readOnly: false,
+      invoke: (context, input) => service.emailPolicyUpdate(context, emailPolicyUpdateSchema.parse(input)),
+    },
+    'contact.preferences.get': {
+      description: 'Read marketing and delivery eligibility for an address in this workspace.', input: contactPreferenceGetSchema, readOnly: true,
+      invoke: (context, input) => service.contactPreferencesGet(context, contactPreferenceGetSchema.parse(input)),
+    },
+    'contact.unsubscribe': {
+      description: 'Record an all-marketing opt-out from a support or product request. Keep eventId stable across retries.', input: contactUnsubscribeSchema, readOnly: false,
+      invoke: (context, input) => service.contactUnsubscribe(context, contactUnsubscribeSchema.parse(input)),
+    },
+    'contact.resubscribe': {
+      description: 'Record new recipient consent for all workspace marketing, with a consent reference. Does not clear delivery blocks or revive old enrollments.', input: contactResubscribeSchema, readOnly: false,
+      invoke: (context, input) => service.contactResubscribe(context, contactResubscribeSchema.parse(input)),
+    },
+    'subscription_event.list': {
+      description: 'List audited marketing preference changes, including the originating email and workflow for link opt-outs.', input: workspaceOnly, readOnly: true,
+      invoke: (context, input) => service.subscriptionEventList(context, workspaceIdSchema.parse(input.workspaceId)),
     },
     'enrollment.create': {
       description: 'Durably enroll a contact into a published workflow. This can perform side effects.', input: enrollmentCreateSchema, readOnly: false,

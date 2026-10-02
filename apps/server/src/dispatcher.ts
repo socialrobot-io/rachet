@@ -5,7 +5,7 @@ import { enrollmentEvents, enrollments, outbox, sequenceVersions } from './db/sc
 import { workflowDefinitionSchema } from '@rachet/contracts';
 import { createTemporalClient } from './temporal/client.js';
 import { enrollmentWorkflow } from './temporal/workflows.js';
-import { enrollmentEvent } from './temporal/shared.js';
+import { enrollmentEvent, unsubscribeEnrollment } from './temporal/shared.js';
 
 const config = loadConfig();
 const { db, pool } = createDatabase(config);
@@ -39,6 +39,15 @@ while (!stopping) {
         .innerJoin(sequenceVersions, eq(sequenceVersions.id, enrollments.sequenceVersionId))
         .where(eq(enrollments.id, job.aggregateId)).limit(1);
       if (!row) throw new Error('Enrollment or sequence version missing');
+      if (row.enrollment.state === 'suppressed' || row.enrollment.state === 'cancelled') {
+        await db.update(outbox).set({ completedAt: new Date(), claimedUntil: null, lastError: null }).where(eq(outbox.id, job.id));
+        continue;
+      }
+      if (!row.sequence.purposeReviewedAt) {
+        await db.update(enrollments).set({ state: 'needs_attention', updatedAt: new Date() }).where(eq(enrollments.id, row.enrollment.id));
+        await db.update(outbox).set({ completedAt: new Date(), claimedUntil: null, lastError: 'Workflow purpose requires review and republish' }).where(eq(outbox.id, job.id));
+        continue;
+      }
       const definition = workflowDefinitionSchema.parse(row.sequence.definition);
       await temporal.workflow.start(enrollmentWorkflow, {
         workflowId: row.enrollment.workflowId,
@@ -46,6 +55,21 @@ while (!stopping) {
         args: [{ workspaceId: row.enrollment.workspaceId, enrollmentId: row.enrollment.id, definition }],
         workflowIdConflictPolicy: 'USE_EXISTING',
       });
+      // An unsubscribe may commit after the state read above while the start
+      // request is in flight. Recheck after start so a prior NotFound signal
+      // cannot leave a newly started wait alive.
+      const [afterStart] = await db.select({ state: enrollments.state }).from(enrollments).where(eq(enrollments.id, row.enrollment.id)).limit(1);
+      if (afterStart?.state === 'suppressed') await temporal.workflow.getHandle(row.enrollment.workflowId).signal(unsubscribeEnrollment);
+    } else if (job.kind === 'enrollment.unsubscribe') {
+      const [row] = await db.select({ workflowId: enrollments.workflowId }).from(enrollments).where(eq(enrollments.id, job.aggregateId)).limit(1);
+      if (row) {
+        try { await temporal.workflow.getHandle(row.workflowId).signal(unsubscribeEnrollment); }
+        catch (error) {
+          // A pending start is already suppressed in PostgreSQL and will be
+          // skipped above. A workflow that has ended needs no signal.
+          if (!error || typeof error !== 'object' || !('name' in error) || error.name !== 'WorkflowNotFoundError') throw error;
+        }
+      }
     } else if (job.kind === 'enrollment.event') {
       const [row] = await db.select({ event: enrollmentEvents, enrollment: enrollments }).from(enrollmentEvents)
         .innerJoin(enrollments, eq(enrollments.id, enrollmentEvents.enrollmentId))

@@ -8,12 +8,13 @@ import {
   enrollmentStatus,
   pauseEnrollment,
   resumeEnrollment,
+  unsubscribeEnrollment,
 } from '../apps/server/src/temporal/shared.js';
 import { enrollmentWorkflow } from '../apps/server/src/temporal/workflows.js';
 
 const workflowsPath = new URL('../apps/server/src/temporal/workflows.ts', import.meta.url).pathname;
 
-type ActionOutcome = 'succeeded' | 'failed' | 'needs_attention';
+type ActionOutcome = 'succeeded' | 'failed' | 'needs_attention' | 'paused';
 
 async function runWithWorker(
   environment: TestWorkflowEnvironment,
@@ -74,6 +75,23 @@ describe('Temporal enrollment complex flows', () => {
     expect(states.map((row) => row.state)).toContain('completed');
     const history = await handle.fetchHistory();
     await Worker.runReplayHistory({ workflowsPath }, history, handle.workflowId);
+  }, 30_000);
+
+  it('retries the same action after a paused dispatch without ending the enrollment', async () => {
+    const definition: WorkflowDefinition = {
+      schemaVersion: '1', description: 'Paused dispatch', trigger: { type: 'manual' }, purpose: 'transactional', topic: 'test', entryNodeId: 'send',
+      nodes: [
+        { id: 'send', type: 'action', action: 'email.send', input: {}, next: 'done', onError: 'fail' },
+        { id: 'done', type: 'end', reason: 'completed' },
+      ],
+    };
+    let attempts = 0;
+    const { worker, handle, actions } = await runWithWorker(environment, definition, {
+      executeAction: async () => (++attempts === 1 ? 'paused' : 'succeeded'),
+    });
+    expect(await worker.runUntil(handle.result())).toBe('completed');
+    expect(actions).toEqual(['send', 'send']);
+    await Worker.runReplayHistory({ workflowsPath }, await handle.fetchHistory(), handle.workflowId);
   }, 30_000);
 
   it('takes wait_for_event timeout when no signal arrives', async () => {
@@ -164,6 +182,31 @@ describe('Temporal enrollment complex flows', () => {
     });
     expect(result).toBe('cancelled');
     expect(actions).toEqual([]);
+  }, 30_000);
+
+  it.each(['delay', 'wait_for_event', 'schedule'] as const)('stops a %s marketing wait on unsubscribe and replays it', async (waitKind) => {
+    const definition: WorkflowDefinition = {
+      schemaVersion: '1', description: 'Unsubscribe',
+      trigger: waitKind === 'schedule' ? { type: 'schedule', at: new Date(Date.now() + 86_400_000).toISOString(), timeZone: 'UTC' } : { type: 'manual' },
+      purpose: 'marketing', topic: 'marketing', entryNodeId: 'wait',
+      nodes: [
+        waitKind === 'wait_for_event'
+          ? { id: 'wait', type: 'wait_for_event', eventType: 'never', timeoutSeconds: 86_400, onEvent: 'send', onTimeout: 'send' }
+          : { id: 'wait', type: 'delay', durationSeconds: 86_400, next: 'send' },
+        { id: 'send', type: 'action', action: 'email.send', input: {}, next: 'done', onError: 'fail' },
+        { id: 'done', type: 'end', reason: 'done' },
+      ],
+    };
+    const { worker, handle, actions, states } = await runWithWorker(environment, definition);
+    const result = await worker.runUntil(async () => {
+      await environment.sleep('1s');
+      await handle.signal(unsubscribeEnrollment);
+      return handle.result();
+    });
+    expect(result).toBe('unsubscribed');
+    expect(actions).toEqual([]);
+    expect(states.some((row) => row.state === 'suppressed')).toBe(true);
+    await Worker.runReplayHistory({ workflowsPath }, await handle.fetchHistory(), handle.workflowId);
   }, 30_000);
 
   it('parks in needs_attention when action returns needs_attention', async () => {

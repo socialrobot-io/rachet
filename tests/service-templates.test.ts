@@ -93,6 +93,14 @@ describe.skipIf(!runtime)('RachetService template + workflow validation (postgre
     expect(rendered.subject).toBe('Hi Ada');
     expect(rendered.html).toContain('Hello Ada');
     expect(rendered.plainText).toContain('Hello Ada');
+
+    const marketingPreview = await boot.service.templateRender(context, {
+      workspaceId,
+      templateVersionId,
+      props: { contact: { firstName: 'Ada' } },
+      marketingPreview: true,
+    });
+    expect(marketingPreview).toEqual(rendered);
   });
 
   it('does not republish an archived template', async () => {

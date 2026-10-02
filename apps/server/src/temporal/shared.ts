@@ -4,6 +4,7 @@ export const enrollmentEvent = defineSignal<[eventType: string, eventId: string,
 export const pauseEnrollment = defineSignal('pause');
 export const resumeEnrollment = defineSignal('resume');
 export const cancelEnrollment = defineSignal('cancel');
+export const unsubscribeEnrollment = defineSignal('unsubscribe');
 export const enrollmentStatus = defineQuery<EnrollmentWorkflowState>('status');
 
 export type EnrollmentWorkflowState = {
