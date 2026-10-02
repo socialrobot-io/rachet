@@ -38,6 +38,10 @@ Marketing publication requires an email policy. Organization owners and admins c
 
 To change a workflow, get its `id` and `revision` from `workflow.list`. Call `workflow.revise` with `workspaceId`, `workflowId`, `expectedRevision`, and the complete replacement `definition`. Pass `intent` only when it changes. The response keeps the workflow id and increments its revision. Use the new revision in `workflow.publish` to create an immutable version. Existing enrollments stay pinned to their original workflow version.
 
+`workflow.list` returns `publishedVersions` with each version's `id`, `sequenceId`, `version`, `definition`, and `createdAt`. Each `definition` is the immutable published graph. The workflow's top-level `definition` is its current draft. `enrollment.list` returns the pinned version number in `workflowVersion` and its ID in `sequenceVersionId`.
+
+In the dashboard, workflow cards count published versions. The **Version** selector opens the latest published version by default, or the draft if no version exists. Select an older version to see its graph and active enrollments. Step counts include only that version. Select **Draft** to review unpublished changes; drafts have no enrollments. Enrollment rows and detail pages show `v1`, `v2`, and later version numbers. Their workflow links open the pinned version. In **Enrollments**, select a workflow to filter by version. Long IDs are under **IDs for API and support**.
+
 The dashboard workflow and enrollment pages show a copyable workflow ID. On an active enrollment, Pause prevents the next action from starting; a delay timer still runs while paused. Resume allows execution to continue. Cancel wakes a waiting execution and marks it cancelled. An email already accepted by the provider cannot be recalled.
 
 ## CLI examples
