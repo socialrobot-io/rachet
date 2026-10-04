@@ -1,10 +1,10 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import type { Client } from '@temporalio/client';
 import { createApp } from '../apps/server/src/app.js';
 import type { RachetAuth } from '../apps/server/src/auth.js';
 import type { Config } from '../apps/server/src/config.js';
-import { contacts, emailPolicies, enrollments, marketingOptOuts, outbox, sendIntents, subscriptionEvents, suppressions, workspaces } from '../apps/server/src/db/schema.js';
+import { contacts, emailPolicies, enrollments, marketingConsents, marketingOptOuts, outbox, sendIntents, subscriptionEvents, suppressions, workspaces } from '../apps/server/src/db/schema.js';
 import { emailEligibility } from '../apps/server/src/domain/email-policy.js';
 import { RachetService } from '../apps/server/src/domain/service.js';
 import { configureActivities, executeAction, resetActivities } from '../apps/server/src/temporal/activities.js';
@@ -12,7 +12,7 @@ import { createOperations } from '../apps/server/src/operations.js';
 import { validUnsubscribeToken } from '../apps/server/src/security/unsubscribe-token.js';
 import type { WorkflowDefinition } from '../packages/contracts/src/index.js';
 import { FakeEmailProvider } from './helpers/fake-email-provider.js';
-import { adminContext, probeDbRuntime, type DbRuntime } from './helpers/db-runtime.js';
+import { adminContext, probeDbRuntime, roleContext, type DbRuntime } from './helpers/db-runtime.js';
 
 const runtime = await probeDbRuntime();
 
@@ -100,7 +100,11 @@ describe.skipIf(!runtime)('marketing unsubscribe (postgres + fake provider)', ()
     const get = await app.request(path);
     expect(get.status).toBe(200);
     expect(get.headers.get('cache-control')).toBe('no-store');
-    expect(await get.text()).toContain('Unsubscribe from Acme &amp; Co marketing emails');
+    expect(get.headers.get('content-security-policy')).toContain("default-src 'none'");
+    const page = await get.text();
+    expect(page).toContain('Unsubscribe from Acme &amp; Co marketing emails');
+    expect(page).toContain('<!--email_off--><a href="mailto:support@example.com">Contact support</a><!--/email_off-->');
+    expect(page).not.toContain('<script');
     expect(await boot.db.select().from(marketingOptOuts).where(eq(marketingOptOuts.workspaceId, workspaceId))).toEqual(before);
 
     const post = await app.request(path, { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: 'action=unsubscribe' });
@@ -278,6 +282,68 @@ describe.skipIf(!runtime)('marketing unsubscribe (postgres + fake provider)', ()
       releaseProvider?.();
       configureActivities(config, { db: boot.db, provider });
     }
+  });
+
+  it('records marketing consent and enrolls in one call', async () => {
+    const address = `joined-${crypto.randomUUID().slice(0, 8)}@example.com`;
+    const contact = await boot.service.contactUpsert(admin, { workspaceId, email: address, fields: {} });
+    const consent = { eventId: `consent:${crypto.randomUUID()}`, source: 'product' as const, consentReference: `terms:${contact.id}` };
+    await expect(boot.service.enrollmentCreate(admin, {
+      workspaceId, workflowVersionId, contactId: contact.id, variables: {}, idempotencyKey: `joined:${contact.id}`,
+    })).rejects.toMatchObject({ code: 'EMAIL_POLICY_BLOCKED' });
+
+    const sender = roleContext(workspaceId, 'sender');
+    await expect(boot.service.enrollmentCreate(sender, {
+      workspaceId, workflowVersionId, contactId: contact.id, variables: {}, idempotencyKey: `joined:${contact.id}`, consent,
+    })).rejects.toMatchObject({ code: 'FORBIDDEN' });
+
+    const sendOnly = roleContext(workspaceId, 'owner');
+    sendOnly.principal.scopes = ['rachet:read', 'rachet:send'];
+    await expect(boot.service.enrollmentCreate(sendOnly, {
+      workspaceId, workflowVersionId, contactId: contact.id, variables: {}, idempotencyKey: `joined:${contact.id}`, consent,
+    })).rejects.toMatchObject({ code: 'FORBIDDEN', message: 'Missing required scope: rachet:write' });
+
+    const owner = roleContext(workspaceId, 'owner');
+    const created = await boot.service.enrollmentCreate(owner, {
+      workspaceId, workflowVersionId, contactId: contact.id, variables: {}, idempotencyKey: `joined:${contact.id}`, consent,
+    });
+    const replay = await boot.service.enrollmentCreate(owner, {
+      workspaceId, workflowVersionId, contactId: contact.id, variables: {}, idempotencyKey: `joined:${contact.id}`, consent,
+    });
+    expect(replay.id).toBe(created.id);
+    expect(await emailEligibility(boot.db, workspaceId, address, 'marketing')).toMatchObject({ eligible: true });
+    expect(await boot.db.select().from(subscriptionEvents).where(eq(subscriptionEvents.eventId, consent.eventId))).toHaveLength(1);
+
+    await boot.service.contactUnsubscribe(admin, { workspaceId, email: address, eventId: `stop:${crypto.randomUUID()}`, source: 'product' });
+    const unchanged = await boot.service.enrollmentCreate(owner, {
+      workspaceId, workflowVersionId, contactId: contact.id, variables: {}, idempotencyKey: `joined:${contact.id}`, consent,
+    });
+    expect(unchanged.id).toBe(created.id);
+    expect((await emailEligibility(boot.db, workspaceId, address, 'marketing')).reason).toBe('unsubscribed');
+    await expect(boot.service.enrollmentCreate(owner, {
+      workspaceId, workflowVersionId, contactId: contact.id, variables: {}, idempotencyKey: `joined:${contact.id}`,
+      consent: { ...consent, eventId: `consent:${crypto.randomUUID()}` },
+    })).rejects.toMatchObject({ code: 'IDEMPOTENCY_CONFLICT' });
+    expect((await emailEligibility(boot.db, workspaceId, address, 'marketing')).reason).toBe('unsubscribed');
+
+    const renewed = { eventId: `consent:${crypto.randomUUID()}`, source: 'product' as const, consentReference: `terms:renew:${contact.id}` };
+    const next = await boot.service.enrollmentCreate(owner, {
+      workspaceId, workflowVersionId, contactId: contact.id, variables: {}, idempotencyKey: `joined-again:${contact.id}`, consent: renewed,
+    });
+    expect(next.id).not.toBe(created.id);
+    expect(await emailEligibility(boot.db, workspaceId, address, 'marketing')).toMatchObject({ eligible: true });
+  });
+
+  it('does not keep consent when enrollment stays blocked', async () => {
+    const address = `blocked-${crypto.randomUUID().slice(0, 8)}@example.com`;
+    const contact = await boot.service.contactUpsert(admin, { workspaceId, email: address, fields: {} });
+    await boot.db.insert(suppressions).values({ workspaceId, emailKey: address, reason: 'email.complained', source: 'resend' });
+    await expect(boot.service.enrollmentCreate(admin, {
+      workspaceId, workflowVersionId, contactId: contact.id, variables: {}, idempotencyKey: `blocked:${contact.id}`,
+      consent: { eventId: `consent:${crypto.randomUUID()}`, source: 'product', consentReference: `terms:${contact.id}` },
+    })).rejects.toMatchObject({ code: 'EMAIL_POLICY_BLOCKED' });
+    expect(await boot.db.select().from(marketingConsents).where(and(eq(marketingConsents.workspaceId, workspaceId), eq(marketingConsents.emailKey, address)))).toHaveLength(0);
+    expect(await boot.db.select().from(enrollments).where(eq(enrollments.contactId, contact.id))).toHaveLength(0);
   });
 
   it('does not clear a delivery block when recording new consent', async () => {

@@ -13,7 +13,15 @@ Rachet adds an unsubscribe link and mailbox one-click headers to each marketing 
    ```
 
 4. Set `purpose` to `marketing` for promotions, newsletters, and other optional mail. Set it to `transactional` for mail needed to complete a requested account or service action. Purpose belongs to the workflow, not the template. Publish the workflow before enrollment.
-5. Ask the person to opt in, confirm control of their email address, and record that confirmation before marketing enrollment. Store a reference to the confirmed request in `consentReference`:
+5. Ask the person to opt in, confirm control of their email address, and record that confirmation before marketing enrollment. Store a reference to the confirmed request in `consentReference`. You can pass that evidence on `enrollment.create`, or record it first with `contact.resubscribe`:
+
+   ```sh
+   rachet call enrollment.create --input '{"workspaceId":"WORKSPACE_ID","workflowVersionId":"VERSION_ID","contactId":"CONTACT_ID","idempotencyKey":"welcome:USER_ID","consent":{"eventId":"consent:USER_ID","source":"product","consentReference":"confirmed-signup:USER_ID"}}'
+   ```
+
+   `consent` is optional. Omit it when the address already has marketing consent. A caller who passes it must be an owner or admin, and the credential must include the `write` scope. The same call still enrolls only when delivery policy allows it. Use the same `eventId` and enrollment idempotency key on retries. A retry does not clear an unsubscribe that happened after the first call.
+
+   `contact.resubscribe` remains available when you want to record consent without starting a workflow:
 
    ```sh
    rachet call contact.resubscribe --input '{"workspaceId":"WORKSPACE_ID","email":"person@example.com","eventId":"consent:REQUEST_ID","source":"product","consentReference":"confirmed-signup:REQUEST_ID"}'
@@ -39,7 +47,7 @@ For a link or mailbox unsubscribe, each event includes `origin` with the exact s
 
 Each new support or product request needs a new `eventId`. A repeated request while the address is already opted out records the request but leaves the opt-out in place. Retry the same request with its original `eventId`; it cannot reverse a later resubscription.
 
-Opening a recipient link with GET does not change a preference. The browser form and mailbox one-click POST do. The link applies to the address used for that message. A marketing opt-out also stops affected active marketing enrollments. An email admitted to the provider before the opt-out commits cannot be recalled.
+Opening a recipient link with GET does not change a preference. The page shows one unsubscribe button and a support mailto link. The support address is marked so Cloudflare email obfuscation leaves it as a normal mailto link. The browser form and mailbox one-click POST do. The link applies to the address used for that message. A marketing opt-out also stops affected active marketing enrollments. An email admitted to the provider before the opt-out commits cannot be recalled.
 
 Use `template.render` with `marketingPreview: true` to inspect the managed footer in HTML and plain text after configuring the email policy.
 

@@ -14,11 +14,18 @@ export type TriggerContact = {
   fields?: Record<string, unknown>;
 };
 
+export type TriggerConsent = {
+  eventId: string;
+  source: 'product' | 'support';
+  consentReference: string;
+};
+
 export type TriggerWorkflowInput = {
   workflowVersionId: string;
   contact: TriggerContact;
   variables?: Record<string, unknown>;
   idempotencyKey: string;
+  consent?: TriggerConsent;
 };
 
 export type RachetContact = TriggerContact & { id: string; workspaceId: string; emailKey: string };
@@ -86,6 +93,7 @@ export class RachetSdk {
       contactId: contact.id,
       variables: input.variables ?? {},
       idempotencyKey: input.idempotencyKey,
+      ...(input.consent ? { consent: input.consent } : {}),
     });
     return { contact, enrollment };
   }

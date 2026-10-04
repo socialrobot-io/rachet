@@ -175,9 +175,11 @@ rachet call enrollment.list
 rachet call message.list
 ```
 
-For marketing email, an organization owner or admin sets the marketing sender and unsubscribe details while configuring **Integrations → Email → Resend**, or with `email_policy.update`. Record the recipient's new consent with `contact.resubscribe` and a stable event ID before enrollment. Published marketing sends include an unsubscribe footer and mailbox one-click headers. `subscription_event.list` shows which email and workflow led to a link opt-out. See [Unsubscribe and consent](docs/UNSUBSCRIBE.md).
+For marketing email, an organization owner or admin sets the marketing sender and unsubscribe details while configuring **Integrations → Email → Resend**, or with `email_policy.update`. Record the recipient's new consent on `enrollment.create` with `consent`, or with `contact.resubscribe` and a stable event ID before enrollment. Published marketing sends include an unsubscribe footer and mailbox one-click headers. `subscription_event.list` shows which email and workflow led to a link opt-out. See [Unsubscribe and consent](docs/UNSUBSCRIBE.md).
 
 The operations console at [rachet.dev](https://rachet.dev) shows journey graphs, live enrollments, timelines, messages, OAuth consent, and connected apps. Deployment administrators also get a Users page at `/admin/users`.
+
+Workflow cards show the number of published versions. Open a workflow and use **Version** to view `v1`, `v2`, or a draft. The graph and enrollment counts match the selected version. Enrollment rows show each person's pinned version and link to that graph. Expand **IDs for API and support** when you need a workflow or version ID.
 
 The public landing page is at `/` and `/welcome`. Signed-in users go to `/workflows`. Run `pnpm dev:dashboard` to work on the landing page. Sign-in and the operations console need the full development stack.
 
