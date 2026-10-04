@@ -8,6 +8,12 @@ export const emailKey = (email: string) => email.trim().toLowerCase();
 
 export const mailboxAddress = (from: string) => emailKey(from.match(/<([^<>]+)>\s*$/)?.[1] ?? from);
 
+export function formatMailbox(name: string, address: string) {
+  const cleaned = name.replace(/[\r\n\t\f\v]/g, ' ').replace(/\s+/g, ' ').trim();
+  if (!cleaned) return address;
+  return `"${cleaned.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}" <${address}>`;
+}
+
 // A transaction-scoped address lock works even before a preference row exists.
 // Hash collisions only serialize extra addresses; they cannot mix their data.
 export async function lockEmailAddress(db: Database, workspaceId: string, address: string) {
