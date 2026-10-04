@@ -81,7 +81,7 @@ describe.skipIf(!runtime)('marketing unsubscribe (postgres + fake provider)', ()
     await expect(executeAction({ workspaceId, enrollmentId, node: node('send'), eventData: {} })).resolves.toBe('succeeded');
     expect(provider.sent).toHaveLength(1);
     const message = provider.sent[0]?.message;
-    expect(message?.from).toBe('news@example.com');
+    expect(message?.from).toBe('"Acme & Co" <news@example.com>');
     const url = message?.headers?.['List-Unsubscribe']?.slice(1, -1);
     expect(url).toMatch(/^https:\/\/rachet\.example\.test\/unsubscribe\//);
     expect(message?.headers?.['List-Unsubscribe-Post']).toBe('List-Unsubscribe=One-Click');
