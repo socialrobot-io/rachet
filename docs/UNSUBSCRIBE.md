@@ -6,7 +6,7 @@ Rachet adds an unsubscribe link and mailbox one-click headers to each marketing 
 
 1. Set `UNSUBSCRIBE_SIGNING_KEYS` to a base64-encoded 32-byte key on the server and worker. `pnpm dev` creates one in `.env.local`. Back it up. During rotation, put the new key first and keep prior keys after commas while old links must work.
 2. Set `UNSUBSCRIBE_SUPPORT_EMAIL` on the server. Recipients see this address when a link is invalid or revoked.
-3. As an organization owner or admin, open **Integrations → Email → Resend** and select **Set up marketing email**. Enter the sender name, support email, and a verified marketing From address that differs from the transactional sender. Save these with the connection settings. The page shows the plain-text footer in an example email. You can also use `email_policy.update` through CLI or MCP:
+3. As an organization owner or admin, open **Integrations → Email → Resend** and select **Set up marketing email**. Enter the sender name, support email, and a verified marketing From address that differs from the transactional sender. Recipients see the sender name on the message. Save these with the connection settings. The page shows the plain-text footer in an example email. You can also use `email_policy.update` through CLI or MCP:
 
    ```sh
    rachet call email_policy.update --input '{"workspaceId":"WORKSPACE_ID","senderName":"Acme","supportEmail":"support@acme.example","marketingFromAddress":"news@acme.example"}'
