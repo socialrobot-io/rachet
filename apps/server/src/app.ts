@@ -22,6 +22,7 @@ import { consumeRateLimit } from './security/rate-limit.js';
 import { mountDashboard } from './dashboard.js';
 import { changePreference, lockEmailAddress, mailboxAddress } from './domain/email-policy.js';
 import { tokenDigest, validUnsubscribeToken } from './security/unsubscribe-token.js';
+import { renderUnsubscribePage } from './unsubscribe-page.js';
 import {
   inferNativeApplicationType,
   needsMcpPublicClientRegistration,
@@ -111,10 +112,7 @@ export function createApp(dependencies: Dependencies) {
   }
   const escapeHtml = (value: string) => value.replace(/[&<>"']/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character] ?? character);
   const unsubscribeHeaders = { 'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer', 'Content-Security-Policy': "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; base-uri 'none'" };
-  function unsubscribePage(title: string, content: string, supportEmail?: string) {
-    const support = supportEmail ? `<p>Need help? <a href="mailto:${escapeHtml(supportEmail)}">Contact support</a>.</p>` : '';
-    return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(title)}</title><style>body{font:16px system-ui,sans-serif;color:#222;max-width:32rem;margin:10vh auto;padding:1.5rem}button{font:inherit;padding:.8rem 1.2rem;cursor:pointer}a{color:#174d83}</style></head><body><main><h1>${escapeHtml(title)}</h1>${content}${support}</main></body></html>`;
-  }
+  const unsubscribePage = renderUnsubscribePage;
   async function lookupUnsubscribe(token: string) {
     if (!validUnsubscribeToken(config, token)) return null;
     const [row] = await db.select({ token: unsubscribeTokens, policy: emailPolicies }).from(unsubscribeTokens)
@@ -130,9 +128,9 @@ export function createApp(dependencies: Dependencies) {
       .where(and(eq(marketingOptOuts.workspaceId, row.token.workspaceId), eq(marketingOptOuts.emailKey, row.token.emailKey))).limit(1);
     const sender = escapeHtml(row.policy.senderName);
     if (optOut) {
-      return context.html(unsubscribePage('Unsubscribed', `<p>You're unsubscribed from ${sender} marketing emails.</p><p>Necessary account and service messages may still arrive.</p>`, row.policy.supportEmail), 200, unsubscribeHeaders);
+      return context.html(unsubscribePage('Unsubscribed', `<p>You're unsubscribed from ${sender} marketing emails.</p><p class="note">Necessary account and service messages may still arrive.</p>`, row.policy.supportEmail), 200, unsubscribeHeaders);
     }
-    const content = `<p>Stop marketing emails from ${sender}?</p><form method="post" action="/unsubscribe/${encodeURIComponent(token)}"><input type="hidden" name="action" value="unsubscribe"><button type="submit">Unsubscribe from ${sender} marketing emails</button></form><p>Necessary account and service messages may still arrive.</p>`;
+    const content = `<p>Stop marketing emails from ${sender}?</p><form method="post" action="/unsubscribe/${encodeURIComponent(token)}"><input type="hidden" name="action" value="unsubscribe"><button type="submit">Unsubscribe from ${sender} marketing emails</button></form><p class="note">Necessary account and service messages may still arrive.</p>`;
     return context.html(unsubscribePage('Unsubscribe', content, row.policy.supportEmail), 200, unsubscribeHeaders);
   });
   app.post('/unsubscribe/:token', async (context) => {
@@ -153,7 +151,7 @@ export function createApp(dependencies: Dependencies) {
       await changePreference(db, { workspaceId: row.token.workspaceId, address: row.token.emailKey, eventId: `unsubscribe:${crypto.randomUUID()}`, source: oneClick ? 'mailbox' : 'recipient', action: 'unsubscribe', origin: row.token.origin });
       if (oneClick) return context.body(null, 200, unsubscribeHeaders);
       const sender = escapeHtml(row.policy.senderName);
-      return context.html(unsubscribePage('Unsubscribed', `<p>You're unsubscribed from ${sender} marketing emails.</p><p>Necessary account and service messages may still arrive.</p>`, row.policy.supportEmail), 200, unsubscribeHeaders);
+      return context.html(unsubscribePage('Unsubscribed', `<p>You're unsubscribed from ${sender} marketing emails.</p><p class="note">Necessary account and service messages may still arrive.</p>`, row.policy.supportEmail), 200, unsubscribeHeaders);
     } catch (error) {
       if (error instanceof RachetError && error.status < 500) return context.text('Request could not be completed', error.status as 400, unsubscribeHeaders);
       return context.html(unsubscribePage('Please try again', `<p>Your preference was not changed.</p><form method="post" action="/unsubscribe/${encodeURIComponent(token)}"><input type="hidden" name="action" value="unsubscribe"><button type="submit">Try again</button></form>`, row.policy.supportEmail), 503, unsubscribeHeaders);

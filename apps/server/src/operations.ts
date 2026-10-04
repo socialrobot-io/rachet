@@ -175,7 +175,7 @@ export function createOperations(service: RachetService): Record<string, Operati
       invoke: (context, input) => service.subscriptionEventList(context, workspaceIdSchema.parse(input.workspaceId)),
     },
     'enrollment.create': {
-      description: 'Durably enroll a contact into a published workflow. This can perform side effects.', input: enrollmentCreateSchema, readOnly: false,
+      description: 'Durably enroll a contact into a published workflow. This can send email. Pass consent to record marketing consent in the same transaction. Consent requires an owner or admin and the write scope. Omit consent when the address already has it.', input: enrollmentCreateSchema, readOnly: false,
       requiredScope: 'rachet:send',
       invoke: (context, input) => service.enrollmentCreate(context, enrollmentCreateSchema.parse(input)),
     },

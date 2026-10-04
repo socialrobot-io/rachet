@@ -16,7 +16,7 @@ Copy this checklist and check items off as you go:
 - [ ] Call `auth_whoami`. Use that workspace. Call `workspace_list` only when more than one workspace is returned.
 - [ ] Call `template_list` and `workflow_list` together. Reuse a live template with the same job. Skip archived templates.
 - [ ] Build the graph from the words the user used. See **Graph**.
-- [ ] Set `purpose` explicitly to `marketing` or `transactional`. For marketing, check `email_policy_get` and obtain new consent before live enrollment.
+- [ ] Set `purpose` explicitly to `marketing` or `transactional`. For marketing, check `email_policy_get`. Pass `consent` on `trigger()` or `enrollment.create`, or call `contact.resubscribe` before enrollment.
 - [ ] Lock tone before design. See **Tone**. Do not design branded chrome and strip it later.
 - [ ] Author copy and React Email once for the emails the user named. Render HTML + plain-text body locally so placeholders such as `{{contact.firstName}}` and `{{variables.*}}` stay literal.
 - [ ] Preview one representative email (prefer the first send) with `template_render` or local HTML before publishing the rest. Fix tone there, not after a full publish pass.
