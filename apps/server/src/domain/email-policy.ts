@@ -8,6 +8,12 @@ export const emailKey = (email: string) => email.trim().toLowerCase();
 
 export const mailboxAddress = (from: string) => emailKey(from.match(/<([^<>]+)>\s*$/)?.[1] ?? from);
 
+export function formatMailbox(name: string, address: string) {
+  const cleaned = name.replace(/[\r\n\t\f\v]/g, ' ').replace(/\s+/g, ' ').trim();
+  if (!cleaned) return address;
+  return `"${cleaned.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}" <${address}>`;
+}
+
 // A transaction-scoped address lock works even before a preference row exists.
 // Hash collisions only serialize extra addresses; they cannot mix their data.
 export async function lockEmailAddress(db: Database, workspaceId: string, address: string) {
@@ -35,39 +41,41 @@ type PreferenceChange = {
   origin?: UnsubscribeOrigin | null;
 };
 
-export async function changePreference(db: Database, input: PreferenceChange) {
+export async function recordPreference(tx: Database, input: PreferenceChange) {
   const address = emailKey(input.address);
-  try { return await db.transaction(async (tx) => {
-    await lockEmailAddress(tx as unknown as Database, input.workspaceId, address);
-    const [previousEvent] = await tx.select().from(subscriptionEvents).where(and(eq(subscriptionEvents.workspaceId, input.workspaceId), eq(subscriptionEvents.eventId, input.eventId))).limit(1);
-    if (previousEvent) {
-      if (previousEvent.emailKey !== address || previousEvent.action !== input.action || previousEvent.source !== input.source || previousEvent.consentReference !== (input.consentReference ?? null) || !isDeepStrictEqual(previousEvent.origin, input.origin ?? null)) throw new RachetError('IDEMPOTENCY_CONFLICT', 'Event ID was used for another preference change', 409);
-      return { changed: false, eventId: input.eventId };
+  await lockEmailAddress(tx, input.workspaceId, address);
+  const [previousEvent] = await tx.select().from(subscriptionEvents).where(and(eq(subscriptionEvents.workspaceId, input.workspaceId), eq(subscriptionEvents.eventId, input.eventId))).limit(1);
+  if (previousEvent) {
+    if (previousEvent.emailKey !== address || previousEvent.action !== input.action || previousEvent.source !== input.source || previousEvent.consentReference !== (input.consentReference ?? null) || !isDeepStrictEqual(previousEvent.origin, input.origin ?? null)) throw new RachetError('IDEMPOTENCY_CONFLICT', 'Event ID was used for another preference change', 409);
+    return { changed: false, eventId: input.eventId };
+  }
+  const [existingOptOut] = await tx.select({ eventId: marketingOptOuts.eventId }).from(marketingOptOuts).where(and(eq(marketingOptOuts.workspaceId, input.workspaceId), eq(marketingOptOuts.emailKey, address))).limit(1);
+  const consentReference = input.consentReference;
+  if (input.action === 'consent' && !consentReference) throw new RachetError('VALIDATION_FAILED', 'New consent evidence is required', 422);
+  await tx.insert(subscriptionEvents).values({ workspaceId: input.workspaceId, emailKey: address, eventId: input.eventId, action: input.action, source: input.source, actorId: input.actorId, consentReference: input.consentReference, origin: input.origin });
+  if (input.action === 'consent') {
+    await tx.insert(marketingConsents).values({ workspaceId: input.workspaceId, emailKey: address, consentReference: consentReference ?? '', source: input.source }).onConflictDoUpdate({
+      target: [marketingConsents.workspaceId, marketingConsents.emailKey],
+      set: { consentReference: consentReference ?? '', source: input.source, updatedAt: new Date() },
+    });
+    await tx.delete(marketingOptOuts).where(and(eq(marketingOptOuts.workspaceId, input.workspaceId), eq(marketingOptOuts.emailKey, address)));
+  } else {
+    if (!existingOptOut) await tx.insert(marketingOptOuts).values({ workspaceId: input.workspaceId, emailKey: address, eventId: input.eventId, source: input.source });
+    const active = await tx.select({ id: enrollments.id, definition: sequenceVersions.definition }).from(enrollments)
+      .innerJoin(contacts, eq(contacts.id, enrollments.contactId))
+      .innerJoin(sequenceVersions, eq(sequenceVersions.id, enrollments.sequenceVersionId))
+      .where(and(eq(enrollments.workspaceId, input.workspaceId), eq(contacts.emailKey, address), inArray(enrollments.state, ['pending_start', 'running', 'waiting', 'paused', 'needs_attention'])));
+    for (const row of active) {
+      if (row.definition.purpose !== 'marketing') continue;
+      await tx.update(enrollments).set({ state: 'suppressed', updatedAt: new Date() }).where(eq(enrollments.id, row.id));
+      await tx.insert(outbox).values({ kind: 'enrollment.unsubscribe', aggregateId: row.id, payload: { enrollmentId: row.id } }).onConflictDoNothing();
     }
-    const [existingOptOut] = await tx.select({ eventId: marketingOptOuts.eventId }).from(marketingOptOuts).where(and(eq(marketingOptOuts.workspaceId, input.workspaceId), eq(marketingOptOuts.emailKey, address))).limit(1);
-    const consentReference = input.consentReference;
-    if (input.action === 'consent' && !consentReference) throw new RachetError('VALIDATION_FAILED', 'New consent evidence is required', 422);
-    await tx.insert(subscriptionEvents).values({ workspaceId: input.workspaceId, emailKey: address, eventId: input.eventId, action: input.action, source: input.source, actorId: input.actorId, consentReference: input.consentReference, origin: input.origin });
-    if (input.action === 'consent') {
-      await tx.insert(marketingConsents).values({ workspaceId: input.workspaceId, emailKey: address, consentReference: consentReference ?? '', source: input.source }).onConflictDoUpdate({
-        target: [marketingConsents.workspaceId, marketingConsents.emailKey],
-        set: { consentReference: consentReference ?? '', source: input.source, updatedAt: new Date() },
-      });
-      await tx.delete(marketingOptOuts).where(and(eq(marketingOptOuts.workspaceId, input.workspaceId), eq(marketingOptOuts.emailKey, address)));
-    } else {
-      if (!existingOptOut) await tx.insert(marketingOptOuts).values({ workspaceId: input.workspaceId, emailKey: address, eventId: input.eventId, source: input.source });
-      const active = await tx.select({ id: enrollments.id, definition: sequenceVersions.definition }).from(enrollments)
-        .innerJoin(contacts, eq(contacts.id, enrollments.contactId))
-        .innerJoin(sequenceVersions, eq(sequenceVersions.id, enrollments.sequenceVersionId))
-        .where(and(eq(enrollments.workspaceId, input.workspaceId), eq(contacts.emailKey, address), inArray(enrollments.state, ['pending_start', 'running', 'waiting', 'paused', 'needs_attention'])));
-      for (const row of active) {
-        if (row.definition.purpose !== 'marketing') continue;
-        await tx.update(enrollments).set({ state: 'suppressed', updatedAt: new Date() }).where(eq(enrollments.id, row.id));
-        await tx.insert(outbox).values({ kind: 'enrollment.unsubscribe', aggregateId: row.id, payload: { enrollmentId: row.id } }).onConflictDoNothing();
-      }
-    }
-    return { changed: input.action === 'consent' || !existingOptOut, eventId: input.eventId };
-  }); } catch (error) {
+  }
+  return { changed: input.action === 'consent' || !existingOptOut, eventId: input.eventId };
+}
+
+export async function changePreference(db: Database, input: PreferenceChange) {
+  try { return await db.transaction(async (tx) => recordPreference(tx as unknown as Database, input)); } catch (error) {
     if (isUniqueViolation(error)) throw new RachetError('IDEMPOTENCY_CONFLICT', 'Event ID was used for another preference change', 409);
     throw error;
   }
