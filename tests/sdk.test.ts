@@ -37,6 +37,24 @@ describe('RachetSdk', () => {
     ]);
     expect(requests[0]?.headers.get('x-api-key')).toBe('reflow_test_key');
     expect(requests[1]?.body).toMatchObject({ workflowVersionId, contactId, idempotencyKey: 'welcome:user-1' });
+    expect(requests[1]?.body).not.toHaveProperty('consent');
+  });
+
+  it('sends consent with enrollment when the caller recorded it', async () => {
+    const bodies: Array<Record<string, unknown>> = [];
+    const client = new RachetSdk({
+      url: 'https://reflow.example.test', apiKey: 'reflow_test_key', workspaceId,
+      fetch: async (input, init) => {
+        bodies.push(JSON.parse(String(init?.body)) as Record<string, unknown>);
+        const data = String(input).endsWith('contact.upsert')
+          ? { id: contactId, workspaceId, email: 'user@example.com', emailKey: 'user@example.com', fields: {} }
+          : { id: '00000000-0000-4000-8000-000000000004', workspaceId, sequenceVersionId: workflowVersionId, contactId, state: 'pending', idempotencyKey: 'welcome:user-1', createdAt: '', updatedAt: '' };
+        return new Response(JSON.stringify({ status: 'succeeded', data }), { status: 200 });
+      },
+    });
+    const consent = { eventId: 'consent:user-1', source: 'product' as const, consentReference: 'terms:user-1' };
+    await client.trigger({ workflowVersionId, contact: { email: 'user@example.com' }, idempotencyKey: 'welcome:user-1', consent });
+    expect(bodies[1]).toMatchObject({ consent });
   });
 
   it('preserves structured operation errors', async () => {

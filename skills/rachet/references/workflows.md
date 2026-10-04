@@ -25,7 +25,7 @@ Read a dotted event name as `event["workflow.created.v1"].data.workflowId`. Brac
 
 Connect the app only after the user agrees in [SKILL.md](../SKILL.md). For a Node app, use `@socialrobot-io/rachet-sdk`. Keep the API key on the server.
 
-`trigger()` upserts the contact and creates the enrollment. Pass the published workflow version id, the contact, and a stable `idempotencyKey` such as `welcome-<userId>`. Pass links in `variables`. Templates read them as `{{variables.workflowsUrl}}` and `{{variables.replyMailto}}`.
+`trigger()` upserts the contact and creates the enrollment. Pass the published workflow version id, the contact, and a stable `idempotencyKey` such as `welcome-<userId>`. For a marketing workflow, pass `consent` with `eventId`, `source`, and `consentReference` on the first enrollment. Omit it when that address already has marketing consent. Pass links in `variables`. Templates read them as `{{variables.workflowsUrl}}` and `{{variables.replyMailto}}`.
 
 Emit a waited event with `call('event.emit', { workspaceId, enrollmentId, eventId, eventType, data })`. `enrollmentId` is the id `trigger()` returned. The same `eventId` on retry does not create a second event. `data` must match the event schema.
 
