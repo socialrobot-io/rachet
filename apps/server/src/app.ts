@@ -389,9 +389,21 @@ export function createApp(dependencies: Dependencies) {
   async function operationContext(request: Request) {
     const rawApiKey = request.headers.get('x-api-key');
     if (rawApiKey) {
-      const api = auth.api as unknown as { verifyApiKey(args: { body: { key: string } }): Promise<{ valid: boolean; key: null | { referenceId: string; permissions: null | Record<string, string[]>; metadata?: unknown } }> };
+      const api = auth.api as unknown as {
+        verifyApiKey(args: { body: { key: string } }): Promise<{
+          valid: boolean;
+          error?: { code?: string; message?: string } | null;
+          key: null | { referenceId: string; permissions: null | Record<string, string[]>; metadata?: unknown };
+        }>;
+      };
       const verified = await api.verifyApiKey({ body: { key: rawApiKey } });
-      if (!verified.valid || !verified.key) throw new RachetError('UNAUTHENTICATED', 'Invalid API key', 401);
+      if (!verified.valid || !verified.key) {
+        const code = verified.error?.code;
+        if (code === 'RATE_LIMITED' || code === 'USAGE_EXCEEDED') {
+          throw new RachetError('RATE_LIMITED', verified.error?.message ?? 'API key rate limit reached', 429, true);
+        }
+        throw new RachetError('UNAUTHENTICATED', 'Invalid API key', 401);
+      }
       const principal = await service.principalFor(verified.key.referenceId);
       principal.scopes = [
         ...(verified.key.permissions?.rachet ?? []).map((scope) => `rachet:${scope}`),

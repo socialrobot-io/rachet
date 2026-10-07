@@ -202,7 +202,17 @@ export function createAuth(config: Config, pool: Pool) {
           if (error) throw new Error(`Authentication email failed: ${error.name}`);
         },
       }),
-      apiKey({ enableMetadata: true }) as unknown as BetterAuthPlugin,
+      // Server-to-server product keys (SocialRobot welcome trigger, event.emit)
+      // burn far more than Better Auth's default 10 req/day. Keep a high ceiling
+      // so enrollment does not start failing as "Invalid API key".
+      apiKey({
+        enableMetadata: true,
+        rateLimit: {
+          enabled: true,
+          timeWindow: 1000 * 60 * 60 * 24,
+          maxRequests: 100_000,
+        },
+      }) as unknown as BetterAuthPlugin,
       jwt(),
       oauthProvider(oauthOptions) as unknown as BetterAuthPlugin,
       {
