@@ -164,6 +164,11 @@ export class RachetService {
         permissions: { rachet: [...new Set(input.scopes)] },
         metadata: { workspaceId: input.workspaceId },
         expiresIn: input.expiresInSeconds,
+        // Product SDK keys call trigger/event.emit per signup; keep far above
+        // Better Auth's baked-in 10/day default so enrollments do not stall.
+        rateLimitEnabled: true,
+        rateLimitTimeWindow: 1000 * 60 * 60 * 24,
+        rateLimitMax: 100_000,
       },
     });
     await this.audit(context, 'credential.create', input.workspaceId, 'account', context.principal.userId, { scopes: input.scopes });
