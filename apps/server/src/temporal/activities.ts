@@ -10,7 +10,7 @@ import { contacts, emailPolicies, enrollments, resendConnections, sendIntents, s
 import type { EmailProvider } from '../providers/email-provider.js';
 import { ResendProvider } from '../providers/resend.js';
 import { decryptIntegrationSecret } from '../integrations/secret.js';
-import { emailEligibility, lockEmailAddress, mailboxAddress } from '../domain/email-policy.js';
+import { emailEligibility, formatMailbox, lockEmailAddress, mailboxAddress } from '../domain/email-policy.js';
 import { createUnsubscribeToken } from '../security/unsubscribe-token.js';
 
 let runtime: { config: Config; db: Database; provider?: EmailProvider | undefined } | undefined;
@@ -85,7 +85,7 @@ async function sendEmail(input: { workspaceId: string; enrollmentId: string; nod
     ? await db.select().from(emailPolicies).where(eq(emailPolicies.workspaceId, input.workspaceId)).limit(1)
     : [];
   if (purpose === 'marketing' && !policy?.marketingFromAddress) throw ApplicationFailure.nonRetryable('Marketing sender and unsubscribe settings are not configured', 'ValidationError');
-  const fromAddress = purpose === 'marketing' ? policy?.marketingFromAddress ?? '' : transactionalFromAddress;
+  const fromAddress = purpose === 'marketing' && policy?.marketingFromAddress ? formatMailbox(policy.senderName, policy.marketingFromAddress) : transactionalFromAddress;
   if (purpose === 'marketing' && mailboxAddress(fromAddress) === mailboxAddress(transactionalFromAddress)) {
     throw ApplicationFailure.nonRetryable('Marketing and transactional sender addresses must differ', 'ValidationError');
   }
@@ -125,9 +125,13 @@ async function sendEmail(input: { workspaceId: string; enrollmentId: string; nod
   }
   if (!intent) throw new Error('Send intent disappeared');
   if (intent.state === 'accepted') return 'succeeded';
-  if (intent.connectionVersion !== connectionVersion || intent.fromAddress !== fromAddress) {
+  if (intent.connectionVersion !== connectionVersion || mailboxAddress(intent.fromAddress ?? '') !== mailboxAddress(fromAddress)) {
     await db.update(sendIntents).set({ state: 'unknown', errorCode: 'connection_changed', updatedAt: new Date() }).where(eq(sendIntents.id, intent.id));
     return 'needs_attention';
+  }
+  if (intent.fromAddress !== fromAddress) {
+    await db.update(sendIntents).set({ fromAddress, updatedAt: new Date() }).where(eq(sendIntents.id, intent.id));
+    intent = { ...intent, fromAddress };
   }
   if (intent.firstAttemptAt && Date.now() - intent.firstAttemptAt.getTime() >= 23 * 60 * 60 * 1000) {
     await db.update(sendIntents).set({ state: 'unknown', errorCode: 'idempotency_window_expired' }).where(eq(sendIntents.id, intent.id));

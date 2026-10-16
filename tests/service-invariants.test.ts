@@ -223,6 +223,31 @@ describe.skipIf(!runtime)('service invariants (postgres)', () => {
     expect(listed.find((row) => row.id === workflow.id)?.revision).toBe(revised.revision);
   });
 
+  it('lists immutable workflow graphs for every published version without enrollments', async () => {
+    const firstDefinition: WorkflowDefinition = {
+      schemaVersion: '1', description: 'Original welcome', trigger: { type: 'manual' }, purpose: 'transactional',
+      entryNodeId: 'done', nodes: [{ id: 'done', type: 'end', reason: 'original' }],
+    };
+    const workflow = await boot.service.workflowCreate(admin, {
+      workspaceId, name: `versions-${crypto.randomUUID().slice(0, 6)}`, intent: 'inspect versions', definition: firstDefinition,
+    });
+    const first = await boot.service.workflowPublish(admin, { workspaceId, workflowId: workflow.id, expectedRevision: workflow.revision });
+    const secondDefinition: WorkflowDefinition = { ...firstDefinition, description: 'Revised welcome', nodes: [{ id: 'done', type: 'end', reason: 'revised' }] };
+    const revised = await boot.service.workflowRevise(admin, { workspaceId, workflowId: workflow.id, expectedRevision: workflow.revision, definition: secondDefinition });
+    const second = await boot.service.workflowPublish(admin, { workspaceId, workflowId: workflow.id, expectedRevision: revised.revision });
+    await boot.service.workflowRevise(admin, { workspaceId, workflowId: workflow.id, expectedRevision: revised.revision, definition: { ...secondDefinition, description: 'Unpublished changes' } });
+
+    const viewer = roleContext(workspaceId, 'viewer');
+    const listed = (await boot.service.workflowList(viewer, workspaceId)).find((row) => row.id === workflow.id);
+    expect(listed?.definition).toMatchObject({ description: 'Unpublished changes' });
+    expect(listed?.publishedVersions).toMatchObject([
+      { id: first?.id, version: 1, definition: firstDefinition },
+      { id: second?.id, version: 2, definition: secondDefinition },
+    ]);
+    const foreign = await boot.service.workflowList(admin, crypto.randomUUID());
+    expect(foreign).toEqual([]);
+  });
+
   it('keeps enrollment create idempotent and conflicts on mismatched replay', async () => {
     const { published } = await publishHtmlTemplate(`enr-${crypto.randomUUID().slice(0, 6)}`);
     const workflow = await boot.service.workflowCreate(admin, {

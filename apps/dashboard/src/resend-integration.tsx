@@ -132,7 +132,9 @@ export function ResendIntegrationPage({ onboarding = false }: { onboarding?: boo
   const role = workspaces.find((workspace) => workspace.id === workspaceId)?.role;
   const canManage = role === 'owner' || role === 'admin';
   const needsSecrets = !status?.configured || from.trim() !== (status.from ?? '').trim() || Boolean(apiKey || webhookSecret);
-  const previewText = `From: ${marketingFromAddress.trim() || 'news@example.com'}\nTo: recipient@example.com\nSubject: Example marketing email\n\nYour message content\n\nUnsubscribe from ${senderName.trim() || 'Your organization'} marketing emails: https://example.invalid/unsubscribe-preview`;
+  const previewName = senderName.trim() || 'Your organization';
+  const previewAddress = marketingFromAddress.trim() || 'news@example.com';
+  const previewText = `From: ${previewName} <${previewAddress}>\nTo: recipient@example.com\nSubject: Example marketing email\n\nYour message content\n\nUnsubscribe from ${previewName} marketing emails: https://example.invalid/unsubscribe-preview`;
 
   useEffect(() => {
     if (!workspaceId) return;
@@ -296,7 +298,7 @@ export function ResendIntegrationPage({ onboarding = false }: { onboarding?: boo
                     <Field data-invalid={Boolean(fieldErrors.senderName)}>
                       <FieldLabel htmlFor="marketing-sender-name">Sender name</FieldLabel>
                       <Input id="marketing-sender-name" required maxLength={120} value={senderName} aria-invalid={Boolean(fieldErrors.senderName)} onChange={(event) => { setSenderName(event.target.value); setFieldErrors((current) => ({ ...current, senderName: '' })); }} placeholder="Acme" />
-                      <FieldDescription>Shown in the unsubscribe link and on the recipient page.</FieldDescription>
+                      <FieldDescription>Recipients see this name on the message, in the unsubscribe link, and on the unsubscribe page.</FieldDescription>
                       <FieldError>{fieldErrors.senderName}</FieldError>
                     </Field>
                     <Field data-invalid={Boolean(fieldErrors.marketingFromAddress)}>

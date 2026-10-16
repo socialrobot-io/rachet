@@ -8,7 +8,7 @@ import {
   auditEvents, contacts, enrollmentEvents, enrollments, eventTypes, memberships, outbox, profiles, sendIntents,
   sequences, sequenceVersions, templates, templateVersions, webhookEvents, workspaces, emailPolicies, subscriptionEvents, resendConnections,
 } from '../db/schema.js';
-import type { OperationContext, Principal, SimulatedEvent, WorkflowDefinition } from '@rachet/contracts';
+import type { EnrollmentCreateInput, OperationContext, Principal, SimulatedEvent, WorkflowDefinition } from '@rachet/contracts';
 import { validateActionNodes } from './action-catalog.js';
 import { simulateWorkflow } from './simulate.js';
 import { RachetError, isUniqueViolation } from './errors.js';
@@ -22,7 +22,7 @@ import {
 } from './template-refs.js';
 import { cancelEnrollment, enrollmentEvent, pauseEnrollment, resumeEnrollment } from '../temporal/shared.js';
 import { runWelcomeWorkflowCreated } from '../welcome.js';
-import { changePreference, emailEligibility, emailKey, lockEmailAddress, mailboxAddress } from './email-policy.js';
+import { changePreference, emailEligibility, emailKey, lockEmailAddress, mailboxAddress, recordPreference } from './email-policy.js';
 
 function hash(value: unknown): string {
   return createHash('sha256').update(JSON.stringify(value)).digest('hex');
@@ -85,6 +85,27 @@ export class RachetService {
     if (!role || !allowed.includes(role)) throw new RachetError('FORBIDDEN', `Workspace ${permission} permission denied`, 403);
   }
 
+  private hasScope(context: OperationContext, scope: 'rachet:read' | 'rachet:write' | 'rachet:send') {
+    return context.principal.scopes.includes(scope) || context.principal.scopes.includes(scope.replace('rachet:', 'reflow:'));
+  }
+
+  private async assertEnrollmentReplay(db: Database, existing: { id: string; contactId: string; sequenceVersionId: string; input: Record<string, unknown> }, input: EnrollmentCreateInput, address: string) {
+    if (existing.contactId !== input.contactId || existing.sequenceVersionId !== input.workflowVersionId || stableHash(existing.input) !== stableHash(input.variables)) {
+      throw new RachetError('IDEMPOTENCY_CONFLICT', 'Idempotency key was used with different input', 409);
+    }
+    if (!input.consent) return;
+    const [audit] = await db.select({ details: auditEvents.details }).from(auditEvents).where(and(
+      eq(auditEvents.workspaceId, input.workspaceId), eq(auditEvents.action, 'enrollment.create'), eq(auditEvents.targetId, existing.id),
+    )).orderBy(asc(auditEvents.createdAt)).limit(1);
+    if (audit?.details.consentEventId !== input.consent.eventId) throw new RachetError('IDEMPOTENCY_CONFLICT', 'Idempotency key was used with different input', 409);
+    const [event] = await db.select({
+      emailKey: subscriptionEvents.emailKey, action: subscriptionEvents.action, source: subscriptionEvents.source, consentReference: subscriptionEvents.consentReference,
+    }).from(subscriptionEvents).where(and(eq(subscriptionEvents.workspaceId, input.workspaceId), eq(subscriptionEvents.eventId, input.consent.eventId))).limit(1);
+    if (!event || event.emailKey !== address || event.action !== 'consent' || event.source !== input.consent.source || event.consentReference !== input.consent.consentReference) {
+      throw new RachetError('IDEMPOTENCY_CONFLICT', 'Idempotency key was used with different input', 409);
+    }
+  }
+
   private async audit(
     context: OperationContext,
     action: string,
@@ -143,6 +164,11 @@ export class RachetService {
         permissions: { rachet: [...new Set(input.scopes)] },
         metadata: { workspaceId: input.workspaceId },
         expiresIn: input.expiresInSeconds,
+        // Product SDK keys call trigger/event.emit per signup; keep far above
+        // Better Auth's baked-in 10/day default so enrollments do not stall.
+        rateLimitEnabled: true,
+        rateLimitTimeWindow: 1000 * 60 * 60 * 24,
+        rateLimitMax: 100_000,
       },
     });
     await this.audit(context, 'credential.create', input.workspaceId, 'account', context.principal.userId, { scopes: input.scopes });
@@ -542,6 +568,7 @@ export class RachetService {
       id: sequenceVersions.id,
       sequenceId: sequenceVersions.sequenceId,
       version: sequenceVersions.version,
+      definition: sequenceVersions.definition,
       createdAt: sequenceVersions.createdAt,
     }).from(sequenceVersions).where(eq(sequenceVersions.workspaceId, workspaceId)).orderBy(asc(sequenceVersions.version));
     const bySequence = new Map<string, typeof versions>();
@@ -647,12 +674,33 @@ export class RachetService {
     return this.db.select().from(eventTypes).where(eq(eventTypes.workspaceId, workspaceId)).orderBy(asc(eventTypes.eventType));
   }
 
-  async contactUpsert(context: OperationContext, input: { workspaceId: string; email: string; externalId?: string | undefined; timezone?: string | undefined; fields: Record<string, unknown> }) {
+  async contactUpsert(context: OperationContext, input: { workspaceId: string; email: string; externalId?: string | undefined; timezone?: string | undefined; fields?: Record<string, unknown> | undefined }) {
     this.workspace(context, input.workspaceId, 'send');
-    const emailKey = input.email.trim().toLowerCase();
-    const [row] = await this.db.insert(contacts).values({ ...input, email: input.email.trim(), emailKey }).onConflictDoUpdate({
+    const email = input.email.trim();
+    const emailKey = email.toLowerCase();
+    // Several callers write the same contact, so fields merge: a key sent as
+    // null is removed, keys left out are kept.
+    const sent = Object.entries(input.fields ?? {});
+    const kept = Object.fromEntries(sent.filter(([, value]) => value !== null));
+    const removed = sent.filter(([, value]) => value === null).map(([key]) => key);
+    const [row] = await this.db.insert(contacts).values({
+      workspaceId: input.workspaceId,
+      externalId: input.externalId,
+      email,
+      emailKey,
+      timezone: input.timezone,
+      fields: kept,
+    }).onConflictDoUpdate({
       target: [contacts.workspaceId, contacts.emailKey],
-      set: { externalId: input.externalId, email: input.email.trim(), timezone: input.timezone, fields: input.fields, updatedAt: new Date() },
+      set: {
+        externalId: input.externalId,
+        email,
+        timezone: input.timezone,
+        fields: input.fields === undefined
+          ? undefined
+          : sql`(${contacts.fields} || ${JSON.stringify(kept)}::jsonb) - array(select jsonb_array_elements_text(${JSON.stringify(removed)}::jsonb))`,
+        updatedAt: new Date(),
+      },
     }).returning();
     if (!row) throw new Error('Contact upsert failed');
     await this.audit(context, 'contact.upsert', input.workspaceId, 'contact', row.id);
@@ -716,8 +764,12 @@ export class RachetService {
     return this.db.select().from(subscriptionEvents).where(eq(subscriptionEvents.workspaceId, workspaceId)).orderBy(asc(subscriptionEvents.createdAt));
   }
 
-  async enrollmentCreate(context: OperationContext, input: { workspaceId: string; workflowVersionId: string; contactId: string; variables: Record<string, unknown>; idempotencyKey: string }) {
+  async enrollmentCreate(context: OperationContext, input: EnrollmentCreateInput) {
     this.workspace(context, input.workspaceId, 'send');
+    if (input.consent) {
+      this.workspace(context, input.workspaceId, 'author');
+      if (!this.hasScope(context, 'rachet:write')) throw new RachetError('FORBIDDEN', 'Missing required scope: rachet:write', 403);
+    }
     const [contact, version] = await Promise.all([
       this.db.select({ id: contacts.id, emailKey: contacts.emailKey }).from(contacts)
         .where(and(eq(contacts.id, input.contactId), eq(contacts.workspaceId, input.workspaceId))).limit(1),
@@ -740,10 +792,19 @@ export class RachetService {
         await lockEmailAddress(tx as unknown as Database, input.workspaceId, contactRow.emailKey);
         const [existing] = await tx.select().from(enrollments).where(and(eq(enrollments.workspaceId, input.workspaceId), eq(enrollments.idempotencyKey, input.idempotencyKey))).limit(1);
         if (existing) {
-          if (existing.contactId !== input.contactId || existing.sequenceVersionId !== input.workflowVersionId || stableHash(existing.input) !== stableHash(input.variables)) {
-            throw new RachetError('IDEMPOTENCY_CONFLICT', 'Idempotency key was used with different input', 409);
-          }
+          await this.assertEnrollmentReplay(tx as unknown as Database, existing, input, contactRow.emailKey);
           return existing;
+        }
+        if (input.consent) {
+          try {
+            await recordPreference(tx as unknown as Database, {
+              workspaceId: input.workspaceId, address: contactRow.emailKey, eventId: input.consent.eventId,
+              source: input.consent.source, actorId: context.principal.userId, action: 'consent', consentReference: input.consent.consentReference,
+            });
+          } catch (error) {
+            if (isUniqueViolation(error)) throw new RachetError('IDEMPOTENCY_CONFLICT', 'Event ID was used for another preference change', 409);
+            throw error;
+          }
         }
         const eligibility = await emailEligibility(tx as unknown as Database, input.workspaceId, contactRow.emailKey, purpose);
         if (!eligibility.eligible) throw new RachetError('EMAIL_POLICY_BLOCKED', `Enrollment blocked: ${eligibility.reason}`, 422);
@@ -755,14 +816,18 @@ export class RachetService {
         if (Number(active?.count ?? 0) >= 1000) throw new RachetError('WORKSPACE_CAPACITY', 'This organization has reached 1000 active workflows', 429, true);
         const rows = await tx.insert(enrollments).values({ id, workspaceId: input.workspaceId, sequenceVersionId: input.workflowVersionId, contactId: input.contactId, workflowId, input: input.variables, idempotencyKey: input.idempotencyKey }).returning();
         await tx.insert(outbox).values({ kind: 'enrollment.start', aggregateId: id, payload: { enrollmentId: id } });
-        await tx.insert(auditEvents).values({ workspaceId: input.workspaceId, actorId: context.principal.userId, action: 'enrollment.create', targetType: 'enrollment', targetId: id });
+        await tx.insert(auditEvents).values({
+          workspaceId: input.workspaceId, actorId: context.principal.userId, action: 'enrollment.create', targetType: 'enrollment', targetId: id,
+          ...(input.consent ? { details: { consentEventId: input.consent.eventId } } : {}),
+        });
         return rows[0];
       });
       return created;
     } catch (error) {
       if (!isUniqueViolation(error)) throw error;
       const [existing] = await this.db.select().from(enrollments).where(and(eq(enrollments.workspaceId, input.workspaceId), eq(enrollments.idempotencyKey, input.idempotencyKey))).limit(1);
-      if (!existing || existing.contactId !== input.contactId || existing.sequenceVersionId !== input.workflowVersionId || stableHash(existing.input) !== stableHash(input.variables)) throw new RachetError('IDEMPOTENCY_CONFLICT', 'Idempotency key was used with different input', 409);
+      if (!existing) throw new RachetError('IDEMPOTENCY_CONFLICT', 'Idempotency key was used with different input', 409);
+      await this.assertEnrollmentReplay(this.db, existing, input, contactRow.emailKey);
       return existing;
     }
   }

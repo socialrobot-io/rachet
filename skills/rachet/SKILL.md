@@ -16,7 +16,7 @@ Copy this checklist and check items off as you go:
 - [ ] Call `auth_whoami`. Use that workspace. Call `workspace_list` only when more than one workspace is returned.
 - [ ] Call `template_list` and `workflow_list` together. Reuse a live template with the same job. Skip archived templates.
 - [ ] Build the graph from the words the user used. See **Graph**.
-- [ ] Set `purpose` explicitly to `marketing` or `transactional`. For marketing, check `email_policy_get` and obtain new consent before live enrollment.
+- [ ] Set `purpose` explicitly to `marketing` or `transactional`. For marketing, check `email_policy_get`. Pass `consent` on `trigger()` or `enrollment.create`, or call `contact.resubscribe` before enrollment.
 - [ ] Lock tone before design. See **Tone**. Do not design branded chrome and strip it later.
 - [ ] Author copy and React Email once for the emails the user named. Render HTML + plain-text body locally so placeholders such as `{{contact.firstName}}` and `{{variables.*}}` stay literal.
 - [ ] Preview one representative email (prefer the first send) with `template_render` or local HTML before publishing the rest. Fix tone there, not after a full publish pass.
@@ -49,7 +49,7 @@ If they say yes, check these off:
 
 - [ ] Call `workflow_publish`. Keep the returned workflow version id. Publishing does not send email.
 - [ ] Wire a Node app with `@socialrobot-io/rachet-sdk`. If the app is not Node, call the same operations over HTTP. Call shapes are in [workflows](references/workflows.md).
-- [ ] Where the product should start this journey, call `trigger()` with that version id, the contact, and a stable idempotency key. `trigger()` upserts the contact and enrolls them. Enrollment can send the first email.
+- [ ] Where the product should start this journey, call `trigger()` with that version id, the contact, and a stable idempotency key. `trigger()` upserts the contact and enrolls them. Contact fields merge, so send only the fields this caller owns; `null` removes a key. Enrollment can send the first email.
 - [ ] For each `wait_for_event`, call `event.emit` through `call()` from the product action that means that event. Use the enrollment id from `trigger()`, a stable event id, and data that matches the event schema.
 
 If they say no, leave the workflow as a draft. If the graph waits on events, warn that those events will not arrive until the product emits them.

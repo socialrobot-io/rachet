@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { ArrowUpRight, Check, CircleCheck, Copy, Layers3, Pause, Play, UsersRound, XCircle } from 'lucide-react';
 import { api, ApiError } from '@/api';
@@ -26,7 +26,9 @@ import {
   nodeLabel,
 } from '@/flow';
 import { enrollmentCounts, enrollmentExitReason, enrollmentGroup, type EnrollmentGroup } from '@/enrollment-list';
-import type { Enrollment, Message, SubscriptionEvent, Workflow } from '@/types';
+import { enrollmentWorkflowHref, enrollmentsForView, workflowView, workflowViews } from '@/workflow-versions';
+import type { SubscriptionEvent } from '@/types';
+import { useWorkspaceData } from '@/workspace-data';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -42,66 +44,31 @@ import {
 import { Button } from '@/components/ui/button';
 import { Card, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
-
-function useWorkspaceData(withMessages = true) {
-  const { workspaceId } = useAuth();
-  const [workflows, setWorkflows] = useState<Workflow[]>([]);
-  const [enrollments, setEnrollments] = useState<Enrollment[]>([]);
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    if (!workspaceId) {
-      setWorkflows([]);
-      setEnrollments([]);
-      setMessages([]);
-      setLoading(false);
-      return;
-    }
-    let cancelled = false;
-    setLoading(true);
-    setError(null);
-    void Promise.all([
-      api.workflows(workspaceId),
-      api.enrollments(workspaceId),
-      withMessages ? api.messages(workspaceId) : Promise.resolve([]),
-    ])
-      .then(([nextWorkflows, nextEnrollments, nextMessages]) => {
-        if (cancelled) return;
-        setWorkflows(nextWorkflows);
-        setEnrollments(nextEnrollments);
-        setMessages(nextMessages);
-      })
-      .catch((err: unknown) => {
-        if (cancelled) return;
-        setError(err instanceof ApiError ? err.message : 'Failed to load workspace');
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [workspaceId, withMessages]);
-
-  return { workspaceId, workflows, enrollments, messages, error, loading, setEnrollments };
-}
+import { Field, FieldLabel } from '@/components/ui/field';
+import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 function PageFrame({ children }: { children: ReactNode }) {
   return <div className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6 lg:px-8 lg:py-12">{children}</div>;
 }
 
-function CopyWorkflowId({ id }: { id: string }) {
+function CopyId({ id, label }: { id: string; label: string }) {
   const [message, setMessage] = useState('');
   return <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-    <span>Workflow ID</span>
+    <span>{label}</span>
     <code className="break-all font-mono text-foreground">{id}</code>
-    <Button type="button" variant="outline" size="xs" onClick={() => {
+    <Button type="button" variant="outline" size="xs" aria-label={`Copy ${label}`} onClick={() => {
       void navigator.clipboard.writeText(id).then(() => setMessage('Copied')).catch(() => setMessage('Select and copy the ID manually.'));
     }}>{message === 'Copied' ? <Check data-icon="inline-start" /> : <Copy data-icon="inline-start" />}{message === 'Copied' ? 'Copied' : 'Copy'}</Button>
     {message && <span role="status">{message}</span>}
   </div>;
+}
+
+function WorkflowIds({ workflowId, versionId }: { workflowId: string; versionId?: string | null }) {
+  return <details className="text-xs text-muted-foreground">
+    <summary className="w-fit cursor-pointer">IDs for API and support</summary>
+    <CopyId id={workflowId} label="Workflow ID" />
+    {versionId && <CopyId key={versionId} id={versionId} label="Version ID" />}
+  </details>;
 }
 
 export function WorkflowsPage() {
@@ -182,6 +149,7 @@ export function WorkflowsPage() {
                       <div className="min-w-0"><CardTitle className="text-xl font-semibold tracking-tight"><Link to={`/workflows/${workflow.id}`} className="after:absolute after:inset-0 focus-visible:outline-ring">{workflow.name}</Link></CardTitle><CardDescription className="mt-2 line-clamp-3">{workflow.definition.description || 'A thoughtful journey for your audience.'}</CardDescription></div>
                       <ArrowUpRight className="size-5 shrink-0 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" aria-hidden="true" />
                     </div>
+                    <Badge variant="outline">{workflow.publishedVersions.length} published {workflow.publishedVersions.length === 1 ? 'version' : 'versions'}</Badge>
                   </CardHeader>
                   <CardFooter className="mt-auto justify-between gap-2"><StatusBadge value={workflow.state} /><span className="font-mono text-xs text-muted-foreground">{active} active · {completed} done</span></CardFooter>
                 </Card>
@@ -199,6 +167,8 @@ export function EnrollmentsPage() {
   const { workspaceId, workflows, enrollments, error, loading } = useWorkspaceData(false);
   const [searchParams, setSearchParams] = useSearchParams();
   const workflowId = searchParams.get('workflow') ?? 'all';
+  const version = workflowId === 'all' ? 'all' : searchParams.get('version') ?? 'all';
+  const selectedWorkflow = workflows.find((row) => row.id === workflowId);
   const requestedGroup = searchParams.get('status') ?? 'all';
   const group: EnrollmentGroup = ['all', 'in_progress', 'needs_attention', 'exited'].includes(requestedGroup)
     ? requestedGroup as EnrollmentGroup : 'all';
@@ -208,10 +178,12 @@ export function EnrollmentsPage() {
     const next = new URLSearchParams(searchParams);
     if (!value || value === 'all') next.delete(key);
     else next.set(key, value);
+    if (key === 'workflow') next.delete('version');
     setSearchParams(next, { replace: true });
   }
 
-  const scoped = enrollments.filter((row) => workflowId === 'all' || row.sequenceId === workflowId);
+  const scoped = enrollments.filter((row) => (workflowId === 'all' || row.sequenceId === workflowId)
+    && (version === 'all' || String(row.workflowVersion) === version));
   const counts = enrollmentCounts(scoped);
   const search = query.trim().toLocaleLowerCase();
   const visible = scoped.filter((row) => {
@@ -256,11 +228,15 @@ export function EnrollmentsPage() {
             <span className="font-mono text-xs text-muted-foreground">Showing {visible.length}</span>
           </div>
           {samples && <p className="text-xs text-muted-foreground">Counts include sample enrollments. Samples do not run or send email.</p>}
-          <div className="grid gap-3 sm:grid-cols-[minmax(12rem,1fr)_minmax(12rem,1fr)_minmax(12rem,1fr)]">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <Input aria-label="Search contacts" placeholder="Search name or email" value={query} onChange={(event) => setFilter('q', event.target.value)} />
             <select aria-label="Filter by workflow" className="h-8 rounded-lg border border-input bg-background px-2.5 text-sm" value={workflowId} onChange={(event) => setFilter('workflow', event.target.value)}>
               <option value="all">All workflows</option>
               {workflows.map((workflow) => <option key={workflow.id} value={workflow.id}>{workflow.name}</option>)}
+            </select>
+            <select aria-label="Filter by version" className="h-8 rounded-lg border border-input bg-background px-2.5 text-sm" value={version} disabled={!selectedWorkflow} onChange={(event) => setFilter('version', event.target.value)}>
+              <option value="all">All versions</option>
+              {selectedWorkflow && workflowViews(selectedWorkflow).filter((view) => view.publishedVersionId !== null).map((view) => <option key={view.key} value={view.key}>{view.label}</option>)}
             </select>
             <select aria-label="Filter by status" className="h-8 rounded-lg border border-input bg-background px-2.5 text-sm" value={group} onChange={(event) => setFilter('status', event.target.value)}>
               <option value="all">All statuses</option>
@@ -282,7 +258,7 @@ export function EnrollmentsPage() {
                   const result = enrollmentExitReason(row);
                   return <TableRow key={row.id}>
                     <TableCell><Link className="font-medium text-foreground underline-offset-2 hover:underline" to={`/enrollments/${row.id}`}>{name}</Link><div className="text-xs text-muted-foreground">{row.contactEmail}{row.input.demo === true && ' · Sample'}</div></TableCell>
-                    <TableCell><Link className="hover:underline" to={`/workflows/${row.sequenceId}`}>{row.workflowName}</Link><div className="text-xs text-muted-foreground">Version {row.workflowVersion}</div></TableCell>
+                    <TableCell><Link className="hover:underline" to={enrollmentWorkflowHref(row)}>{row.workflowName}</Link><div className="mt-1"><Badge variant="outline">v{row.workflowVersion}</Badge></div></TableCell>
                     <TableCell><StatusBadge value={row.state} /></TableCell>
                     <TableCell className="max-w-[18rem] truncate" title={result ?? row.currentStepId ?? undefined}>{result ?? (row.currentStepId ? humanizeId(row.currentStepId) : 'Starting')}</TableCell>
                     <TableCell className="text-muted-foreground">{formatWhen(row.createdAt)}</TableCell>
@@ -303,10 +279,17 @@ export function WorkflowDetailPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const { workspaceId, workflows, enrollments, error, loading } = useWorkspaceData();
   const [preview, setPreview] = useState<EmailPreview | null>(null);
+  const previewRequest = useRef(0);
   const workflow = workflows.find((row) => row.id === workflowId);
+  const requestedVersion = searchParams.get('version');
+  useEffect(() => {
+    previewRequest.current += 1;
+    setPreview(null);
+  }, [workflowId, requestedVersion]);
+  const view = useMemo(() => workflow ? workflowView(workflow, requestedVersion) : null, [workflow, requestedVersion]);
   const related = useMemo(
-    () => enrollments.filter((enrollment) => enrollment.sequenceId === workflowId),
-    [enrollments, workflowId],
+    () => workflow && view ? enrollmentsForView(workflow, view, enrollments) : [],
+    [enrollments, workflow, view],
   );
   const active = useMemo(() => related.filter(isActiveEnrollment), [related]);
   const stepFilter = searchParams.get('step');
@@ -314,7 +297,14 @@ export function WorkflowDetailPage() {
     ? active.filter((enrollment) => enrollment.currentStepId === stepFilter)
     : active;
   const counts = useMemo(() => countsByStep(active), [active]);
-  const definition = related[0]?.definition ?? workflow?.definition;
+  const definition = view?.definition;
+
+  function selectStep(nodeId: string | null) {
+    const next = new URLSearchParams(searchParams);
+    if (nodeId) next.set('step', nodeId);
+    else next.delete('step');
+    setSearchParams(next);
+  }
 
   async function openEmailPreview(nodeId: string) {
     const node = definition?.nodes.find((candidate) => candidate.id === nodeId);
@@ -325,11 +315,13 @@ export function WorkflowDetailPage() {
       setPreview({ kind: 'error', title, message: 'This step has no published template pinned.' });
       return;
     }
+    const request = ++previewRequest.current;
     setPreview({ kind: 'loading', title });
     try {
       const rendered = await renderWithSamples((props) =>
         api.renderTemplate(workspaceId, templateVersionId, props, definition?.purpose === 'marketing'),
       );
+      if (request !== previewRequest.current) return;
       setPreview({
         kind: 'ready',
         title,
@@ -341,6 +333,7 @@ export function WorkflowDetailPage() {
         ...(definition?.purpose === 'marketing' ? { settingsHref: '/settings/integrations/resend' } : {}),
       });
     } catch (err) {
+      if (request !== previewRequest.current) return;
       setPreview({
         kind: 'error',
         title,
@@ -352,7 +345,8 @@ export function WorkflowDetailPage() {
   if (loading) {
     return <PageFrame><p className="font-mono text-sm text-muted-foreground">Loading workflow…</p></PageFrame>;
   }
-  if (!workflow || !definition) {
+  if (error) return <PageFrame><Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert></PageFrame>;
+  if (!workflow) {
     return (
       <PageFrame>
         <Alert>
@@ -361,6 +355,8 @@ export function WorkflowDetailPage() {
       </PageFrame>
     );
   }
+
+  if (!view || !definition) return <PageFrame><Alert><AlertDescription>Workflow version not found. <Link className="underline" to={`/workflows/${workflow.id}`}>Open the latest version</Link>.</AlertDescription></Alert></PageFrame>;
 
   return (
     <PageFrame>
@@ -382,18 +378,32 @@ export function WorkflowDetailPage() {
           <div className="flex flex-col gap-1.5">
             <div className="flex flex-wrap items-center gap-2">
               <h1 className="text-2xl font-semibold tracking-tight">{workflow.name}</h1>
-              <StatusBadge value={workflow.state} />
+              <Badge variant={view.publishedVersionId ? 'secondary' : 'outline'}>{view.publishedVersionId ? `v${view.key} · Published` : 'Draft · Unpublished'}</Badge>
+              {definition.purpose && <Badge variant="outline">{humanizeId(definition.purpose)}</Badge>}
             </div>
-            <p className="text-sm text-muted-foreground">{workflow.definition.description}</p>
-            <CopyWorkflowId id={workflow.id} />
+            <p className="text-sm text-muted-foreground">{definition.description}</p>
+            <div className="flex flex-wrap items-end gap-4 py-2">
+              <Field className="w-full sm:w-64">
+                <FieldLabel htmlFor="workflow-version">Version</FieldLabel>
+                <Select value={view.key} onValueChange={(value) => {
+                  const next = new URLSearchParams(searchParams);
+                  next.set('version', value);
+                  next.delete('step');
+                  setSearchParams(next);
+                  setPreview(null);
+                }}>
+                  <SelectTrigger id="workflow-version" className="w-full"><SelectValue>{view.label}</SelectValue></SelectTrigger>
+                  <SelectContent><SelectGroup>
+                    {workflowViews(workflow).map((option) => <SelectItem key={option.key} value={option.key}>{option.label}</SelectItem>)}
+                  </SelectGroup></SelectContent>
+                </Select>
+              </Field>
+              <p className="pb-1 text-sm text-muted-foreground">{workflow.publishedVersions.length} published {workflow.publishedVersions.length === 1 ? 'version' : 'versions'}</p>
+            </div>
+            <p className="text-xs text-muted-foreground">Viewing a version does not move enrollments. Each person stays on the version they entered.</p>
+            <WorkflowIds workflowId={workflow.id} versionId={view.publishedVersionId} />
           </div>
         </div>
-
-        {error && (
-          <Alert variant="destructive">
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
-        )}
 
         <section className="flex flex-col gap-4">
           <div className="flex flex-col gap-1">
@@ -409,7 +419,7 @@ export function WorkflowDetailPage() {
               definition={definition}
               counts={counts}
               activeStepId={stepFilter}
-              onSelectStep={(nodeId) => setSearchParams({ step: nodeId })}
+              onSelectStep={(nodeId) => selectStep(nodeId)}
               onPreviewEmail={(nodeId) => void openEmailPreview(nodeId)}
             />
           </div>
@@ -418,7 +428,7 @@ export function WorkflowDetailPage() {
               <span>
                 Filtering at <code className="font-mono text-foreground">{stepFilter}</code>
               </span>
-              <Button type="button" variant="outline" size="xs" onClick={() => setSearchParams({})}>
+              <Button type="button" variant="outline" size="xs" onClick={() => selectStep(null)}>
                 Clear
               </Button>
             </div>
@@ -430,14 +440,14 @@ export function WorkflowDetailPage() {
         <section className="flex flex-col gap-3">
           <div className="flex items-baseline justify-between gap-3">
             <h2 className="text-base font-semibold tracking-tight">Currently enrolled</h2>
-            <div className="flex items-center gap-3"><span className="font-mono text-sm text-muted-foreground tabular-nums">{active.length} active</span><Link className="text-sm font-medium underline-offset-2 hover:underline" to={`/enrollments?workflow=${workflow.id}`}>View all</Link></div>
+            <div className="flex items-center gap-3"><span className="font-mono text-sm text-muted-foreground tabular-nums">{active.length} active</span>{view.publishedVersionId && <Link className="text-sm font-medium underline-offset-2 hover:underline" to={`/enrollments?workflow=${workflow.id}&version=${view.key}`}>View all in v{view.key}</Link>}</div>
           </div>
           <EnrollmentList
-            empty={stepFilter ? 'Nobody is at this step right now.' : 'No active enrollments.'}
+            empty={view.key === 'draft' ? 'Drafts have no enrollments. Select a published version to see people.' : stepFilter ? 'Nobody is at this step right now.' : `No active enrollments in v${view.key}.`}
             items={filtered.map((enrollment) => ({
               id: enrollment.id,
               title: enrollment.contactEmail,
-              meta: `${enrollment.state} · ${enrollment.currentStepId ?? '—'}`,
+              meta: `v${enrollment.workflowVersion} · ${enrollment.state} · ${enrollment.currentStepId ?? '—'}`,
               to: `/enrollments/${enrollment.id}`,
             }))}
           />
@@ -593,7 +603,7 @@ export function EnrollmentDetailPage() {
                 <BreadcrumbSeparator />
                 <BreadcrumbItem>
                   <BreadcrumbLink asChild>
-                    <Link to={`/workflows/${enrollment.sequenceId}`}>{enrollment.workflowName}</Link>
+                    <Link to={enrollmentWorkflowHref(enrollment)}>{enrollment.workflowName} · v{enrollment.workflowVersion}</Link>
                   </BreadcrumbLink>
                 </BreadcrumbItem>
                 <BreadcrumbSeparator />
@@ -643,13 +653,14 @@ export function EnrollmentDetailPage() {
             <div className="flex flex-wrap items-center gap-2.5">
               <h1 className="text-2xl font-semibold tracking-tight">{enrollment.contactEmail}</h1>
               <StatusBadge value={enrollment.state} />
+              <Badge variant="outline">v{enrollment.workflowVersion}</Badge>
               {isDemoEnrollment && <Badge variant="secondary">Sample data</Badge>}
             </div>
             <p className="text-sm text-muted-foreground">
-              {enrollment.workflowName} · enrolled {formatWhen(enrollment.createdAt)}
+              {enrollment.workflowName} · v{enrollment.workflowVersion} · enrolled {formatWhen(enrollment.createdAt)}
               {name !== enrollment.contactEmail.split('@')[0] ? ` · ${name}` : ''}
             </p>
-            <CopyWorkflowId id={enrollment.sequenceId} />
+            <WorkflowIds workflowId={enrollment.sequenceId} versionId={enrollment.sequenceVersionId} />
           </div>
         </div>
 
