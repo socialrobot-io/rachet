@@ -143,7 +143,7 @@ export function createOperations(service: RachetService): Record<string, Operati
       invoke: (context, input) => service.workflowDelete(context, workflowDeleteSchema.parse(input)),
     },
     'contact.upsert': {
-      description: 'Create or update a contact by normalized email.', input: contactUpsertSchema, readOnly: false,
+      description: 'Create or update a contact by normalized email. Fields merge: each key sent replaces that key, null removes it, and keys left out are kept.', input: contactUpsertSchema, readOnly: false,
       invoke: (context, input) => service.contactUpsert(context, contactUpsertSchema.parse(input)),
     },
     'contact.list': {
