@@ -11,6 +11,7 @@ export type TriggerContact = {
   email: string;
   externalId?: string;
   timezone?: string;
+  /** Merged into the contact's stored fields: `null` removes a key, keys left out are kept. */
   fields?: Record<string, unknown>;
 };
 

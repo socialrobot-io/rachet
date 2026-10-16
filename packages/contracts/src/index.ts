@@ -140,7 +140,12 @@ export const workflowDeleteSchema = z.object({ workspaceId: workspaceIdSchema, w
 export const simulatedEventSchema = z.object({ eventType: eventTypeNameSchema, data: z.record(z.string(), z.unknown()).default({}) });
 export type SimulatedEvent = z.infer<typeof simulatedEventSchema>;
 export const workflowSimulateSchema = z.object({ workspaceId: workspaceIdSchema, definition: workflowDefinitionSchema, contact: z.record(z.string(), z.unknown()).default({}), variables: z.record(z.string(), z.unknown()).default({}), receivedEvents: z.array(simulatedEventSchema).default([]) });
-export const contactUpsertSchema = z.object({ workspaceId: workspaceIdSchema, externalId: z.string().min(1).max(200).optional(), email: z.email(), timezone: timeZoneSchema.optional(), fields: z.record(z.string(), z.unknown()).default({}) });
+/**
+ * `fields` merge into the stored fields: each key sent replaces that key, a key
+ * sent as `null` is removed, and keys left out are kept. Omit `fields` to keep
+ * them all.
+ */
+export const contactUpsertSchema = z.object({ workspaceId: workspaceIdSchema, externalId: z.string().min(1).max(200).optional(), email: z.email(), timezone: timeZoneSchema.optional(), fields: z.record(z.string(), z.unknown()).optional() });
 export const emailPolicyUpdateSchema = z.object({ workspaceId: workspaceIdSchema, senderName: z.string().trim().min(1).max(120), supportEmail: z.email(), marketingFromAddress: z.email() });
 export const contactPreferenceGetSchema = z.object({ workspaceId: workspaceIdSchema, email: z.email() });
 export const contactUnsubscribeSchema = z.object({ workspaceId: workspaceIdSchema, email: z.email(), eventId: z.string().min(1).max(200), source: z.enum(['support', 'product', 'import']) });

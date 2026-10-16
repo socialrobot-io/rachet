@@ -674,12 +674,33 @@ export class RachetService {
     return this.db.select().from(eventTypes).where(eq(eventTypes.workspaceId, workspaceId)).orderBy(asc(eventTypes.eventType));
   }
 
-  async contactUpsert(context: OperationContext, input: { workspaceId: string; email: string; externalId?: string | undefined; timezone?: string | undefined; fields: Record<string, unknown> }) {
+  async contactUpsert(context: OperationContext, input: { workspaceId: string; email: string; externalId?: string | undefined; timezone?: string | undefined; fields?: Record<string, unknown> | undefined }) {
     this.workspace(context, input.workspaceId, 'send');
-    const emailKey = input.email.trim().toLowerCase();
-    const [row] = await this.db.insert(contacts).values({ ...input, email: input.email.trim(), emailKey }).onConflictDoUpdate({
+    const email = input.email.trim();
+    const emailKey = email.toLowerCase();
+    // Several callers write the same contact, so fields merge: a key sent as
+    // null is removed, keys left out are kept.
+    const sent = Object.entries(input.fields ?? {});
+    const kept = Object.fromEntries(sent.filter(([, value]) => value !== null));
+    const removed = sent.filter(([, value]) => value === null).map(([key]) => key);
+    const [row] = await this.db.insert(contacts).values({
+      workspaceId: input.workspaceId,
+      externalId: input.externalId,
+      email,
+      emailKey,
+      timezone: input.timezone,
+      fields: kept,
+    }).onConflictDoUpdate({
       target: [contacts.workspaceId, contacts.emailKey],
-      set: { externalId: input.externalId, email: input.email.trim(), timezone: input.timezone, fields: input.fields, updatedAt: new Date() },
+      set: {
+        externalId: input.externalId,
+        email,
+        timezone: input.timezone,
+        fields: input.fields === undefined
+          ? undefined
+          : sql`(${contacts.fields} || ${JSON.stringify(kept)}::jsonb) - array(select jsonb_array_elements_text(${JSON.stringify(removed)}::jsonb))`,
+        updatedAt: new Date(),
+      },
     }).returning();
     if (!row) throw new Error('Contact upsert failed');
     await this.audit(context, 'contact.upsert', input.workspaceId, 'contact', row.id);

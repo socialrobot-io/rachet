@@ -29,6 +29,6 @@ const result = await rachet.trigger({
 });
 ```
 
-`trigger()` upserts the contact and creates a durable enrollment. Reusing the same idempotency key makes retries safe. The API key must be scoped to `send`. For a marketing workflow, pass `consent` on the first enrollment. That also requires the `write` scope and an owner or admin role. Later enrollments for an address that already consented omit `consent`. Workspace roles and workflow policy are still enforced by Rachet.
+`trigger()` upserts the contact and creates a durable enrollment. Contact `fields` merge with the stored fields: a key you send replaces that key, `null` removes it, and keys you leave out are kept, so other services can write the same contact. Reusing the same idempotency key makes retries safe. The API key must be scoped to `send`. For a marketing workflow, pass `consent` on the first enrollment. That also requires the `write` scope and an owner or admin role. Later enrollments for an address that already consented omit `consent`. Workspace roles and workflow policy are still enforced by Rachet.
 
 For a browser-only UI, call your own server endpoint or server action that uses this SDK. Do not expose a Rachet API key in a public bundle.

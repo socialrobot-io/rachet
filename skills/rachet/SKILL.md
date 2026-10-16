@@ -49,7 +49,7 @@ If they say yes, check these off:
 
 - [ ] Call `workflow_publish`. Keep the returned workflow version id. Publishing does not send email.
 - [ ] Wire a Node app with `@socialrobot-io/rachet-sdk`. If the app is not Node, call the same operations over HTTP. Call shapes are in [workflows](references/workflows.md).
-- [ ] Where the product should start this journey, call `trigger()` with that version id, the contact, and a stable idempotency key. `trigger()` upserts the contact and enrolls them. Enrollment can send the first email.
+- [ ] Where the product should start this journey, call `trigger()` with that version id, the contact, and a stable idempotency key. `trigger()` upserts the contact and enrolls them. Contact fields merge, so send only the fields this caller owns; `null` removes a key. Enrollment can send the first email.
 - [ ] For each `wait_for_event`, call `event.emit` through `call()` from the product action that means that event. Use the enrollment id from `trigger()`, a stable event id, and data that matches the event schema.
 
 If they say no, leave the workflow as a draft. If the graph waits on events, warn that those events will not arrive until the product emits them.

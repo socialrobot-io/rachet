@@ -12,7 +12,7 @@ Every product operation is defined once in `apps/server/src/operations.ts` and e
 | `template.create`, `template.list`, `template.revise`, `template.publish`, `template.archive`, `template.render` | Manage HTML (preferred) or plain templates. CLI `rachet template push --allow-code-execution` renders reviewed local React Email code and **upserts by `--name`** (revise + publish). The server never executes TSX; it only interpolates `{{…}}` placeholders. |
 | `workflow.actions` | List the installed action registry |
 | `workflow.create`, `workflow.revise`, `workflow.list`, `workflow.validate`, `workflow.simulate`, `workflow.publish`, `workflow.delete` | Author, revise, check, trace, persist, version, and permanently delete capability graphs. `workflow.delete` requires `dangerouslyDeleteWorkflow: true` and rejects workflows with active enrollments. |
-| `contact.upsert`, `contact.list` | Manage enrolled contacts |
+| `contact.upsert`, `contact.list` | Manage enrolled contacts. `contact.upsert` merges `fields`: a key sent replaces that key, `null` removes it, and keys left out are kept. |
 | `email_policy.get`, `email_policy.update` | Inspect or set the recipient-facing sender name and support address |
 | `contact.preferences.get`, `contact.unsubscribe`, `contact.resubscribe`, `subscription_event.list` | Inspect eligibility and audited marketing consent or opt-out changes |
 | `enrollment.create`, `enrollment.list` | Start and inspect durable executions |

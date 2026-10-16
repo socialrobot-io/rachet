@@ -165,7 +165,7 @@ await rachet.trigger({
 });
 ```
 
-The SDK upserts the contact and starts an idempotent enrollment. Keep the API key server-side; browser bundles must call your own backend endpoint.
+The SDK upserts the contact and starts an idempotent enrollment. Contact fields merge with the fields already stored: a key you send replaces that key, `null` removes it, and keys you leave out are kept. Keep the API key server-side; browser bundles must call your own backend endpoint.
 
 ### Operate Rachet
 
