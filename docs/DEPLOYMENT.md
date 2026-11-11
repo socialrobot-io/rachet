@@ -14,7 +14,7 @@ The sections below cover manual deployments, external ingress, Coolify, backups,
 
 ## Prerequisites
 
-Use a Linux host with Docker Engine and the Compose plugin, public DNS for `RACHET_DOMAIN`, and an HTTPS ingress in front of `app:3000`. Workflow email requires each organization to connect its own verified Resend account and webhook at the organization-specific URL shown during onboarding.
+Use a Linux host with Docker Engine and the Compose plugin, public DNS for `RACHET_DOMAIN`, and an HTTPS ingress in front of `app:3000`. For workflow email, each organization connects a verified sender and an event endpoint. Follow [Resend setup](RESEND.md) or [Amazon SES setup](AMAZON_SES.md).
 
 For local development without a public domain, use `compose.dev.yaml` and the host process workflow in [README.md](../README.md). Do not use `compose.yaml` on a laptop unless you have real DNS and a working HTTPS front door. Configure Resend using the [Resend setup guide](RESEND.md).
 
@@ -54,7 +54,9 @@ Rachet PostgreSQL and Temporal PostgreSQL use named volumes and are isolated fro
 
 Back up both PostgreSQL databases, the integration encryption key, and, if you use the `caddy` profile, Caddy data. Test restore procedures regularly. Before upgrades, read release notes for Better Auth, Temporal server and SDK, PostgreSQL, Resend SDK, and (if used) Caddy. Build a new immutable Rachet image, run migrations, then recreate app, worker, and dispatcher. Published workflow definitions and the prebundled Temporal workflow interpreter remain compatible within schema version `1`; introduce a new schema version for incompatible graph changes.
 
-Monitor `/health/ready`, container restarts, Temporal task-queue backlog, outbox attempts, `needs_attention` enrollments, unknown send intents, and unprocessed webhook events. Rotate Better Auth, database, and OAuth credentials through `.env.local` or Coolify secret variables. Organization admins rotate Resend credentials in the dashboard; review in-flight sends first. Rotating the integration encryption key requires re-encrypting every stored connection, not merely changing the environment variable.
+One-off email requires the `0014_standalone_email.sql` migration and an updated app, dispatcher, and worker.
+
+Monitor `/health/ready`, container restarts, Temporal task-queue backlog, outbox attempts, `needs_attention` enrollments, unknown send intents, and unprocessed webhook events. Rotate Better Auth, database, and OAuth credentials through `.env.local` or Coolify secret variables. Organization admins rotate email provider credentials in the dashboard. Review in-flight sends first. Rotating the integration encryption key requires re-encrypting every stored connection, not merely changing the environment variable.
 
 The Compose stack runs the self-hosted `temporalio/server` binary with a persistent PostgreSQL history/visibility store and a separate schema migration container. The Rachet worker loads a prebuilt workflow bundle; it does **not** use `temporal server start-dev` or bundle workflows at startup. Production Compose uses `production-sql.yaml`, without the development-only cache-refresh override. This is production-mode software, but the one-host, one-Temporal-server layout is **not highly available** and its internal Temporal frontend has no mTLS. Keep the Compose network private; use Temporal Cloud or an appropriately secured, redundant cluster for stronger availability and isolation. Do not enable Temporal 1.29's preview fairness dynamic switch on a queue with existing backlog; that rollout can strand queued tasks. Rachet currently limits admission to 100 new and 1000 active enrollments per organization instead.
 

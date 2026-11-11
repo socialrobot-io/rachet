@@ -1,4 +1,4 @@
-import type { AccountSummary, ApiCredential, CreatedApiCredential, EmailPolicy, Enrollment, Message, OAuthClient, OAuthConsent, RenderedEmail, ResendConnectionStatus, SessionUser, SetupStatus, SubscriptionEvent, Workflow, Workspace } from './types';
+import type { AccountSummary, ApiCredential, CreatedApiCredential, EmailPolicy, Enrollment, Message, OAuthClient, OAuthConsent, RenderedEmail, ResendConnectionStatus, SesConnectionStatus, SessionUser, SetupStatus, SubscriptionEvent, Workflow, Workspace } from './types';
 import { authClient } from './auth-client';
 
 export class ApiError extends Error {
@@ -189,6 +189,11 @@ async function integrationRequest<T>(path: string, init?: RequestInit): Promise<
 }
 
 export const api = {
+  sesConnection: (workspaceId: string) => integrationRequest<SesConnectionStatus>(`ses?workspaceId=${encodeURIComponent(workspaceId)}`),
+  saveSesConnection: (input: { workspaceId: string; from: string; region: string; configurationSet: string; topicArn: string; accessKeyId?: string; secretAccessKey?: string }) =>
+    integrationRequest<{ configured: true; changed: boolean }>('ses', jsonPost(input)),
+  testSesConnection: (workspaceId: string, simulator: boolean) =>
+    integrationRequest<{ accepted: true }>('ses/test', jsonPost({ workspaceId, simulator })),
   resendConnection: (workspaceId: string) => integrationRequest<ResendConnectionStatus>(`resend?workspaceId=${encodeURIComponent(workspaceId)}`),
   saveResendConnection: (input: { workspaceId: string; from: string; apiKey?: string; webhookSecret?: string; senderName?: string; supportEmail?: string; marketingFromAddress?: string }) =>
     integrationRequest<{ configured: true; connectionChanged: boolean; marketingConfigured: boolean }>('resend', jsonPost(input)),

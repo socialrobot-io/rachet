@@ -106,7 +106,9 @@ pnpm dev
 
 `pnpm dev` starts PostgreSQL, Temporal, the API, worker, dispatcher, and dashboard. Open the dashboard URL printed by the launcher. For sign-in, configure either `AUTH_RESEND_API_KEY` with `AUTH_EMAIL_FROM`, or `GITHUB_CLIENT_ID` with `GITHUB_CLIENT_SECRET` in `.env.local`. On a fresh database, use the generated `RACHET_SETUP_SECRET` to create the first administrator. Registration is disabled by default; set `ALLOW_REGISTRATION=true` in `.env.local` and restart to test new accounts.
 
-After signing in, connect workflow delivery in **Integrations → Email → Resend**. Open **Enrollments** to see people in progress, exits, and the reason a journey ended. To preview sample journeys, run `pnpm demo:seed --list` and then `pnpm demo:seed <workspace-slug>`. See [Local demo journeys](docs/DEMO_JOURNEYS.md) for details. Stop the app with `Ctrl+C` and its Docker services with `pnpm dev:infra:down`.
+After signing in, choose an email provider in **Integrations → Email**. [Resend setup](docs/RESEND.md) · [Amazon SES setup](docs/AMAZON_SES.md)
+
+Open **Enrollments** to see people in progress, exits, and the reason a journey ended. To preview sample journeys, run `pnpm demo:seed --list` and then `pnpm demo:seed <workspace-slug>`. See [Local demo journeys](docs/DEMO_JOURNEYS.md) for details. Stop the app with `Ctrl+C` and its Docker services with `pnpm dev:infra:down`.
 
 ## Usage
 
@@ -175,7 +177,7 @@ rachet call enrollment.list
 rachet call message.list
 ```
 
-For marketing email, an organization owner or admin sets the marketing sender and unsubscribe details while configuring **Integrations → Email → Resend**, or with `email_policy.update`. Record the recipient's new consent on `enrollment.create` with `consent`, or with `contact.resubscribe` and a stable event ID before enrollment. Published marketing sends include an unsubscribe footer and mailbox one-click headers. `subscription_event.list` shows which email and workflow led to a link opt-out. See [Unsubscribe and consent](docs/UNSUBSCRIBE.md).
+For marketing email, an organization owner or admin sets the marketing sender and unsubscribe details in the active provider’s email settings, or with `email_policy.update`. Record the recipient's new consent on `enrollment.create` with `consent`, or with `contact.resubscribe` and a stable event ID before enrollment. Published marketing sends include an unsubscribe footer and mailbox one-click headers. `subscription_event.list` shows which email and workflow led to a link opt-out. See [Unsubscribe and consent](docs/UNSUBSCRIBE.md).
 
 The operations console at [rachet.dev](https://rachet.dev) shows journey graphs, live enrollments, timelines, messages, OAuth consent, and connected apps. Deployment administrators also get a Users page at `/admin/users`.
 
@@ -223,7 +225,7 @@ Server variables, documented in [`.env.example`](.env.example):
 
 CLI and SDK environments use `RACHET_URL` plus `RACHET_TOKEN` or `RACHET_API_KEY`; the SDK also reads `RACHET_WORKSPACE_ID`.
 
-Validation and simulation work without Resend. Before a real enrollment can send email, connect the organization's Resend account in the dashboard and confirm a test send. Domain verification and webhook setup are covered in [Resend setup](docs/RESEND.md).
+Validation and simulation work before an email provider is connected. An organization must connect and test a provider before it can send email.
 
 ## API
 
@@ -242,7 +244,7 @@ Every operation is defined once and exposed three ways: HTTP `POST /v1/operation
 | `enrollment.create`, `enrollment.list`, `enrollment.pause`, `enrollment.resume`, `enrollment.cancel`, `enrollment.delete` | Start, inspect, control, and delete durable executions |
 | `event_type.define`, `event_type.list` | Define and inspect immutable JSON Schema contracts for product events |
 | `event.emit` | Durably accept a stable event ID; identical retries are no-ops |
-| `message.list`, `webhook_event.list` | Inspect the send ledger and verified Resend events |
+| `message.list`, `webhook_event.list` | Inspect the send ledger and verified email provider events |
 | `account.list` | Deployment administrator lists signed-up accounts with workflow and enrollment counts |
 
 MCP also serves `rachet://operations`, `rachet://workflow/schema`, and `rachet://workflow/actions`, plus the `design-workflow` authoring prompt and the first-party agent skill. The full contract is in [Operations and MCP contract](docs/OPERATIONS.md).
@@ -252,7 +254,7 @@ MCP also serves `rachet://operations`, `rachet://workflow/schema`, and `rachet:/
 ```text
 apps/
 ├── dashboard/        # React operations console and OAuth UI
-└── server/           # Hono API, Better Auth, Temporal workers, Resend adapter
+└── server/           # Hono API, Better Auth, Temporal workers, email providers
 packages/
 ├── contracts/        # Shared operation and journey schemas
 ├── cli/              # @socialrobot-io/rachet CLI
@@ -274,7 +276,7 @@ tests/                # Repository validation suite
 | API | Hono, Better Auth (OAuth provider, API keys), MCP SDK |
 | Orchestration | Temporal durable workflows with replay checks |
 | Data | PostgreSQL, Drizzle ORM |
-| Email | React Email, Resend |
+| Email | React Email, Resend, Amazon SES |
 | Dashboard | React 19, Vite |
 | Workspace | Nx 23, Docker Compose, Caddy TLS |
 

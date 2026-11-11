@@ -15,5 +15,4 @@ export type SendOutcome =
 
 export interface EmailProvider {
   send(message: FrozenMessage, idempotencyKey: string): Promise<SendOutcome>;
-  verifyWebhook(raw: string, headers: Headers): Promise<Record<string, unknown>>;
 }

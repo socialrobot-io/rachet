@@ -37,6 +37,7 @@ export function createOperations(service: RachetService): Record<string, Operati
       invoke: async () => ({
         version: '0.1.0',
         emailProvider: 'resend',
+        emailProviders: ['resend', 'ses'],
         durableExecution: 'temporal',
         templateRenderer: 'react-email',
         workflowModel: 'validated-capability-graph',
@@ -217,7 +218,7 @@ export function createOperations(service: RachetService): Record<string, Operati
       invoke: (context, input) => service.messageList(context, workspaceIdSchema.parse(input.workspaceId)),
     },
     'webhook_event.list': {
-      description: 'List verified Resend webhook events as a deployment administrator.', input: z.object({}), readOnly: true,
+      description: 'List verified email provider events as a deployment administrator.', input: z.object({}), readOnly: true,
       invoke: (context) => service.webhookEventList(context),
     },
     'account.list': {

@@ -32,6 +32,7 @@
     "typecheck": "nx run-many -t typecheck -p contracts mcp-ext-skills dashboard cli sdk server"
   },
   "dependencies": {
+    "@aws-sdk/client-sesv2": "3.1165.0",
     "@better-auth/api-key": "1.7.7",
     "@better-auth/oauth-provider": "1.7.7",
     "@hono/node-server": "2.1.6",
