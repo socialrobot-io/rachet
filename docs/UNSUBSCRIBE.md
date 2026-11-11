@@ -43,7 +43,7 @@ rachet call contact.unsubscribe --input '{"workspaceId":"WORKSPACE_ID","email":"
 
 Use `contact.preferences.get` to inspect marketing and delivery eligibility. Use `subscription_event.list` to synchronize preference changes with a product system.
 
-For a link or mailbox unsubscribe, each event includes `origin` with the exact send ID, enrollment ID, workflow ID and version, workflow name, email step, template version, and subject. Rachet saves these details when it prepares the email, so the event keeps them if the enrollment or workflow is later deleted. Support and product changes have `origin: null`. Open an enrollment to see marketing preference history for that address. The opt-out still applies to all marketing in the workspace.
+For a link or mailbox unsubscribe, `origin` records the send ID and subject. For a workflow email, it also records the enrollment, workflow version, step, and template version. Rachet saves these details when it prepares the email, so the event keeps them if the enrollment or workflow is later deleted. Support and product changes have `origin: null`. Open an enrollment to see marketing preference history for that address. The opt-out applies to all marketing in the workspace.
 
 Each new support or product request needs a new `eventId`. A repeated request while the address is already opted out records the request but leaves the opt-out in place. Retry the same request with its original `eventId`; it cannot reverse a later resubscription.
 

@@ -110,6 +110,10 @@ After signing in, connect workflow delivery in **Integrations → Email → Rese
 
 ## Usage
 
+### Send one email with MCP
+
+Ask your agent to send a plain-text email to one address. Give it the subject and message. Rachet uses the workspace's connected and tested sender. You can send without a template or journey. Marketing email requires recorded consent and a marketing sender. See [One-off email](docs/OPERATIONS.md#one-off-email).
+
 ### Create the first journey with MCP
 
 Give your MCP-capable agent this prompt:
@@ -242,6 +246,7 @@ Every operation is defined once and exposed three ways: HTTP `POST /v1/operation
 | `enrollment.create`, `enrollment.list`, `enrollment.pause`, `enrollment.resume`, `enrollment.cancel`, `enrollment.delete` | Start, inspect, control, and delete durable executions |
 | `event_type.define`, `event_type.list` | Define and inspect immutable JSON Schema contracts for product events |
 | `event.emit` | Durably accept a stable event ID; identical retries are no-ops |
+| `message.send` | Queue one plain-text email using the workspace sender |
 | `message.list`, `webhook_event.list` | Inspect the send ledger and verified Resend events |
 | `account.list` | Deployment administrator lists signed-up accounts with workflow and enrollment counts |
 

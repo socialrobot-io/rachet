@@ -22,7 +22,7 @@ async function probeDatabase(): Promise<Runtime | null> {
     const temporal = { workflow: { getHandle: () => ({ signal: async () => undefined }) } } as unknown as Client;
     const auth = {} as RachetAuth;
     return {
-      service: new RachetService(database.db, temporal, auth),
+      service: new RachetService(database.db, temporal, auth, config),
       db: database.db,
       close: async () => { await database.pool.end(); },
     };

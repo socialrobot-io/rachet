@@ -3,7 +3,7 @@ import {
   accountCreateSchema, credentialCreateSchema, credentialListSchema, credentialRevokeSchema, contactUpsertSchema, enrollmentControlSchema, enrollmentCreateSchema,
   eventEmitSchema, eventTypeDefineSchema, workflowCreateSchema, workflowDeleteSchema, workflowPublishSchema, workflowReviseSchema, workflowSimulateSchema, workflowDefinitionSchema, templateCreateSchema,
   templateArchiveSchema, templatePublishSchema, templateReviseSchema, templateRenderSchema, workspaceIdSchema,
-  enrollmentDeleteSchema,
+  enrollmentDeleteSchema, messageSendSchema,
   emailPolicyUpdateSchema, contactPreferenceGetSchema, contactUnsubscribeSchema, contactResubscribeSchema,
   type OperationContext,
 } from '@rachet/contracts';
@@ -55,6 +55,7 @@ export function createOperations(service: RachetService): Record<string, Operati
             'receivedEvents is a set for the whole trace. It cannot show a timeout followed by the same event on a later wait.',
           ],
           sideEffects: [
+            'For a one-off email, use message.send once the user authorizes the recipient and content. Use the same idempotency key on retries.',
             'After workflow.create, ask whether to connect the workflow to the app. If yes, workflow.publish, then wire a Node app with @socialrobot-io/rachet-sdk: trigger() where the journey starts, and call("event.emit") for each waited event. If the app is not Node, call those operations over HTTP. If no, leave the draft and warn that waited events must be emitted manually. workflow.publish does not send mail. trigger() can.',
             'Keep idempotencyKey stable across retries. event.emit needs enrollmentId and a stable eventId.',
           ],
@@ -211,6 +212,11 @@ export function createOperations(service: RachetService): Record<string, Operati
       description: 'Durably emit an idempotently named domain event into an enrollment. Returns whether it was newly accepted or an existing duplicate, and whether Temporal delivery is complete or queued.', input: eventEmitSchema, readOnly: false,
       requiredScope: 'rachet:send',
       invoke: (context, input) => service.eventEmit(context, eventEmitSchema.parse(input)),
+    },
+    'message.send': {
+      description: 'Queue one plain-text email using the workspace sender. Call only when the user has authorized sending the message to this recipient. Marketing requires existing consent and adds unsubscribe details. Reuse the same idempotency key on retry. The returned state is submission status. Use message_list to check it.',
+      input: messageSendSchema, readOnly: false, requiredScope: 'rachet:send',
+      invoke: (context, input) => service.messageSend(context, messageSendSchema.parse(input)),
     },
     'message.list': {
       description: 'List message submission and delivery state.', input: workspaceOnly, readOnly: true,
