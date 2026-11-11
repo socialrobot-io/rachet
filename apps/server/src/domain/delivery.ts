@@ -1,7 +1,7 @@
 import { and, eq, ne } from 'drizzle-orm';
 import type { Config } from '../config.js';
 import type { Database } from '../db/index.js';
-import { enrollments, sendIntents, workspaces } from '../db/schema.js';
+import { emailPolicies, enrollments, sendIntents, workspaces } from '../db/schema.js';
 import { emailConnection, type EmailProviderName } from '../integrations/email-sender.js';
 import type { EmailProvider } from '../providers/email-provider.js';
 import { createUnsubscribeToken } from '../security/unsubscribe-token.js';
@@ -57,6 +57,12 @@ export async function dispatchEmail(
         current.connectionVersion !== sender.connectionVersion ||
         (sender.connectionVersion !== null && connection?.version !== sender.connectionVersion) ||
         mailboxAddress(current.fromAddress ?? '') !== mailboxAddress(sender.fromAddress)) return stop('connection_changed', !!enrollmentId);
+    if (current.standalonePurpose === 'marketing') {
+      const [policy] = await tx.select({ address: emailPolicies.marketingFromAddress }).from(emailPolicies)
+        .where(eq(emailPolicies.workspaceId, workspaceId)).limit(1);
+      if (!policy?.address || mailboxAddress(policy.address) !== mailboxAddress(sender.fromAddress)) return stop('sender_unavailable');
+    }
+
     const now = new Date();
     if (current.provider === 'resend' && current.firstAttemptAt && now.getTime() - current.firstAttemptAt.getTime() >= 23 * 60 * 60 * 1000) {
       return stop('idempotency_window_expired', true);
@@ -96,12 +102,10 @@ export async function dispatchEmail(
   const [updated] = await db.update(sendIntents).set({ state, errorCode: outcome.code, updatedAt })
     .where(and(eq(sendIntents.id, id), eq(sendIntents.state, 'dispatching'), eq(sendIntents.updatedAt, claim.claimedAt)))
     .returning({ id: sendIntents.id });
-  if (sender.provider === 'ses') {
-    if (!updated) {
-      const [current] = await db.select({ state: sendIntents.state }).from(sendIntents).where(eq(sendIntents.id, id)).limit(1);
-      if (current?.state === 'accepted') return { status: 'succeeded' } as const;
-    }
-    if (state === 'unknown') return { status: 'needs_attention' } as const;
+  if (!updated) {
+    const [current] = await db.select({ state: sendIntents.state }).from(sendIntents).where(eq(sendIntents.id, id)).limit(1);
+    if (current?.state === 'accepted') return { status: 'succeeded' } as const;
   }
+  if (sender.provider === 'ses' && state === 'unknown') return { status: 'needs_attention' } as const;
   return { status: state, code: outcome.code } as const;
 }

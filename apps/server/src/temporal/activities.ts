@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { ApplicationFailure } from '@temporalio/activity';
-import { and, eq, notInArray } from 'drizzle-orm';
+import { and, eq, inArray, isNull, notInArray, sql } from 'drizzle-orm';
 import type { Config } from '../config.js';
 import { resolveActionInput, resolveValue } from '../domain/action-catalog.js';
 import type { FlowCondition, FlowNode } from '@rachet/contracts';
@@ -116,6 +116,40 @@ async function sendEmail(input: { workspaceId: string; enrollmentId: string; nod
   }
   if (outcome.status === 'rejected') throw ApplicationFailure.nonRetryable(outcome.code, 'ValidationError');
   return outcome.status;
+}
+
+export async function deliverStandaloneEmail(intentId: string) {
+  const { db, config, provider: overrideProvider } = getRuntime();
+  const [intent] = await db.select().from(sendIntents).where(and(eq(sendIntents.id, intentId), isNull(sendIntents.enrollmentId))).limit(1);
+  if (!intent?.standalonePurpose || intent.state === 'accepted' || intent.state === 'abandoned' || intent.state === 'rejected') return;
+
+  const connection = await activeEmailConnection(db, intent.workspaceId);
+  const [policy] = intent.standalonePurpose === 'marketing'
+    ? await db.select().from(emailPolicies).where(eq(emailPolicies.workspaceId, intent.workspaceId)).limit(1)
+    : [];
+  const fromAddress = intent.standalonePurpose === 'marketing' ? policy?.marketingFromAddress : connection?.fromAddress;
+  if (!connection || !fromAddress || (policy && mailboxAddress(fromAddress) === mailboxAddress(connection.fromAddress))) {
+    await finishStandaloneEmail(intentId, 'sender_unavailable');
+    return;
+  }
+  const provider = overrideProvider ?? emailProvider(config, connection);
+  const outcome = await dispatchEmail(db, provider, intent, {
+    fromAddress, connectionVersion: connection.version, provider: connection.provider,
+  }, intent.standalonePurpose);
+  if (outcome.status === 'needs_attention' && connection.provider === 'resend') {
+    await finishStandaloneEmail(intentId, 'delivery_outcome_unknown');
+  }
+  if (outcome.status === 'unknown' || outcome.status === 'retryable') {
+    throw ApplicationFailure.create({ message: outcome.code, type: 'ProviderTransientError' });
+  }
+}
+
+export async function finishStandaloneEmail(intentId: string, code: string) {
+  await getRuntime().db.update(sendIntents).set({
+    state: sql`CASE WHEN ${sendIntents.firstAttemptAt} IS NULL THEN 'abandoned'::send_state ELSE 'unknown'::send_state END`,
+    errorCode: code,
+    updatedAt: new Date(),
+  }).where(and(eq(sendIntents.id, intentId), isNull(sendIntents.enrollmentId), inArray(sendIntents.state, ['prepared', 'dispatching', 'retryable'])));
 }
 
 export async function evaluateCondition(input: { workspaceId: string; enrollmentId: string; condition: FlowCondition; eventData: Record<string, unknown> }): Promise<boolean> {

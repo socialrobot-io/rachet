@@ -54,7 +54,7 @@ Rachet PostgreSQL and Temporal PostgreSQL use named volumes and are isolated fro
 
 Back up both PostgreSQL databases, the integration encryption key, and, if you use the `caddy` profile, Caddy data. Test restore procedures regularly. Before upgrades, read release notes for Better Auth, Temporal server and SDK, PostgreSQL, Resend SDK, and (if used) Caddy. Build a new immutable Rachet image, run migrations, then recreate app, worker, and dispatcher. Published workflow definitions and the prebundled Temporal workflow interpreter remain compatible within schema version `1`; introduce a new schema version for incompatible graph changes.
 
-One-off email requires the `0014_standalone_email.sql` migration and an updated app, dispatcher, and worker.
+One-off email requires the `0014_standalone_email.sql` migration and an updated app, dispatcher, and worker. Amazon SES also requires the `0015_amazon_ses.sql` migration.
 
 Monitor `/health/ready`, container restarts, Temporal task-queue backlog, outbox attempts, `needs_attention` enrollments, unknown send intents, and unprocessed webhook events. Rotate Better Auth, database, and OAuth credentials through `.env.local` or Coolify secret variables. Organization admins rotate email provider credentials in the dashboard. Review in-flight sends first. Rotating the integration encryption key requires re-encrypting every stored connection, not merely changing the environment variable.
 

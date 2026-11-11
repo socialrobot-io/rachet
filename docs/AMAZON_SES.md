@@ -1,6 +1,6 @@
 # Amazon SES setup
 
-An organization owner or admin can connect Amazon Simple Email Service (SES) for workflow email. Choose **Integrations → Email → Amazon SES**. The CLI and MCP use the same active provider for the organization. Sign-in email uses the deployment's authentication settings.
+An organization owner or admin can connect Amazon Simple Email Service (SES) for workflow and one-off email. Choose **Integrations → Email → Amazon SES**. The CLI and MCP use the same active provider for the organization. Sign-in email uses the deployment's authentication settings.
 
 ## Set up AWS
 
@@ -29,7 +29,7 @@ aws sns set-topic-attributes \
 
 ## Verify events before sending to customers
 
-1. Run a test workflow for `success@simulator.amazonses.com`. Check that `message.list` shows `accepted`. Ask a deployment administrator to check that `webhook_event.list` shows `email.delivered` for the same provider message ID.
+1. Send a one-off transactional message or run a test workflow for `success@simulator.amazonses.com`. Check that `message.list` shows `accepted`. Ask a deployment administrator to check that `webhook_event.list` shows `email.delivered` for the same provider message ID.
 2. Repeat with `bounce@simulator.amazonses.com` and `complaint@simulator.amazonses.com` in a test organization. Check that `contact.preferences.get` reports a delivery block for each address. Permanent bounces and complaints block later mail to the address in that organization. Rachet records temporary bounces without adding a permanent block. [AWS mailbox simulator](https://docs.aws.amazon.com/ses/latest/dg/send-an-email-from-console.html) · [SES event fields](https://docs.aws.amazon.com/ses/latest/dg/event-publishing-retrieving-sns-contents.html)
 3. If the event is missing, check the configuration set, SNS subscription status, topic policy, and SNS delivery logs. Configure an SNS dead-letter queue if you need to recover notifications after SNS stops retrying. [SNS delivery retries](https://docs.aws.amazon.com/sns/latest/dg/sns-message-delivery-retries.html)
 

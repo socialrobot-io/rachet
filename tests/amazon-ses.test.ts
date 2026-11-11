@@ -1,15 +1,16 @@
 import { generateKeyPairSync, sign } from 'node:crypto';
 import { SESv2Client, SESv2ServiceException, SendEmailCommand, TooManyRequestsException } from '@aws-sdk/client-sesv2';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { createApp } from '../apps/server/src/app.js';
 import type { RachetAuth } from '../apps/server/src/auth.js';
-import { auditEvents, contacts, deliveryBlocks, enrollments, resendConnections, sendIntents, sequences, sequenceVersions, sesConnections, webhookEvents, workspaces } from '../apps/server/src/db/schema.js';
+import { auditEvents, contacts, deliveryBlocks, enrollments, outbox, resendConnections, sendIntents, sequences, sequenceVersions, sesConnections, webhookEvents, workspaces } from '../apps/server/src/db/schema.js';
 import { rotateIntegrationKey } from '../apps/server/src/integrations/rotate.js';
 import { decryptIntegrationSecret, encryptIntegrationSecret } from '../apps/server/src/integrations/secret.js';
 import { ResendProvider } from '../apps/server/src/providers/resend.js';
 import { SesProvider } from '../apps/server/src/providers/ses.js';
 import { dispatchEmail } from '../apps/server/src/domain/delivery.js';
+import { configureActivities, deliverStandaloneEmail, resetActivities } from '../apps/server/src/temporal/activities.js';
 import { probeDbRuntime, roleContext, type DbRuntime } from './helpers/db-runtime.js';
 import { FakeEmailProvider } from './helpers/fake-email-provider.js';
 
@@ -88,7 +89,10 @@ describe.skipIf(!runtime)('Amazon SES connection and feedback (PostgreSQL)', () 
   });
 
   afterAll(async () => {
+    resetActivities();
     if (workspaceId) {
+      const intents = await boot.db.select({ id: sendIntents.id }).from(sendIntents).where(eq(sendIntents.workspaceId, workspaceId));
+      if (intents.length) await boot.db.delete(outbox).where(inArray(outbox.aggregateId, intents.map(({ id }) => id)));
       await boot.db.delete(sendIntents).where(eq(sendIntents.workspaceId, workspaceId));
       await boot.db.delete(enrollments).where(eq(enrollments.workspaceId, workspaceId));
       await boot.db.delete(auditEvents).where(eq(auditEvents.workspaceId, workspaceId));
@@ -137,6 +141,23 @@ describe.skipIf(!runtime)('Amazon SES connection and feedback (PostgreSQL)', () 
     expect(JSON.parse(body)).toMatchObject({ active: true, connection: { topicConfirmedAt: expect.any(String) } });
     expect(body).not.toContain(credentials.accessKeyId);
     expect(body).not.toContain(credentials.secretAccessKey);
+
+    const oneOffRecipient = 'one-off@example.test';
+    const { id: oneOffId } = await boot.service.messageSend(roleContext(workspaceId, 'sender'), {
+      workspaceId, to: oneOffRecipient, subject: 'Account', body: 'Your account is ready.',
+      purpose: 'transactional', idempotencyKey: 'one-off-ses',
+    });
+    configureActivities(config, { db: boot.db });
+    send.mockRejectedValueOnce(new Error('timeout'));
+    await deliverStandaloneEmail(oneOffId);
+    await deliverStandaloneEmail(oneOffId);
+    expect(send).toHaveBeenCalledTimes(2);
+    expect((send.mock.calls[1]?.[0] as SendEmailCommand).input).toMatchObject({
+      Destination: { ToAddresses: [oneOffRecipient] },
+      EmailTags: [{ Name: 'rachet_workspace', Value: workspaceId }, { Name: 'rachet_intent', Value: oneOffId }],
+    });
+    const [oneOffIntent] = await boot.db.select().from(sendIntents).where(eq(sendIntents.id, oneOffId));
+    expect(oneOffIntent).toMatchObject({ state: 'unknown', provider: 'ses', feedbackTopic: topicArn, connectionVersion: 1 });
 
     const recipient = 'recipient@example.test';
     const [contact] = await boot.db.insert(contacts).values({ workspaceId, email: recipient, emailKey: recipient }).returning();

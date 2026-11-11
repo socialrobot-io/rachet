@@ -125,7 +125,7 @@ export type ReceivedEvent = {
 export type Message = {
   id: string;
   workspaceId: string;
-  enrollmentId: string;
+  enrollmentId: string | null;
   stepId: string;
   state: string;
   recipient: string;
@@ -144,16 +144,14 @@ export type SubscriptionEvent = {
   action: 'consent' | 'unsubscribe';
   source: string;
   createdAt: string;
-  origin: null | {
-    intentId: string;
+  origin: null | ({ intentId: string; subject: string } & ({
     enrollmentId: string;
     workflowId: string;
     workflowVersionId: string;
     workflowName: string;
     stepId: string;
     templateVersionId: string;
-    subject: string;
-  };
+  } | { kind: 'standalone' }));
 };
 
 export type RenderedEmail = {
