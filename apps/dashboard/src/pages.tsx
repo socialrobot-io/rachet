@@ -715,7 +715,10 @@ export function EnrollmentDetailPage() {
                 <div key={event.id} className="rounded-md border p-3 text-sm">
                   <p className="font-medium">{event.action === 'unsubscribe' ? 'Unsubscribed' : 'Consented'} · {formatWhen(event.createdAt)}</p>
                   {event.origin ? (
-                    <p className="text-muted-foreground">From “{event.origin.subject}” in {event.origin.workflowName} (step {event.origin.stepId}).</p>
+                    <p className="text-muted-foreground">
+                      From “{event.origin.subject}”
+                      {'workflowName' in event.origin ? ` in ${event.origin.workflowName} (step ${event.origin.stepId}).` : ' (one-off email).'}
+                    </p>
                   ) : (
                     <p className="text-muted-foreground">Recorded through {event.source}.</p>
                   )}

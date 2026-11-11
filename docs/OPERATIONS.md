@@ -19,10 +19,23 @@ Every product operation is defined once in `apps/server/src/operations.ts` and e
 | `enrollment.pause`, `enrollment.resume`, `enrollment.cancel`, `enrollment.delete` | Control or permanently delete one Temporal execution. Deletion terminates an active execution and cannot recall accepted email. |
 | `event_type.define`, `event_type.list` | Define and inspect immutable, versioned JSON Schema contracts for product events |
 | `event.emit` | Durably accept a stable event ID and JSON payload for one enrollment; identical retries are no-ops and transient delivery failures are queued |
+| `message.send` | Queue one plain-text email using the workspace sender |
 | `message.list`, `webhook_event.list` | Inspect send ledger and verified Resend events |
 | `account.list` | Deployment administrator lists signed-up accounts, with workflow and enrolled-contact counts for their organizations |
 
 MCP also serves `rachet://operations`, `rachet://workflow/schema`, and `rachet://workflow/actions`, plus the `design-workflow` authoring prompt. It advertises the SEP-2640 Skills extension and serves the first-party skill in the FastMCP resource shape (`skill://rachet/SKILL.md`, `_manifest`, supporting files with `_meta.fastmcp.skill`) so Cursor-style hosts discover it via `resources/list`, plus `skills/list` / `skills/get`. Skills use a temporary `@rachet/mcp-ext-skills` shim until the official typescript-sdk `/ext/skills` exports land; see [agent skills](SKILLS.md). Operations marked non-model-visible (currently one-time credential creation) are omitted from both the MCP tools and operation resource. `system.capabilities` includes an `agentCookbook` checklist (reuse before invent, simulate two paths, enrollment side effects).
+
+## One-off email
+
+Connect and test the workspace's email sender once. Call MCP tool `message_send` with `workspaceId`, one recipient address in `to`, `subject`, plain-text `body`, `purpose`, and an `idempotencyKey`. The caller needs send permission and the `rachet:send` scope.
+
+Use `transactional` for necessary account or service messages and `marketing` for promotional messages. Marketing requires a separate sender and recorded consent. Rachet adds the unsubscribe link and mailbox headers. Delivery blocks apply to both purposes.
+
+```sh
+rachet call message.send --input '{"workspaceId":"WORKSPACE_ID","to":"user@example.com","subject":"Support ticket update","body":"We have fixed the issue on your account.","purpose":"transactional","idempotencyKey":"ticket-123-resolution"}'
+```
+
+`prepared` means Rachet queued the message. Use `message_list` in MCP or `rachet call message.list` with the workspace ID to check submission. `accepted` means the email provider accepted the message. Reuse the key when retrying the same send. If you reuse it with different content, Rachet returns `IDEMPOTENCY_CONFLICT`.
 
 ## Workflow graph
 

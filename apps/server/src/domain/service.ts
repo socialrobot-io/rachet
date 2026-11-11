@@ -1,19 +1,21 @@
 import { createHash } from 'node:crypto';
-import { and, asc, eq, inArray, sql } from 'drizzle-orm';
+import { and, asc, eq, inArray, isNull, sql } from 'drizzle-orm';
 import type { Client } from '@temporalio/client';
 import { WorkflowNotFoundError } from '@temporalio/common';
 import type { RachetAuth } from '../auth.js';
+import type { Config } from '../config.js';
 import type { Database } from '../db/index.js';
 import {
   auditEvents, contacts, enrollmentEvents, enrollments, eventTypes, memberships, outbox, profiles, sendIntents,
-  sequences, sequenceVersions, templates, templateVersions, webhookEvents, workspaces, emailPolicies, subscriptionEvents, resendConnections,
+  sequences, sequenceVersions, templates, templateVersions, webhookEvents, workspaces, emailPolicies, subscriptionEvents, resendConnections, unsubscribeTokens,
 } from '../db/schema.js';
-import type { EnrollmentCreateInput, OperationContext, Principal, SimulatedEvent, WorkflowDefinition } from '@rachet/contracts';
+import type { EnrollmentCreateInput, MessageSendInput, OperationContext, Principal, SimulatedEvent, WorkflowDefinition } from '@rachet/contracts';
 import { validateActionNodes } from './action-catalog.js';
 import { simulateWorkflow } from './simulate.js';
 import { RachetError, isUniqueViolation } from './errors.js';
 import { compileEventSchema, validateEventData } from './event-types.js';
-import { appendMarketingFooter, renderEmail } from './render.js';
+import { appendMarketingFooter, renderEmail, renderPlainMessage } from './render.js';
+import { prepareMarketingEmail } from './delivery.js';
 import {
   buildTemplateRefIssues,
   collectEmailSendTemplateRefs,
@@ -22,7 +24,7 @@ import {
 } from './template-refs.js';
 import { cancelEnrollment, enrollmentEvent, pauseEnrollment, resumeEnrollment } from '../temporal/shared.js';
 import { runWelcomeWorkflowCreated } from '../welcome.js';
-import { changePreference, emailEligibility, emailKey, lockEmailAddress, mailboxAddress, recordPreference } from './email-policy.js';
+import { changePreference, emailEligibility, emailKey, formatMailbox, lockEmailAddress, mailboxAddress, recordPreference } from './email-policy.js';
 
 function hash(value: unknown): string {
   return createHash('sha256').update(JSON.stringify(value)).digest('hex');
@@ -49,6 +51,7 @@ export class RachetService {
     private readonly db: Database,
     private readonly temporal: Client,
     private readonly auth: RachetAuth,
+    private readonly config: Config,
   ) {}
 
   async principalFor(userId: string): Promise<Principal> {
@@ -1080,6 +1083,63 @@ export class RachetService {
       duplicate: created === null,
       delivery: deliveredAt ? 'delivered' : 'queued',
     };
+  }
+
+  async messageSend(context: OperationContext, input: MessageSendInput) {
+    const { workspaceId, to, subject, body, purpose } = input;
+    this.workspace(context, workspaceId, 'send');
+    const address = emailKey(to);
+    const idempotencyKey = `message/${stableHash([workspaceId, input.idempotencyKey])}`;
+    const payloadHash = stableHash({ to, subject, body, purpose });
+    return this.db.transaction(async (tx) => {
+      const [workspace] = await tx.select({ enabled: workspaces.sendingEnabled }).from(workspaces)
+        .where(eq(workspaces.id, workspaceId)).for('update').limit(1);
+      if (!workspace) throw new RachetError('NOT_FOUND', 'Workspace not found', 404);
+      const [existing] = await tx.select({ id: sendIntents.id, state: sendIntents.state, payloadHash: sendIntents.payloadHash })
+        .from(sendIntents).where(eq(sendIntents.idempotencyKey, idempotencyKey)).limit(1);
+      if (existing) {
+        if (existing.payloadHash !== payloadHash) throw new RachetError('IDEMPOTENCY_CONFLICT', 'Idempotency key was used with different input', 409);
+        return { id: existing.id, state: existing.state, duplicate: true };
+      }
+      const [connection] = await tx.select({ fromAddress: resendConnections.fromAddress, version: resendConnections.version })
+        .from(resendConnections).where(eq(resendConnections.workspaceId, workspaceId)).limit(1);
+      if (!connection || !workspace.enabled) throw new RachetError('SENDER_DISABLED', 'Connect and test the workspace email sender first', 422);
+
+      await lockEmailAddress(tx as unknown as Database, workspaceId, address);
+      const eligibility = await emailEligibility(tx as unknown as Database, workspaceId, address, purpose);
+      if (!eligibility.eligible) throw new RachetError('EMAIL_POLICY_BLOCKED', `Message blocked: ${eligibility.reason}`, 422);
+      const [recent] = await tx.select({ count: sql<number>`count(*)` }).from(sendIntents).where(and(
+        eq(sendIntents.workspaceId, workspaceId), isNull(sendIntents.enrollmentId), sql`${sendIntents.createdAt} >= now() - interval '1 minute'`,
+      ));
+      if (Number(recent?.count ?? 0) >= 100) throw new RachetError('WORKSPACE_RATE_LIMIT', 'This organization can queue at most 100 one-off emails per minute', 429, true);
+
+      const id = crypto.randomUUID();
+      let fromAddress = connection.fromAddress;
+      let rendered = renderPlainMessage(subject, body);
+      let marketing: ReturnType<typeof prepareMarketingEmail> | undefined;
+      if (purpose === 'marketing') {
+        const [policy] = await tx.select().from(emailPolicies).where(eq(emailPolicies.workspaceId, workspaceId)).limit(1);
+        if (!policy?.marketingFromAddress || mailboxAddress(policy.marketingFromAddress) === mailboxAddress(fromAddress)) {
+          throw new RachetError('EMAIL_POLICY_REQUIRED', 'Configure a separate marketing sender and unsubscribe settings first', 422);
+        }
+        if (!this.config.unsubscribeSigningKeys.length) throw new RachetError('NOT_CONFIGURED', 'Unsubscribe signing is not configured on this deployment', 503);
+        fromAddress = formatMailbox(policy.senderName, policy.marketingFromAddress);
+        marketing = prepareMarketingEmail(this.config, workspaceId, rendered, policy.senderName);
+        rendered = marketing.rendered;
+      }
+      await tx.insert(sendIntents).values({
+        id, workspaceId, standalonePurpose: purpose, stepId: 'send', idempotencyKey, payloadHash,
+        connectionVersion: connection.version, fromAddress, recipient: to,
+        subject, html: rendered.html, plainText: rendered.plainText, headers: marketing?.headers ?? {},
+      });
+      if (marketing) await tx.insert(unsubscribeTokens).values({
+        id: marketing.token.id, workspaceId, intentId: id, emailKey: address, tokenDigest: marketing.token.digest,
+        origin: { kind: 'standalone', intentId: id, subject },
+      });
+      await tx.insert(outbox).values({ kind: 'message.send', aggregateId: id, payload: {} });
+      await tx.insert(auditEvents).values({ workspaceId, actorId: context.principal.userId, action: 'message.send', targetType: 'send_intent', targetId: id });
+      return { id, state: 'prepared' as const, duplicate: false };
+    });
   }
 
   async messageList(context: OperationContext, workspaceId: string) {

@@ -1,17 +1,17 @@
 import { createHash } from 'node:crypto';
 import { ApplicationFailure } from '@temporalio/activity';
-import { and, eq, notInArray } from 'drizzle-orm';
+import { and, eq, inArray, isNull, notInArray, sql } from 'drizzle-orm';
 import type { Config } from '../config.js';
 import { resolveActionInput, resolveValue } from '../domain/action-catalog.js';
 import type { FlowCondition, FlowNode } from '@rachet/contracts';
-import { appendMarketingFooter, renderEmail } from '../domain/render.js';
+import { renderEmail } from '../domain/render.js';
 import { createDatabase, type Database } from '../db/index.js';
-import { contacts, emailPolicies, enrollments, resendConnections, sendIntents, sequenceVersions, sequences, templateVersions, unsubscribeTokens, workspaces } from '../db/schema.js';
+import { contacts, emailPolicies, enrollments, resendConnections, sendIntents, sequenceVersions, sequences, templateVersions, unsubscribeTokens } from '../db/schema.js';
 import type { EmailProvider } from '../providers/email-provider.js';
 import { ResendProvider } from '../providers/resend.js';
 import { decryptIntegrationSecret } from '../integrations/secret.js';
-import { emailEligibility, formatMailbox, lockEmailAddress, mailboxAddress } from '../domain/email-policy.js';
-import { createUnsubscribeToken } from '../security/unsubscribe-token.js';
+import { formatMailbox, mailboxAddress } from '../domain/email-policy.js';
+import { dispatchEmail, prepareMarketingEmail } from '../domain/delivery.js';
 
 let runtime: { config: Config; db: Database; provider?: EmailProvider | undefined } | undefined;
 
@@ -95,19 +95,10 @@ async function sendEmail(input: { workspaceId: string; enrollmentId: string; nod
     if (!template) throw ApplicationFailure.nonRetryable('Template version not found', 'ValidationError');
     const extraProps = typeof resolved.props === 'object' && resolved.props !== null && !Array.isArray(resolved.props) ? resolved.props as Record<string, unknown> : {};
     let rendered = await renderEmail(template, { contact: { email: row.contact.email, ...row.contact.fields }, variables: row.enrollment.input, ...extraProps });
-    let headers: Record<string, string> = {};
-    let token: ReturnType<typeof createUnsubscribeToken> | undefined;
-    if (purpose === 'marketing') {
-      if (!policy) throw ApplicationFailure.nonRetryable('Email policy is not configured', 'ValidationError');
-      token = createUnsubscribeToken(config);
-      const url = `${config.publicUrl}/unsubscribe/${token.token}`;
-      rendered = appendMarketingFooter(rendered, policy.senderName, url);
-      headers = {
-        'List-ID': `Marketing <${input.workspaceId}.marketing.${new URL(config.publicUrl).hostname}>`,
-        'List-Unsubscribe': `<${url}>`,
-        'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
-      };
-    }
+    const marketing = policy ? prepareMarketingEmail(config, input.workspaceId, rendered, policy.senderName) : undefined;
+    if (marketing) rendered = marketing.rendered;
+    const headers = marketing?.headers ?? {};
+    const token = marketing?.token;
     const intentId = crypto.randomUUID();
     const payloadHash = createHash('sha256').update(JSON.stringify({ fromAddress, recipient: row.contact.email, rendered, headers, connectionVersion, tags: [input.workspaceId, intentId] })).digest('hex');
     await db.transaction(async (tx) => {
@@ -124,47 +115,48 @@ async function sendEmail(input: { workspaceId: string; enrollmentId: string; nod
     [intent] = await db.select().from(sendIntents).where(eq(sendIntents.idempotencyKey, idempotencyKey)).limit(1);
   }
   if (!intent) throw new Error('Send intent disappeared');
-  if (intent.state === 'accepted') return 'succeeded';
-  if (intent.connectionVersion !== connectionVersion || mailboxAddress(intent.fromAddress ?? '') !== mailboxAddress(fromAddress)) {
-    await db.update(sendIntents).set({ state: 'unknown', errorCode: 'connection_changed', updatedAt: new Date() }).where(eq(sendIntents.id, intent.id));
-    return 'needs_attention';
+  const outcome = await dispatchEmail(db, provider, intent, { fromAddress, connectionVersion }, purpose);
+  if (outcome.status === 'unknown' || outcome.status === 'retryable') {
+    throw ApplicationFailure.create({ message: outcome.code, type: 'ProviderTransientError' });
   }
-  if (intent.fromAddress !== fromAddress) {
-    await db.update(sendIntents).set({ fromAddress, updatedAt: new Date() }).where(eq(sendIntents.id, intent.id));
-    intent = { ...intent, fromAddress };
+  if (outcome.status === 'rejected') throw ApplicationFailure.nonRetryable(outcome.code, 'ValidationError');
+  return outcome.status;
+}
+
+export async function deliverStandaloneEmail(intentId: string) {
+  const { db, config, provider: overrideProvider } = getRuntime();
+  const [intent] = await db.select().from(sendIntents).where(and(eq(sendIntents.id, intentId), isNull(sendIntents.enrollmentId))).limit(1);
+  if (!intent?.standalonePurpose || intent.state === 'accepted' || intent.state === 'abandoned' || intent.state === 'rejected') return;
+
+  const [connection] = await db.select().from(resendConnections).where(eq(resendConnections.workspaceId, intent.workspaceId)).limit(1);
+  const [policy] = intent.standalonePurpose === 'marketing'
+    ? await db.select().from(emailPolicies).where(eq(emailPolicies.workspaceId, intent.workspaceId)).limit(1)
+    : [];
+  const fromAddress = intent.standalonePurpose === 'marketing' ? policy?.marketingFromAddress : connection?.fromAddress;
+  if (!connection || !fromAddress || (policy && mailboxAddress(fromAddress) === mailboxAddress(connection.fromAddress))) {
+    await finishStandaloneEmail(intentId, 'sender_unavailable');
+    return;
   }
-  if (intent.firstAttemptAt && Date.now() - intent.firstAttemptAt.getTime() >= 23 * 60 * 60 * 1000) {
-    await db.update(sendIntents).set({ state: 'unknown', errorCode: 'idempotency_window_expired' }).where(eq(sendIntents.id, intent.id));
-    return 'needs_attention';
+  const provider = overrideProvider ?? new ResendProvider(
+    decryptIntegrationSecret(config, intent.workspaceId, 'resend-api-key', connection.apiKeyEncrypted), undefined,
+  );
+  const outcome = await dispatchEmail(db, provider, intent, {
+    fromAddress, connectionVersion: connection.version,
+  }, intent.standalonePurpose);
+  if (outcome.status === 'needs_attention') {
+    await finishStandaloneEmail(intentId, 'delivery_outcome_unknown');
   }
-  const gate = await db.transaction(async (tx) => {
-    await lockEmailAddress(tx as unknown as Database, input.workspaceId, intent.recipient.trim().toLowerCase());
-    const [current] = await tx.select({ state: enrollments.state }).from(enrollments).where(eq(enrollments.id, input.enrollmentId)).limit(1);
-    const [sender] = await tx.select({ sendingEnabled: workspaces.sendingEnabled }).from(workspaces).where(eq(workspaces.id, input.workspaceId)).limit(1);
-    const eligible = await emailEligibility(tx as unknown as Database, input.workspaceId, intent.recipient.trim().toLowerCase(), purpose);
-    const reason = current?.state === 'paused' ? 'paused'
-      : !current || !['pending_start', 'running', 'waiting'].includes(current.state) ? 'enrollment_stopped'
-      : !sender?.sendingEnabled ? 'sender_disabled' : eligible.eligible ? null : eligible.reason;
-    if (reason) {
-      if (reason !== 'paused') await tx.update(sendIntents).set({ state: intent.firstAttemptAt ? 'unknown' : 'abandoned', errorCode: reason, updatedAt: new Date() }).where(eq(sendIntents.id, intent.id));
-      return reason;
-    }
-    await tx.update(sendIntents).set({ state: 'dispatching', firstAttemptAt: intent.firstAttemptAt ?? new Date(), updatedAt: new Date() }).where(eq(sendIntents.id, intent.id));
-    return null;
-  });
-  if (gate) return gate === 'paused' ? 'paused' : intent.firstAttemptAt ? 'needs_attention' : gate === 'unsubscribed' ? 'unsubscribed' : 'suppressed';
-  const outcome = await provider.send({
-    from: intent.fromAddress ?? fromAddress, to: intent.recipient, subject: intent.subject,
-    html: intent.html, text: intent.plainText, headers: intent.headers,
-    tags: [{ name: 'rachet_workspace', value: input.workspaceId }, { name: 'rachet_intent', value: intent.id }],
-  }, idempotencyKey);
-  if (outcome.kind === 'accepted') {
-    await db.update(sendIntents).set({ state: 'accepted', providerMessageId: outcome.messageId, acceptedAt: new Date(), updatedAt: new Date() }).where(eq(sendIntents.id, intent.id));
-    return 'succeeded';
+  if (outcome.status === 'unknown' || outcome.status === 'retryable') {
+    throw ApplicationFailure.create({ message: outcome.code, type: 'ProviderTransientError' });
   }
-  await db.update(sendIntents).set({ state: outcome.kind === 'unknown' ? 'unknown' : outcome.retryable ? 'retryable' : 'rejected', errorCode: outcome.code, updatedAt: new Date() }).where(eq(sendIntents.id, intent.id));
-  if (outcome.kind === 'unknown' || outcome.retryable) throw ApplicationFailure.create({ message: outcome.code, type: 'ProviderTransientError' });
-  throw ApplicationFailure.nonRetryable(outcome.code, 'ValidationError');
+}
+
+export async function finishStandaloneEmail(intentId: string, code: string) {
+  await getRuntime().db.update(sendIntents).set({
+    state: sql`CASE WHEN ${sendIntents.firstAttemptAt} IS NULL THEN 'abandoned'::send_state ELSE 'unknown'::send_state END`,
+    errorCode: code,
+    updatedAt: new Date(),
+  }).where(and(eq(sendIntents.id, intentId), isNull(sendIntents.enrollmentId), inArray(sendIntents.state, ['prepared', 'dispatching', 'retryable'])));
 }
 
 export async function evaluateCondition(input: { workspaceId: string; enrollmentId: string; condition: FlowCondition; eventData: Record<string, unknown> }): Promise<boolean> {

@@ -76,14 +76,15 @@ export const deliveryBlocks = pgTable('delivery_blocks', {
 
 export type UnsubscribeOrigin = {
   intentId: string;
+  subject: string;
+} & ({
   enrollmentId: string;
   workflowId: string;
   workflowVersionId: string;
   workflowName: string;
   stepId: string;
   templateVersionId: string;
-  subject: string;
-};
+} | { kind: 'standalone' });
 
 export const subscriptionEvents = pgTable('subscription_events', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -282,7 +283,8 @@ export const eventTypes = pgTable('event_types', {
 export const sendIntents = pgTable('send_intents', {
   id: uuid('id').primaryKey().defaultRandom(),
   workspaceId: uuid('workspace_id').notNull().references(() => workspaces.id, { onDelete: 'cascade' }),
-  enrollmentId: uuid('enrollment_id').notNull().references(() => enrollments.id),
+  enrollmentId: uuid('enrollment_id').references(() => enrollments.id),
+  standalonePurpose: text('standalone_purpose').$type<'transactional' | 'marketing'>(),
   stepId: text('step_id').notNull(),
   state: sendState('state').notNull().default('prepared'),
   idempotencyKey: text('idempotency_key').notNull().unique(),
