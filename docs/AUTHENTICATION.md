@@ -1,6 +1,6 @@
 # Authentication and connected clients
 
-Rachet uses Better Auth 1.7.4 for browser sessions, OAuth 2.1 authorization, API keys, and optional upstream OAuth/OIDC sign-in. The dashboard is the human login and consent surface. Product authorization is still enforced by Rachet workspace roles and operation scopes after Better Auth establishes identity.
+Rachet uses Better Auth 1.7.7 for browser sessions, OAuth 2.1 authorization, API keys, and optional upstream OAuth/OIDC sign-in. The dashboard is the human login and consent surface. Product authorization is still enforced by Rachet workspace roles and operation scopes after Better Auth establishes identity.
 
 ## Initial administrator
 

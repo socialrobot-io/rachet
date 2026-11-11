@@ -28,8 +28,8 @@
     "ink-picture": "2.1.0",
     "react": "19.2.4",
     "react-dom": "19.2.4",
-    "react-email": "6.9.5",
-    "zod": "4.3.6"
+    "react-email": "6.11.11",
+    "zod": "4.6.6"
   },
   "devDependencies": { "@types/react": "19.2.14", "typescript": "5.9.3" }
 }
