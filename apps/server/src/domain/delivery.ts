@@ -1,7 +1,8 @@
 import { and, eq, ne } from 'drizzle-orm';
 import type { Config } from '../config.js';
 import type { Database } from '../db/index.js';
-import { emailPolicies, enrollments, resendConnections, sendIntents, workspaces } from '../db/schema.js';
+import { emailPolicies, enrollments, sendIntents, workspaces } from '../db/schema.js';
+import { emailConnection, type EmailProviderName } from '../integrations/email-sender.js';
 import type { EmailProvider } from '../providers/email-provider.js';
 import { createUnsubscribeToken } from '../security/unsubscribe-token.js';
 import { emailEligibility, emailKey, lockEmailAddress, mailboxAddress } from './email-policy.js';
@@ -27,28 +28,33 @@ export async function dispatchEmail(
   db: Database,
   provider: EmailProvider,
   intent: SendIntent,
-  sender: { fromAddress: string; connectionVersion: number | null },
+  sender: { fromAddress: string; connectionVersion: number | null; provider: EmailProviderName },
   purpose: 'marketing' | 'transactional',
 ) {
   const { id, workspaceId, enrollmentId } = intent;
   const address = emailKey(intent.recipient);
   const claim = await db.transaction(async (tx) => {
-    const [workspace] = await tx.select({ enabled: workspaces.sendingEnabled })
+    const [workspace] = await tx.select({ enabled: workspaces.sendingEnabled, provider: workspaces.emailProvider })
       .from(workspaces).where(eq(workspaces.id, workspaceId)).for('share').limit(1);
     await lockEmailAddress(tx as unknown as Database, workspaceId, address);
     const [current] = await tx.select().from(sendIntents).where(eq(sendIntents.id, id)).for('update').limit(1);
     if (!current || current.state === 'abandoned') return { status: 'suppressed' } as const;
     if (current.state === 'accepted') return { status: 'succeeded' } as const;
     if (current.state === 'rejected') return { status: 'rejected', code: current.errorCode ?? 'provider_rejected' } as const;
+    // An SES call in flight or interrupted after the claim may already have
+    // sent. Leave its state intact so its response or a signed event can settle it.
+    if (current.provider === 'ses' && (current.state === 'dispatching' || current.state === 'unknown')) {
+      return { status: 'needs_attention' } as const;
+    }
 
     const stop = async (reason: string, uncertain = false) => {
       const state = uncertain || current.firstAttemptAt ? 'unknown' : 'abandoned';
       await tx.update(sendIntents).set({ state, errorCode: reason, updatedAt: new Date() }).where(eq(sendIntents.id, id));
       return { status: state === 'unknown' ? 'needs_attention' : reason === 'unsubscribed' ? 'unsubscribed' : 'suppressed' } as const;
     };
-    const [connection] = sender.connectionVersion === null ? [] : await tx.select({ version: resendConnections.version })
-      .from(resendConnections).where(eq(resendConnections.workspaceId, workspaceId)).limit(1);
-    if (current.connectionVersion !== sender.connectionVersion ||
+    const connection = sender.connectionVersion === null ? undefined : await emailConnection(tx, workspaceId, sender.provider);
+    if (current.provider !== sender.provider || workspace?.provider !== sender.provider ||
+        current.connectionVersion !== sender.connectionVersion ||
         (sender.connectionVersion !== null && connection?.version !== sender.connectionVersion) ||
         mailboxAddress(current.fromAddress ?? '') !== mailboxAddress(sender.fromAddress)) return stop('connection_changed', !!enrollmentId);
     if (current.standalonePurpose === 'marketing') {
@@ -58,7 +64,7 @@ export async function dispatchEmail(
     }
 
     const now = new Date();
-    if (current.firstAttemptAt && now.getTime() - current.firstAttemptAt.getTime() >= 23 * 60 * 60 * 1000) {
+    if (current.provider === 'resend' && current.firstAttemptAt && now.getTime() - current.firstAttemptAt.getTime() >= 23 * 60 * 60 * 1000) {
       return stop('idempotency_window_expired', true);
     }
     if (enrollmentId) {
@@ -100,5 +106,6 @@ export async function dispatchEmail(
     const [current] = await db.select({ state: sendIntents.state }).from(sendIntents).where(eq(sendIntents.id, id)).limit(1);
     if (current?.state === 'accepted') return { status: 'succeeded' } as const;
   }
+  if (sender.provider === 'ses' && state === 'unknown') return { status: 'needs_attention' } as const;
   return { status: state, code: outcome.code } as const;
 }

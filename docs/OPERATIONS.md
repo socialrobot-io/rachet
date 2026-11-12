@@ -20,7 +20,7 @@ Every product operation is defined once in `apps/server/src/operations.ts` and e
 | `event_type.define`, `event_type.list` | Define and inspect immutable, versioned JSON Schema contracts for product events |
 | `event.emit` | Durably accept a stable event ID and JSON payload for one enrollment; identical retries are no-ops and transient delivery failures are queued |
 | `message.send` | Queue one plain-text email using the workspace sender |
-| `message.list`, `webhook_event.list` | Inspect send ledger and verified Resend events |
+| `message.list`, `webhook_event.list` | Inspect send ledger and verified email provider events |
 | `account.list` | Deployment administrator lists signed-up accounts, with workflow and enrolled-contact counts for their organizations |
 
 MCP also serves `rachet://operations`, `rachet://workflow/schema`, and `rachet://workflow/actions`, plus the `design-workflow` authoring prompt. It advertises the SEP-2640 Skills extension and serves the first-party skill in the FastMCP resource shape (`skill://rachet/SKILL.md`, `_manifest`, supporting files with `_meta.fastmcp.skill`) so Cursor-style hosts discover it via `resources/list`, plus `skills/list` / `skills/get`. Skills use a temporary `@rachet/mcp-ext-skills` shim until the official typescript-sdk `/ext/skills` exports land; see [agent skills](SKILLS.md). Operations marked non-model-visible (currently one-time credential creation) are omitted from both the MCP tools and operation resource. `system.capabilities` includes an `agentCookbook` checklist (reuse before invent, simulate two paths, enrollment side effects).
@@ -47,7 +47,7 @@ Graphs reject duplicate IDs, missing targets, cycles, unreachable nodes, unknown
 
 `email.send` requires a literal published template-version UUID at publication. `contact.update` merges a resolved object into contact fields. Future provider and integration adapters register additional actions through the same catalog and executor boundary.
 
-Marketing publication requires an email policy. Organization owners and admins can set it in **Integrations → Email → Resend** or through `email_policy.update`. Marketing enrollment requires consent evidence. Pass `consent` on `enrollment.create`, or record it first with `contact.resubscribe`. An opt-out blocks all marketing in the workspace and stops affected active runs. `subscription_event.list` records the email and workflow that supplied a link opt-out. Set the purpose in the workflow definition before publication. See [Unsubscribe and consent](UNSUBSCRIBE.md).
+Marketing publication requires an email policy. Organization owners and admins can set it in the active provider’s email settings or through `email_policy.update`. Marketing enrollment requires consent evidence. Pass `consent` on `enrollment.create`, or record it first with `contact.resubscribe`. An opt-out blocks all marketing in the workspace and stops affected active runs. `subscription_event.list` records the email and workflow that supplied a link opt-out. Set the purpose in the workflow definition before publication. See [Unsubscribe and consent](UNSUBSCRIBE.md).
 
 To change a workflow, get its `id` and `revision` from `workflow.list`. Call `workflow.revise` with `workspaceId`, `workflowId`, `expectedRevision`, and the complete replacement `definition`. Pass `intent` only when it changes. The response keeps the workflow id and increments its revision. Use the new revision in `workflow.publish` to create an immutable version. Existing enrollments stay pinned to their original workflow version.
 

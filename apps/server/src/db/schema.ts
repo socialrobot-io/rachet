@@ -35,6 +35,7 @@ export const workspaces = pgTable('workspaces', {
   id: uuid('id').primaryKey().defaultRandom(),
   name: text('name').notNull(),
   slug: text('slug').notNull().unique(),
+  emailProvider: text('email_provider').$type<'resend' | 'ses'>().notNull().default('resend'),
   sendingEnabled: boolean('sending_enabled').notNull().default(false),
   onboardingCompletedAt: timestamp('onboarding_completed_at', { withTimezone: true }),
   ...timestamps,
@@ -118,6 +119,19 @@ export const resendConnections = pgTable('resend_connections', {
   webhookSecretFingerprint: text('webhook_secret_fingerprint').notNull().unique(),
   fromAddress: text('from_address').notNull(),
   version: integer('version').notNull().default(1),
+  lastTestAcceptedAt: timestamp('last_test_accepted_at', { withTimezone: true }),
+  ...timestamps,
+});
+
+export const sesConnections = pgTable('ses_connections', {
+  workspaceId: uuid('workspace_id').primaryKey().references(() => workspaces.id, { onDelete: 'cascade' }),
+  fromAddress: text('from_address').notNull(),
+  region: text('region').notNull(),
+  configurationSet: text('configuration_set').notNull(),
+  topicArn: text('topic_arn').notNull(),
+  credentialsEncrypted: text('credentials_encrypted').notNull(),
+  version: integer('version').notNull().default(1),
+  topicConfirmedAt: timestamp('topic_confirmed_at', { withTimezone: true }),
   lastTestAcceptedAt: timestamp('last_test_accepted_at', { withTimezone: true }),
   ...timestamps,
 });
@@ -284,6 +298,8 @@ export const sendIntents = pgTable('send_intents', {
   id: uuid('id').primaryKey().defaultRandom(),
   workspaceId: uuid('workspace_id').notNull().references(() => workspaces.id, { onDelete: 'cascade' }),
   enrollmentId: uuid('enrollment_id').references(() => enrollments.id),
+  provider: text('provider').$type<'resend' | 'ses'>().notNull().default('resend'),
+  feedbackTopic: text('feedback_topic'),
   standalonePurpose: text('standalone_purpose').$type<'transactional' | 'marketing'>(),
   stepId: text('step_id').notNull(),
   state: sendState('state').notNull().default('prepared'),

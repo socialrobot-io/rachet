@@ -7,7 +7,7 @@ import type { Config } from '../config.js';
 import type { Database } from '../db/index.js';
 import {
   auditEvents, contacts, enrollmentEvents, enrollments, eventTypes, memberships, outbox, profiles, sendIntents,
-  sequences, sequenceVersions, templates, templateVersions, webhookEvents, workspaces, emailPolicies, subscriptionEvents, resendConnections, unsubscribeTokens,
+  sequences, sequenceVersions, templates, templateVersions, webhookEvents, workspaces, emailPolicies, subscriptionEvents, unsubscribeTokens,
 } from '../db/schema.js';
 import type { EnrollmentCreateInput, MessageSendInput, OperationContext, Principal, SimulatedEvent, WorkflowDefinition } from '@rachet/contracts';
 import { validateActionNodes } from './action-catalog.js';
@@ -25,6 +25,7 @@ import {
 import { cancelEnrollment, enrollmentEvent, pauseEnrollment, resumeEnrollment } from '../temporal/shared.js';
 import { runWelcomeWorkflowCreated } from '../welcome.js';
 import { changePreference, emailEligibility, emailKey, formatMailbox, lockEmailAddress, mailboxAddress, recordPreference } from './email-policy.js';
+import { emailConnection } from '../integrations/email-sender.js';
 
 function hash(value: unknown): string {
   return createHash('sha256').update(JSON.stringify(value)).digest('hex');
@@ -726,9 +727,9 @@ export class RachetService {
       throw new RachetError('FORBIDDEN', 'Workspace owner or admin permission required', 403);
     }
     const policy = await this.db.transaction(async (tx) => {
-      const [workspace] = await tx.select({ id: workspaces.id }).from(workspaces).where(eq(workspaces.id, input.workspaceId)).for('update').limit(1);
+      const [workspace] = await tx.select({ provider: workspaces.emailProvider }).from(workspaces).where(eq(workspaces.id, input.workspaceId)).for('update').limit(1);
       if (!workspace) throw new RachetError('NOT_FOUND', 'Organization not found', 404);
-      const [connection] = await tx.select({ fromAddress: resendConnections.fromAddress }).from(resendConnections).where(eq(resendConnections.workspaceId, input.workspaceId)).limit(1);
+      const connection = await emailConnection(tx, input.workspaceId, workspace.provider);
       if (connection && mailboxAddress(connection.fromAddress) === mailboxAddress(input.marketingFromAddress)) {
         throw new RachetError('VALIDATION_FAILED', 'Marketing and transactional sender addresses must differ', 422);
       }
@@ -1092,7 +1093,7 @@ export class RachetService {
     const idempotencyKey = `message/${stableHash([workspaceId, input.idempotencyKey])}`;
     const payloadHash = stableHash({ to, subject, body, purpose });
     return this.db.transaction(async (tx) => {
-      const [workspace] = await tx.select({ enabled: workspaces.sendingEnabled }).from(workspaces)
+      const [workspace] = await tx.select({ enabled: workspaces.sendingEnabled, provider: workspaces.emailProvider }).from(workspaces)
         .where(eq(workspaces.id, workspaceId)).for('update').limit(1);
       if (!workspace) throw new RachetError('NOT_FOUND', 'Workspace not found', 404);
       const [existing] = await tx.select({ id: sendIntents.id, state: sendIntents.state, payloadHash: sendIntents.payloadHash })
@@ -1101,8 +1102,7 @@ export class RachetService {
         if (existing.payloadHash !== payloadHash) throw new RachetError('IDEMPOTENCY_CONFLICT', 'Idempotency key was used with different input', 409);
         return { id: existing.id, state: existing.state, duplicate: true };
       }
-      const [connection] = await tx.select({ fromAddress: resendConnections.fromAddress, version: resendConnections.version })
-        .from(resendConnections).where(eq(resendConnections.workspaceId, workspaceId)).limit(1);
+      const connection = await emailConnection(tx, workspaceId, workspace.provider);
       if (!connection || !workspace.enabled) throw new RachetError('SENDER_DISABLED', 'Connect and test the workspace email sender first', 422);
 
       await lockEmailAddress(tx as unknown as Database, workspaceId, address);
@@ -1129,6 +1129,7 @@ export class RachetService {
       }
       await tx.insert(sendIntents).values({
         id, workspaceId, standalonePurpose: purpose, stepId: 'send', idempotencyKey, payloadHash,
+        provider: connection.provider, feedbackTopic: connection.provider === 'ses' ? connection.topicArn : null,
         connectionVersion: connection.version, fromAddress, recipient: to,
         subject, html: rendered.html, plainText: rendered.plainText, headers: marketing?.headers ?? {},
       });

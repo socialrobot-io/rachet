@@ -27,7 +27,7 @@ Defined by PRD FR-C04; the console shows them verbatim.
 | `running` | Executing between gates. |
 | `waiting` | Parked at a delay or event wait. |
 | `paused` | Operator-paused; resumes from the current gate. |
-| `needs_attention` | Halted for an operator: an action failed with `onError: attention`, or a send outcome stayed ambiguous past the provider idempotency window. |
+| `needs_attention` | Halted for an operator: an action failed with `onError: attention`, or the provider could have accepted a send that Rachet cannot safely retry. |
 | `completed` | Reached an end node normally. |
 | `cancelled` | Operator-cancelled; no further sends. |
 | `suppressed` | Stopped because the recipient is suppressed (hard bounce, complaint, or unsubscribe). |
@@ -42,7 +42,7 @@ Defined by PRD FR-C04; the console shows them verbatim.
 | `accepted` | The provider admitted the message. Acceptance is not delivery; delivery requires a verified provider event. |
 | `retryable` | Dispatch failed transiently; Temporal retries within the provider idempotency window. |
 | `rejected` | The provider refused the send (invalid recipient, suppression, policy). |
-| `unknown` | Outcome ambiguous after the provider dedupe window. Reconcile before any replacement send, because a replacement can duplicate. |
+| `unknown` | Rachet has no confirmed outcome for this send. Reconcile before any replacement send, because a replacement can duplicate. |
 | `abandoned` | Operator closed an unresolved intent without a replacement. |
 
 ## Operations console

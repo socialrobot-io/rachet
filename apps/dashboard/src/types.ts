@@ -44,10 +44,24 @@ export type Workspace = {
 
 export type ResendConnectionStatus = {
   configured: boolean;
+  active: boolean;
   from: string | null;
   updatedAt: string | null;
   lastTestAcceptedAt: string | null;
   onboardingComplete: boolean;
+  webhookUrl: string;
+};
+
+export type SesConnectionStatus = {
+  connection: {
+    from: string;
+    region: string;
+    configurationSet: string;
+    topicArn: string;
+    topicConfirmedAt: string | null;
+    lastTestAcceptedAt: string | null;
+  } | null;
+  active: boolean;
   webhookUrl: string;
 };
 

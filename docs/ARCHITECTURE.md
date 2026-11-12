@@ -27,7 +27,9 @@ flowchart LR
   W --> Interpolate[Interpolate template placeholders in stored HTML]
   W --> Adapter[Provider adapter]
   Adapter --> Resend[Resend]
-  Resend --> Hook[Raw-body webhook verification]
+  Adapter --> SES[Amazon SES]
+  Resend --> Hook[Webhook verification]
+  SES --> SNS[Amazon SNS] --> Hook
   Hook --> PG
   T --> TP[(Temporal persistence / visibility)]
 ```
@@ -42,7 +44,7 @@ flowchart LR
 | Events | Ingest verified event, replay stored event, inspect | Inbox dedupe, correlation, durable effects, outbox messages |
 | Operations | Inspect job, audit, health, retention/export | Pagination, asynchronous progress, operational recovery |
 
-Delivery has a provider seam because external protocols vary, explicitly required by the brief. Ship a Resend adapter and deterministic fake adapter used by simulation/integration tests. Do not create speculative adapters for every possible infrastructure dependency.
+Delivery has a provider seam because external protocols vary, explicitly required by the brief. Rachet ships Resend and Amazon SES adapters. Tests can substitute a fake adapter.
 
 Nx workspace layout:
 
@@ -138,9 +140,9 @@ Send state: `prepared → dispatching → accepted`, or `retryable`, `rejected`,
 
 1. Render and freeze bytes. Insert send intent once, before any provider side effect.
 2. Atomically check current sequence control, recipient suppression, sender health, and quota; claim the intent with a fencing revision and record its first possible attempt time. This is the dispatch admission point. Policy changes serialize against the same control/recipient locks or revisions.
-3. Commit, then call Resend with the same payload and stable key. Never hold a database transaction open across network I/O.
+3. Commit, then call the provider. The intent records the provider and connection version. Close the transaction before the network request.
 4. Persist acceptance/message ID or a classified error. A crash after the request leaves an uncertain intent that is reconciled before retry.
-5. If still within the safe window, retry identical bytes/key on the same account. Use a conservative cutoff (proposed 23 hours from first attempt) so request timeout and clock skew cannot cross Resend's 24-hour retention. Also bound every attempt's end time to that cutoff. [Provider constraint](https://resend.com/docs/dashboard/emails/idempotency-keys).
+5. For Resend, retry identical bytes with the same key within 23 hours of the first attempt. For Amazon SES, retry explicit throttling. A timeout or server error can follow acceptance by SES, so hold the intent for review. [Resend key retention](https://resend.com/docs/dashboard/emails/idempotency-keys) · [SES send errors](https://docs.aws.amazon.com/ses/latest/dg/troubleshoot-error-messages.html)
 6. If a message ID is known, query status or apply verified events. Do not assume the provider offers lookup by arbitrary idempotency key. Without sufficient evidence after the cutoff, park the intent for explicit reconciliation.
 
 Lease expiry does not prove the previous request failed. Fencing prevents stale database writes; the provider key handles overlapping external attempts within its window. Never automatically switch provider/account after an ambiguous attempt: providers do not share deduplication state.
@@ -149,7 +151,7 @@ Quota reservations use shared PostgreSQL counters/leases at the initial scale. S
 
 ## 6. Event processing and race resolution
 
-The endpoint path identifies the configured connection, but does not authenticate it. Verify raw bytes and timestamp with the adapter, then atomically insert inbox record and processing outbox job. Return 200 for committed records and known duplicates; return failure if persistence is unavailable. Resend verification requires original bytes, and provider events can be duplicated or unordered. [Verification](https://resend.com/docs/webhooks/verify-webhooks-requests), [delivery semantics](https://resend.com/docs/webhooks/introduction).
+The endpoint path identifies the configured connection, but does not authenticate it. Verify raw bytes and timestamp with the adapter, then atomically insert inbox record and processing outbox job. Return 200 for committed records and known duplicates; return failure if persistence is unavailable. Resend verifies the original request body. Amazon SES sends events through SNS. Rachet verifies the SNS signature and checks the topic saved on the send intent. Events can arrive more than once or out of order. [Verification](https://resend.com/docs/webhooks/verify-webhooks-requests), [delivery semantics](https://resend.com/docs/webhooks/introduction).
 
 Processor normalizes the event, correlates connection/message ID, commits its effects, then emits workflow notifications in the same transaction. Unknown message IDs remain pending with bounded retries and an alert threshold. Maintain facts such as accepted-at, delivered-at, bounce-at, first-open-at, and complaint-at; do not let a late delivered event clear a complaint.
 

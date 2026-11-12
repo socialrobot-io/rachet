@@ -6,10 +6,9 @@ import { resolveActionInput, resolveValue } from '../domain/action-catalog.js';
 import type { FlowCondition, FlowNode } from '@rachet/contracts';
 import { renderEmail } from '../domain/render.js';
 import { createDatabase, type Database } from '../db/index.js';
-import { contacts, emailPolicies, enrollments, resendConnections, sendIntents, sequenceVersions, sequences, templateVersions, unsubscribeTokens } from '../db/schema.js';
+import { contacts, emailPolicies, enrollments, sendIntents, sequenceVersions, sequences, templateVersions, unsubscribeTokens } from '../db/schema.js';
 import type { EmailProvider } from '../providers/email-provider.js';
-import { ResendProvider } from '../providers/resend.js';
-import { decryptIntegrationSecret } from '../integrations/secret.js';
+import { activeEmailConnection, emailProvider } from '../integrations/email-sender.js';
 import { formatMailbox, mailboxAddress } from '../domain/email-policy.js';
 import { dispatchEmail, prepareMarketingEmail } from '../domain/delivery.js';
 
@@ -64,15 +63,11 @@ async function sendEmail(input: { workspaceId: string; enrollmentId: string; nod
   let [intent] = await db.select().from(sendIntents).where(eq(sendIntents.idempotencyKey, idempotencyKey)).limit(1);
   if (intent?.state === 'accepted') return 'succeeded';
   if (intent?.state === 'abandoned') return 'suppressed';
-  const [connection] = overrideProvider ? [] : await db.select().from(resendConnections)
-    .where(eq(resendConnections.workspaceId, input.workspaceId)).limit(1);
-  let provider = overrideProvider;
-  if (!provider) {
-    if (!connection) throw ApplicationFailure.nonRetryable('Connect Resend before sending', 'ValidationError');
-    provider = new ResendProvider(
-      decryptIntegrationSecret(config, input.workspaceId, 'resend-api-key', connection.apiKeyEncrypted), undefined,
-    );
-  }
+  const connection = await activeEmailConnection(db, input.workspaceId);
+  const provider = overrideProvider ?? (connection && emailProvider(config, connection));
+  if (!provider) throw ApplicationFailure.nonRetryable('Connect an email provider before sending', 'ValidationError');
+  const providerName = connection?.provider ?? 'resend';
+  const feedbackTopic = connection?.provider === 'ses' ? connection.topicArn : null;
   const transactionalFromAddress = connection?.fromAddress ?? config.from;
   const connectionVersion = connection?.version ?? null;
   const [version] = await db.select({ definition: sequenceVersions.definition, purposeReviewedAt: sequenceVersions.purposeReviewedAt, workflowId: sequences.id, workflowName: sequences.name }).from(sequenceVersions)
@@ -102,7 +97,7 @@ async function sendEmail(input: { workspaceId: string; enrollmentId: string; nod
     const intentId = crypto.randomUUID();
     const payloadHash = createHash('sha256').update(JSON.stringify({ fromAddress, recipient: row.contact.email, rendered, headers, connectionVersion, tags: [input.workspaceId, intentId] })).digest('hex');
     await db.transaction(async (tx) => {
-      const [created] = await tx.insert(sendIntents).values({ id: intentId, workspaceId: input.workspaceId, enrollmentId: input.enrollmentId, stepId: input.node.id, idempotencyKey, payloadHash, connectionVersion, fromAddress, recipient: row.contact.email, subject: rendered.subject, html: rendered.html, plainText: rendered.plainText, headers }).onConflictDoNothing().returning({ id: sendIntents.id });
+      const [created] = await tx.insert(sendIntents).values({ id: intentId, workspaceId: input.workspaceId, provider: providerName, feedbackTopic, enrollmentId: input.enrollmentId, stepId: input.node.id, idempotencyKey, payloadHash, connectionVersion, fromAddress, recipient: row.contact.email, subject: rendered.subject, html: rendered.html, plainText: rendered.plainText, headers }).onConflictDoNothing().returning({ id: sendIntents.id });
       if (created && token) await tx.insert(unsubscribeTokens).values({
         id: token.id, workspaceId: input.workspaceId, intentId, emailKey: row.contact.emailKey, tokenDigest: token.digest,
         origin: {
@@ -115,7 +110,7 @@ async function sendEmail(input: { workspaceId: string; enrollmentId: string; nod
     [intent] = await db.select().from(sendIntents).where(eq(sendIntents.idempotencyKey, idempotencyKey)).limit(1);
   }
   if (!intent) throw new Error('Send intent disappeared');
-  const outcome = await dispatchEmail(db, provider, intent, { fromAddress, connectionVersion }, purpose);
+  const outcome = await dispatchEmail(db, provider, intent, { fromAddress, connectionVersion, provider: providerName }, purpose);
   if (outcome.status === 'unknown' || outcome.status === 'retryable') {
     throw ApplicationFailure.create({ message: outcome.code, type: 'ProviderTransientError' });
   }
@@ -128,7 +123,7 @@ export async function deliverStandaloneEmail(intentId: string) {
   const [intent] = await db.select().from(sendIntents).where(and(eq(sendIntents.id, intentId), isNull(sendIntents.enrollmentId))).limit(1);
   if (!intent?.standalonePurpose || intent.state === 'accepted' || intent.state === 'abandoned' || intent.state === 'rejected') return;
 
-  const [connection] = await db.select().from(resendConnections).where(eq(resendConnections.workspaceId, intent.workspaceId)).limit(1);
+  const connection = await activeEmailConnection(db, intent.workspaceId);
   const [policy] = intent.standalonePurpose === 'marketing'
     ? await db.select().from(emailPolicies).where(eq(emailPolicies.workspaceId, intent.workspaceId)).limit(1)
     : [];
@@ -137,13 +132,11 @@ export async function deliverStandaloneEmail(intentId: string) {
     await finishStandaloneEmail(intentId, 'sender_unavailable');
     return;
   }
-  const provider = overrideProvider ?? new ResendProvider(
-    decryptIntegrationSecret(config, intent.workspaceId, 'resend-api-key', connection.apiKeyEncrypted), undefined,
-  );
+  const provider = overrideProvider ?? emailProvider(config, connection);
   const outcome = await dispatchEmail(db, provider, intent, {
-    fromAddress, connectionVersion: connection.version,
+    fromAddress, connectionVersion: connection.version, provider: connection.provider,
   }, intent.standalonePurpose);
-  if (outcome.status === 'needs_attention') {
+  if (outcome.status === 'needs_attention' && connection.provider === 'resend') {
     await finishStandaloneEmail(intentId, 'delivery_outcome_unknown');
   }
   if (outcome.status === 'unknown' || outcome.status === 'retryable') {
