@@ -28,7 +28,7 @@ import {
 import { enrollmentCounts, enrollmentExitReason, enrollmentGroup, type EnrollmentGroup } from '@/enrollment-list';
 import { enrollmentWorkflowHref, enrollmentsForView, workflowView, workflowViews } from '@/workflow-versions';
 import type { SubscriptionEvent } from '@/types';
-import { useWorkspaceData } from '@/workspace-data';
+import { useMessageHistory, useWorkspaceData } from '@/workspace-data';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -164,7 +164,7 @@ export function WorkflowsPage() {
 }
 
 export function EnrollmentsPage() {
-  const { workspaceId, workflows, enrollments, error, loading } = useWorkspaceData(false);
+  const { workspaceId, workflows, enrollments, error, loading } = useWorkspaceData();
   const [searchParams, setSearchParams] = useSearchParams();
   const workflowId = searchParams.get('workflow') ?? 'all';
   const version = workflowId === 'all' ? 'all' : searchParams.get('version') ?? 'all';
@@ -458,9 +458,58 @@ export function WorkflowDetailPage() {
   );
 }
 
+export function MessagesPage() {
+  const { workspaceId } = useAuth();
+  const { messages, error, loading, refresh } = useMessageHistory(workspaceId, undefined, true);
+
+  return (
+    <PageFrame>
+      <div className="flex flex-col gap-6">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h1 className="text-4xl font-bold tracking-[-0.055em]">Messages</h1>
+            <p className="mt-2 text-sm text-muted-foreground">The latest 100 one-off emails in this workspace.</p>
+          </div>
+          {workspaceId && <Button type="button" variant="outline" disabled={loading} onClick={refresh}>Refresh</Button>}
+        </div>
+
+        {!workspaceId && <Alert><AlertDescription>No workspace available for this account.</AlertDescription></Alert>}
+        {workspaceId && loading && <p role="status" className="text-sm text-muted-foreground">Loading messages…</p>}
+        {workspaceId && error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
+        {workspaceId && !loading && !error && (messages.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No one-off emails yet.</p>
+        ) : (
+          <div className="rounded-xl border">
+            <Table className="min-w-[640px]">
+              <TableHeader><TableRow>
+                <TableHead>Subject</TableHead>
+                <TableHead>Recipient</TableHead>
+                <TableHead>Submission status</TableHead>
+                <TableHead>Queued</TableHead>
+              </TableRow></TableHeader>
+              <TableBody>{messages.map((message) => (
+                <TableRow key={message.id}>
+                  <TableCell className="max-w-72 truncate font-medium" title={message.subject}>{message.subject}</TableCell>
+                  <TableCell>{message.recipient}</TableCell>
+                  <TableCell>
+                    <StatusBadge value={message.state === 'prepared' ? 'queued' : message.state === 'abandoned' ? 'blocked' : message.state} />
+                    {message.errorCode && <div className="mt-1 text-xs text-muted-foreground">{message.errorCode.replaceAll('_', ' ')}</div>}
+                  </TableCell>
+                  <TableCell className="text-muted-foreground">{formatWhen(message.createdAt)}</TableCell>
+                </TableRow>
+              ))}</TableBody>
+            </Table>
+          </div>
+        ))}
+      </div>
+    </PageFrame>
+  );
+}
+
 export function EnrollmentDetailPage() {
   const { enrollmentId } = useParams();
-  const { workspaceId, enrollments, messages, error, loading, setEnrollments } = useWorkspaceData();
+  const { workspaceId, enrollments, error, loading, setEnrollments } = useWorkspaceData();
+  const { messages: enrollmentMessages, error: messageError, loading: messagesLoading } = useMessageHistory(workspaceId, enrollmentId);
   const enrollment = enrollments.find((row) => row.id === enrollmentId);
   const isDemoEnrollment = enrollment?.input.demo === true;
   const [busy, setBusy] = useState<string | null>(null);
@@ -481,11 +530,6 @@ export function EnrollmentDetailPage() {
     });
     return () => { cancelled = true; };
   }, [workspaceId]);
-
-  const enrollmentMessages = useMemo(
-    () => messages.filter((message) => message.enrollmentId === enrollmentId),
-    [messages, enrollmentId],
-  );
 
   const { items: trace, eventsSeen } = useMemo(() => {
     if (!enrollment) return { items: [], eventsSeen: [] };
@@ -702,6 +746,8 @@ export function EnrollmentDetailPage() {
                   What happened, in order, with timestamps.
                 </p>
               </div>
+              {messageError && <Alert variant="destructive"><AlertDescription>{messageError}</AlertDescription></Alert>}
+              {messagesLoading && <p role="status" className="text-sm text-muted-foreground">Loading message history…</p>}
               <ExecutionTimeline items={trace} />
             </section>
 
@@ -740,7 +786,7 @@ export function EnrollmentDetailPage() {
                 },
                 { label: 'Started', value: formatWhen(enrollment.createdAt) },
                 { label: 'Elapsed', value: formatElapsed(enrollment.createdAt) },
-                { label: 'Accepted sends', value: enrollmentMessages.filter((message) => message.state === 'accepted').length },
+                { label: 'Accepted sends', value: messageError || messagesLoading ? 'Unavailable' : enrollmentMessages.filter((message) => message.state === 'accepted').length },
               ]}
             />
             <Separator />

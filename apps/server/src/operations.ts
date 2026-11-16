@@ -3,7 +3,7 @@ import {
   accountCreateSchema, credentialCreateSchema, credentialListSchema, credentialRevokeSchema, contactUpsertSchema, enrollmentControlSchema, enrollmentCreateSchema,
   eventEmitSchema, eventTypeDefineSchema, workflowCreateSchema, workflowDeleteSchema, workflowPublishSchema, workflowReviseSchema, workflowSimulateSchema, workflowDefinitionSchema, templateCreateSchema,
   templateArchiveSchema, templatePublishSchema, templateReviseSchema, templateRenderSchema, workspaceIdSchema,
-  enrollmentDeleteSchema, messageSendSchema,
+  enrollmentDeleteSchema, messageListSchema, messageSendSchema,
   emailPolicyUpdateSchema, contactPreferenceGetSchema, contactUnsubscribeSchema, contactResubscribeSchema,
   type OperationContext,
 } from '@rachet/contracts';
@@ -220,8 +220,11 @@ export function createOperations(service: RachetService): Record<string, Operati
       invoke: (context, input) => service.messageSend(context, messageSendSchema.parse(input)),
     },
     'message.list': {
-      description: 'List message submission and delivery state.', input: workspaceOnly, readOnly: true,
-      invoke: (context, input) => service.messageList(context, workspaceIdSchema.parse(input.workspaceId)),
+      description: 'List message submission states. Pass enrollmentId to limit to an enrollment, or oneOff to list the 100 most recent one-off emails.', input: messageListSchema, readOnly: true,
+      invoke: (context, input) => {
+        const { workspaceId, ...filter } = messageListSchema.parse(input);
+        return service.messageList(context, workspaceId, filter);
+      },
     },
     'webhook_event.list': {
       description: 'List verified email provider events as a deployment administrator.', input: z.object({}), readOnly: true,

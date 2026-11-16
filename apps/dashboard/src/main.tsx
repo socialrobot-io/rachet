@@ -2,7 +2,7 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { ApiKeysPage, AppShell, AuthProvider, ConnectedAppsPage, ConsentPage, LoginPage, RequireAuth, useAuth } from '@/auth';
-import { EnrollmentDetailPage, EnrollmentsPage, WorkflowDetailPage, WorkflowsPage } from '@/pages';
+import { EnrollmentDetailPage, EnrollmentsPage, MessagesPage, WorkflowDetailPage, WorkflowsPage } from '@/pages';
 import { UsersPage } from '@/admin-users';
 import { SesIntegrationPage } from '@/ses-integration';
 import { IntegrationsPage, RequireResendOnboarding, ResendIntegrationPage } from '@/resend-integration';
@@ -42,6 +42,7 @@ createRoot(document.getElementById('root')!).render(
                   <Route path="/workflows" element={<WorkflowsPage />} />
                   <Route path="/workflows/:workflowId" element={<WorkflowDetailPage />} />
                   <Route path="/enrollments" element={<EnrollmentsPage />} />
+                  <Route path="/messages" element={<MessagesPage />} />
                   <Route path="/enrollments/:enrollmentId" element={<EnrollmentDetailPage />} />
                   <Route path="/settings/connected-apps" element={<ConnectedAppsPage />} />
                   <Route path="/settings/api-keys" element={<ApiKeysPage />} />

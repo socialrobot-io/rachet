@@ -59,6 +59,9 @@ describe.skipIf(!runtime)('one-off email (PostgreSQL and fake provider)', () => 
     await expect(boot.service.messageSend(sender, { ...input, body: 'Different body' })).rejects.toMatchObject({ code: 'IDEMPOTENCY_CONFLICT' });
     const jobs = await boot.db.select().from(outbox).where(and(eq(outbox.kind, 'message.send'), eq(outbox.aggregateId, id)));
     expect(jobs).toHaveLength(1);
+    const messageHistory = await boot.service.messageList(sender, workspaceId, { oneOff: true });
+    expect(messageHistory).toMatchObject([{ id, enrollmentId: null, subject: draft.subject }]);
+    await expect(boot.service.messageList(sender, workspaceId, { enrollmentId: crypto.randomUUID() })).resolves.toEqual([]);
     const records = await boot.db.select().from(auditEvents).where(eq(auditEvents.targetId, id));
     expect(records).toHaveLength(1);
 

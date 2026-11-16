@@ -132,6 +132,7 @@ export type Message = {
   subject: string;
   html: string;
   plainText: string;
+  errorCode: string | null;
   createdAt: string;
   acceptedAt: string | null;
 };

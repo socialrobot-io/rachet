@@ -35,6 +35,8 @@ Use `transactional` for necessary account or service messages and `marketing` fo
 rachet call message.send --input '{"workspaceId":"WORKSPACE_ID","to":"user@example.com","subject":"Support ticket update","body":"We have fixed the issue on your account.","purpose":"transactional","idempotencyKey":"ticket-123-resolution"}'
 ```
 
+Open **Messages** in the dashboard to see the latest 100 one-off emails and their submission status. Pass `oneOff: true` to `message.list` to get the same messages through MCP or CLI. Pass `enrollmentId` to list the messages for one enrollment.
+
 `prepared` means Rachet queued the message. Use `message_list` in MCP or `rachet call message.list` with the workspace ID to check submission. `accepted` means the email provider accepted the message. Reuse the key when retrying the same send. If you reuse it with different content, Rachet returns `IDEMPOTENCY_CONFLICT`.
 
 ## Workflow graph
