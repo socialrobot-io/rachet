@@ -155,6 +155,12 @@ export const messageSendSchema = z.strictObject({
   idempotencyKey: z.string().min(1).max(200).describe('A unique key for this message. Reuse it when retrying the same send.'),
 });
 export type MessageSendInput = z.infer<typeof messageSendSchema>;
+export const messageListSchema = z.object({
+  workspaceId: workspaceIdSchema,
+  enrollmentId: z.uuid().optional().describe('List email for one enrollment.'),
+  oneOff: z.literal(true).optional().describe('List the 100 most recent one-off emails, newest first.'),
+}).refine(({ enrollmentId, oneOff }) => !(enrollmentId && oneOff), 'Choose either an enrollment or one-off email.');
+export type MessageListInput = z.infer<typeof messageListSchema>;
 export const emailPolicyUpdateSchema = z.object({ workspaceId: workspaceIdSchema, senderName: z.string().trim().min(1).max(120), supportEmail: z.email(), marketingFromAddress: z.email() });
 export const contactPreferenceGetSchema = z.object({ workspaceId: workspaceIdSchema, email: z.email() });
 export const contactUnsubscribeSchema = z.object({ workspaceId: workspaceIdSchema, email: z.email(), eventId: z.string().min(1).max(200), source: z.enum(['support', 'product', 'import']) });

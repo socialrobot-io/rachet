@@ -125,7 +125,7 @@ For **split Coolify applications** (separate resources for API, worker, and disp
 | `ratchet-worker` | `worker` | None | Disabled (no image-level probe) |
 | `ratchet-dispatcher` | `dispatcher` | None | Disabled |
 
-Run database migrations on the API app only (`node dist/apps/server/db/migrate.js` as pre-deployment command). Deploy all three from the same commit on each release so the workflow bundle matches the API. Before sending from an existing workflow, review its email purpose (`transactional` or `marketing`) and republish it; versions published before this release have no recorded purpose review and their sends will pause until republished. Monitor worker and dispatcher through runtime logs and restart counts, Temporal backlog, and database volume backups.
+Run `node dist/apps/server/db/migrate.js` from the new API image before starting the new app, worker, and dispatcher. In Coolify, the pre-deployment command runs in the old container. If you use a post-deployment command on the API app to run migrations, check its output before you deploy the worker and dispatcher. Deploy all three from the same commit. [Coolify deployment commands](https://coolify.io/docs/applications/builds/dockerfile#deployment-commands) Before sending from an existing workflow, review its email purpose (`transactional` or `marketing`) and republish it; versions published before this release have no recorded purpose review and their sends will pause until republished. Monitor worker and dispatcher through runtime logs and restart counts, Temporal backlog, and database volume backups.
 
 ### Temporal schema troubleshooting
 

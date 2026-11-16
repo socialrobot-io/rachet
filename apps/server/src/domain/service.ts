@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { and, asc, eq, inArray, isNull, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
 import type { Client } from '@temporalio/client';
 import { WorkflowNotFoundError } from '@temporalio/common';
 import type { RachetAuth } from '../auth.js';
@@ -9,7 +9,7 @@ import {
   auditEvents, contacts, enrollmentEvents, enrollments, eventTypes, memberships, outbox, profiles, sendIntents,
   sequences, sequenceVersions, templates, templateVersions, webhookEvents, workspaces, emailPolicies, subscriptionEvents, unsubscribeTokens,
 } from '../db/schema.js';
-import type { EnrollmentCreateInput, MessageSendInput, OperationContext, Principal, SimulatedEvent, WorkflowDefinition } from '@rachet/contracts';
+import type { EnrollmentCreateInput, MessageListInput, MessageSendInput, OperationContext, Principal, SimulatedEvent, WorkflowDefinition } from '@rachet/contracts';
 import { validateActionNodes } from './action-catalog.js';
 import { simulateWorkflow } from './simulate.js';
 import { RachetError, isUniqueViolation } from './errors.js';
@@ -1143,9 +1143,16 @@ export class RachetService {
     });
   }
 
-  async messageList(context: OperationContext, workspaceId: string) {
+  async messageList(context: OperationContext, workspaceId: string, filter: Omit<MessageListInput, 'workspaceId'> = {}) {
     this.workspace(context, workspaceId);
-    const rows = await this.db.select().from(sendIntents).where(eq(sendIntents.workspaceId, workspaceId)).orderBy(asc(sendIntents.createdAt));
+    const query = this.db.select().from(sendIntents).where(and(
+      eq(sendIntents.workspaceId, workspaceId),
+      filter.enrollmentId ? eq(sendIntents.enrollmentId, filter.enrollmentId) : undefined,
+      filter.oneOff ? isNull(sendIntents.enrollmentId) : undefined,
+    ));
+    const rows = filter.oneOff
+      ? await query.orderBy(desc(sendIntents.createdAt), desc(sendIntents.id)).limit(100)
+      : await query.orderBy(asc(sendIntents.createdAt));
     const redact = (content: string) => content.replace(/https?:\/\/[^\s"'<>]+\/unsubscribe\/[A-Za-z0-9._-]+/g, 'https://example.invalid/unsubscribe-preview');
     return rows.map((row) => ({ ...row, html: redact(row.html), plainText: redact(row.plainText), headers: {} }));
   }

@@ -3,11 +3,10 @@ import { api, ApiError } from './api';
 import { useAuth } from './auth';
 import type { Enrollment, Message, Workflow } from './types';
 
-export function useWorkspaceData(withMessages = true) {
+export function useWorkspaceData() {
   const { workspaceId } = useAuth();
   const [workflows, setWorkflows] = useState<Workflow[]>([]);
   const [enrollments, setEnrollments] = useState<Enrollment[]>([]);
-  const [messages, setMessages] = useState<Message[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -15,7 +14,6 @@ export function useWorkspaceData(withMessages = true) {
     if (!workspaceId) {
       setWorkflows([]);
       setEnrollments([]);
-      setMessages([]);
       setLoading(false);
       return;
     }
@@ -25,13 +23,11 @@ export function useWorkspaceData(withMessages = true) {
     void Promise.all([
       api.workflows(workspaceId),
       api.enrollments(workspaceId),
-      withMessages ? api.messages(workspaceId) : Promise.resolve([]),
     ])
-      .then(([nextWorkflows, nextEnrollments, nextMessages]) => {
+      .then(([nextWorkflows, nextEnrollments]) => {
         if (cancelled) return;
         setWorkflows(nextWorkflows);
         setEnrollments(nextEnrollments);
-        setMessages(nextMessages);
       })
       .catch((err: unknown) => {
         if (cancelled) return;
@@ -43,7 +39,39 @@ export function useWorkspaceData(withMessages = true) {
     return () => {
       cancelled = true;
     };
-  }, [workspaceId, withMessages]);
+  }, [workspaceId]);
 
-  return { workspaceId, workflows, enrollments, messages, error, loading, setEnrollments };
+  return { workspaceId, workflows, enrollments, error, loading, setEnrollments };
+}
+
+export function useMessageHistory(workspaceId: string | null | undefined, enrollmentId: string | undefined, oneOff?: true) {
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [refreshCount, setRefreshCount] = useState(0);
+
+  useEffect(() => {
+    setMessages([]);
+    setError(null);
+    if (!workspaceId || (!oneOff && !enrollmentId)) {
+      setLoading(false);
+      return;
+    }
+    let cancelled = false;
+    setLoading(true);
+    const filter = enrollmentId ? { enrollmentId } : { oneOff: true as const };
+    void api.messages(workspaceId, filter)
+      .then((rows) => {
+        if (!cancelled) setMessages(rows);
+      })
+      .catch(() => {
+        if (!cancelled) setError('Could not load message history.');
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, [workspaceId, enrollmentId, oneOff, refreshCount]);
+
+  return { messages, error, loading, refresh: () => setRefreshCount((count) => count + 1) };
 }

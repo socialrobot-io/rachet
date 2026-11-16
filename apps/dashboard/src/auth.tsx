@@ -128,6 +128,7 @@ export function AppShell() {
             <nav aria-label="Primary navigation" className="hidden items-center gap-1 md:flex">
               <Link to="/" className="rounded-full px-3 py-1.5 text-sm font-medium hover:bg-accent">Workflows</Link>
               <Link to="/enrollments" className="rounded-full px-3 py-1.5 text-sm font-medium hover:bg-accent">Enrollments</Link>
+              <Link to="/messages" className="rounded-full px-3 py-1.5 text-sm font-medium hover:bg-accent">Messages</Link>
               <Link to="/settings/integrations" className="rounded-full px-3 py-1.5 text-sm font-medium hover:bg-accent">Integrations</Link>
               <Link to="/settings/connected-apps" className="rounded-full px-3 py-1.5 text-sm font-medium hover:bg-accent">Connected apps</Link>
               <Link to="/settings/api-keys" className="rounded-full px-3 py-1.5 text-sm font-medium hover:bg-accent">API keys</Link>
@@ -160,6 +161,7 @@ export function AppShell() {
           <nav aria-label="Mobile navigation" className="flex w-full items-center gap-1 overflow-x-auto pb-1 md:hidden">
             <Link to="/" className="shrink-0 rounded-full px-3 py-1.5 text-sm font-medium hover:bg-accent">Workflows</Link>
             <Link to="/enrollments" className="shrink-0 rounded-full px-3 py-1.5 text-sm font-medium hover:bg-accent">Enrollments</Link>
+            <Link to="/messages" className="shrink-0 rounded-full px-3 py-1.5 text-sm font-medium hover:bg-accent">Messages</Link>
             <Link to="/settings/integrations" className="shrink-0 rounded-full px-3 py-1.5 text-sm font-medium hover:bg-accent">Integrations</Link>
             <Link to="/settings/connected-apps" className="shrink-0 rounded-full px-3 py-1.5 text-sm font-medium hover:bg-accent">Apps</Link>
             <Link to="/settings/api-keys" className="shrink-0 rounded-full px-3 py-1.5 text-sm font-medium hover:bg-accent">API keys</Link>

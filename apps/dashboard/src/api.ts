@@ -209,7 +209,8 @@ export const api = {
   updateEmailPolicy: (workspaceId: string, senderName: string, supportEmail: string, marketingFromAddress: string) =>
     callOperation<EmailPolicy>('email_policy.update', { workspaceId, senderName, supportEmail, marketingFromAddress }),
   enrollments: (workspaceId: string) => callOperation<Enrollment[]>('enrollment.list', { workspaceId }),
-  messages: (workspaceId: string) => callOperation<Message[]>('message.list', { workspaceId }),
+  messages: (workspaceId: string, filter: { enrollmentId?: string; oneOff?: true }) =>
+    callOperation<Message[]>('message.list', { workspaceId, ...filter }),
   subscriptionEvents: (workspaceId: string) => callOperation<SubscriptionEvent[]>('subscription_event.list', { workspaceId }),
   pause: (workspaceId: string, enrollmentId: string) =>
     callOperation('enrollment.pause', { workspaceId, enrollmentId }),

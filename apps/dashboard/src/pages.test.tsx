@@ -1,12 +1,12 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { EnrollmentDetailPage, EnrollmentsPage, WorkflowDetailPage, WorkflowsPage } from './pages';
-import { useWorkspaceData } from './workspace-data';
+import { EnrollmentDetailPage, EnrollmentsPage, MessagesPage, WorkflowDetailPage, WorkflowsPage } from './pages';
+import { useMessageHistory, useWorkspaceData } from './workspace-data';
 import type { Enrollment, Workflow, WorkflowDefinition } from './types';
 
-vi.mock('./workspace-data', () => ({ useWorkspaceData: vi.fn() }));
-vi.mock('./auth', () => ({ useAuth: () => ({ workspaces: [{ id: 'workspace', name: 'Test workspace' }] }) }));
+vi.mock('./workspace-data', () => ({ useWorkspaceData: vi.fn(), useMessageHistory: vi.fn() }));
+vi.mock('./auth', () => ({ useAuth: () => ({ workspaceId: 'workspace', workspaces: [{ id: 'workspace', name: 'Test workspace' }] }) }));
 
 const graph = (description: string, purpose = 'transactional'): WorkflowDefinition => ({
   schemaVersion: '1', description, purpose, trigger: { type: 'manual' }, entryNodeId: 'wait',
@@ -31,6 +31,7 @@ const enrollments: Enrollment[] = [1, 2].map((version) => ({
 function render(path: string) {
   return renderToStaticMarkup(<MemoryRouter initialEntries={[path]}><Routes>
     <Route path="/workflows" element={<WorkflowsPage />} />
+    <Route path="/messages" element={<MessagesPage />} />
     <Route path="/workflows/:workflowId" element={<WorkflowDetailPage />} />
     <Route path="/enrollments" element={<EnrollmentsPage />} />
     <Route path="/enrollments/:enrollmentId" element={<EnrollmentDetailPage />} />
@@ -38,8 +39,9 @@ function render(path: string) {
 }
 
 beforeEach(() => {
+  vi.mocked(useMessageHistory).mockReturnValue({ messages: [], error: null, loading: false, refresh: vi.fn() });
   vi.mocked(useWorkspaceData).mockReturnValue({
-    workspaceId: 'workspace', workflows: [workflow], enrollments, messages: [], error: null, loading: false, setEnrollments: vi.fn(),
+    workspaceId: 'workspace', workflows: [workflow], enrollments, error: null, loading: false, setEnrollments: vi.fn(),
   });
 });
 
@@ -88,6 +90,13 @@ describe('version visibility in the dashboard', () => {
     expect(detail).toContain('/workflows/welcome?version=1');
   });
 
+  it('keeps the enrollment detail visible when message history fails', () => {
+    vi.mocked(useMessageHistory).mockReturnValue({ messages: [], error: 'Could not load message history.', loading: false, refresh: vi.fn() });
+    const detail = render('/enrollments/enrollment-1');
+    expect(detail).toContain('person-v1@example.com');
+    expect(detail).toContain('Could not load message history.');
+  });
+
   it('scopes the enrollment list and totals to the version in the link', () => {
     const html = render('/enrollments?workflow=welcome&version=1');
     expect(html).toContain('person-v1@example.com');
@@ -95,4 +104,20 @@ describe('version visibility in the dashboard', () => {
     expect(html).toContain('1 contact');
     expect(html).toContain('Showing 1');
   });
+});
+
+it('shows queued one-off email in Messages', () => {
+  vi.mocked(useMessageHistory).mockReturnValue({
+    messages: [{
+      id: 'message', workspaceId: 'workspace', enrollmentId: null, stepId: 'send',
+      recipient: 'person@example.com', subject: 'Account update', state: 'prepared',
+      html: '', plainText: '', errorCode: null, createdAt: '2026-10-01', acceptedAt: null,
+    }],
+    error: null, loading: false, refresh: vi.fn(),
+  });
+  const html = render('/messages');
+  expect(html).toContain('Account update');
+  expect(html).toContain('person@example.com');
+  expect(html).toContain('>queued<');
+  expect(useMessageHistory).toHaveBeenCalledWith('workspace', undefined, true);
 });
