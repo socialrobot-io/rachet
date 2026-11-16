@@ -3,7 +3,7 @@ import { Link, Navigate, Outlet, useNavigate, useSearchParams } from 'react-rout
 import { Check, Copy } from 'lucide-react';
 import { api, ApiError } from '@/api';
 import { useAuth } from '@/auth';
-import type { EmailPolicy, ResendConnectionStatus } from '@/types';
+import type { EmailPolicy, ResendConnectionStatus, SesConnectionStatus } from '@/types';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -44,6 +44,7 @@ export function IntegrationsPage({ onboarding = false }: { onboarding?: boolean 
   const oauthQuery = searchParams.get('oauth_query');
   const suffix = oauthQuery ? `?oauth_query=${encodeURIComponent(oauthQuery)}` : '';
   const [status, setStatus] = useState<ResendConnectionStatus | null>(null);
+  const [ses, setSes] = useState<SesConnectionStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const role = workspaces.find((workspace) => workspace.id === workspaceId)?.role;
@@ -52,9 +53,10 @@ export function IntegrationsPage({ onboarding = false }: { onboarding?: boolean 
   useEffect(() => {
     if (!workspaceId) return;
     let active = true;
-    void api.resendConnection(workspaceId).then((next) => {
+    void Promise.all([api.resendConnection(workspaceId), api.sesConnection(workspaceId)]).then(([next, nextSes]) => {
       if (!active) return;
       setStatus(next);
+      setSes(nextSes);
     })
       .catch((reason: unknown) => { if (active) setError(reason instanceof Error ? reason.message : 'Could not load integrations'); });
     return () => { active = false; };
@@ -82,13 +84,13 @@ export function IntegrationsPage({ onboarding = false }: { onboarding?: boolean 
     {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
       <Card><CardHeader><CardTitle>Email</CardTitle><CardDescription>Send workflow emails through a provider you connect.</CardDescription></CardHeader><CardContent className="flex flex-col gap-3">
-        <p className="text-xs font-medium text-muted-foreground">AVAILABLE PROVIDER</p>
-        <Button asChild variant="outline" className="justify-between"><Link to={`${onboarding ? '/onboarding/integrations/resend' : '/settings/integrations/resend'}${suffix}`}><span>Resend</span><span className="text-xs text-muted-foreground">{status?.lastTestAcceptedAt ? 'Connected' : status?.configured ? 'Test required' : 'Connect'}</span></Link></Button>
+        <Button asChild variant="outline" className="justify-between"><Link to={`${onboarding ? '/onboarding/integrations/resend' : '/settings/integrations/resend'}${suffix}`}><span>Resend</span><span className="text-xs text-muted-foreground">{status?.lastTestAcceptedAt ? status.active ? 'Active' : 'Tested' : status?.configured ? 'Test required' : 'Connect'}</span></Link></Button>
+        <Button asChild variant="outline" className="justify-between"><Link to={`${onboarding ? '/onboarding/integrations/ses' : '/settings/integrations/ses'}${suffix}`}><span>Amazon SES</span><span className="text-xs text-muted-foreground">{ses?.connection?.lastTestAcceptedAt ? ses.active ? 'Active' : 'Tested' : ses?.connection ? 'Setup required' : 'Connect'}</span></Link></Button>
       </CardContent></Card>
       <Card className="opacity-70"><CardHeader><CardTitle>Webhooks</CardTitle><CardDescription>Send workflow events to external endpoints.</CardDescription></CardHeader><CardContent><p className="text-sm font-medium text-muted-foreground">Coming soon</p></CardContent></Card>
       <Card className="opacity-70"><CardHeader><CardTitle>Push</CardTitle><CardDescription>Send push notifications from workflows.</CardDescription></CardHeader><CardContent><p className="text-sm font-medium text-muted-foreground">Coming soon</p></CardContent></Card>
     </div>
-    {onboarding && canManage && <div className="flex items-center justify-between gap-4"><p className="text-sm text-muted-foreground">You can explore and simulate workflows without connecting Resend. Email sending stays disabled until a connection test is accepted.</p><Button type="button" variant="outline" disabled={saving} onClick={() => { void skip(); }}>{saving ? 'Continuing…' : 'Skip for now'}</Button></div>}
+    {onboarding && canManage && <div className="flex items-center justify-between gap-4"><p className="text-sm text-muted-foreground">You can explore and simulate workflows without connecting an email provider. Email sending stays disabled until a connection test is accepted.</p><Button type="button" variant="outline" disabled={saving} onClick={() => { void skip(); }}>{saving ? 'Continuing…' : 'Skip for now'}</Button></div>}
     <div id="mcp-setup"><DeveloperSetup /></div>
   </main>;
 }
@@ -177,9 +179,9 @@ export function ResendIntegrationPage({ onboarding = false }: { onboarding?: boo
         const [nextStatus, nextPolicy] = await Promise.all([api.resendConnection(workspaceId), api.emailPolicy(workspaceId)]);
         setStatus(nextStatus);
         setPolicy(nextPolicy);
-        setFeedback({ action: 'save', kind: 'success', message: result.connectionChanged || !nextStatus.lastTestAcceptedAt
-          ? 'Email settings saved. Send a test email to enable workflow sending.'
-          : 'Email settings saved. Your tested connection remains active.' });
+        setFeedback({ action: 'save', kind: 'success', message: result.connectionChanged || !nextStatus.lastTestAcceptedAt || !nextStatus.active
+          ? 'Email settings saved. Send a test email to use Resend for workflow sending.'
+          : 'Email settings saved.' });
       } catch {
         setFeedback({ action: 'save', kind: 'success', message: 'Email settings were saved, but the status could not be refreshed. Reload this page before sending.' });
       }
@@ -241,7 +243,7 @@ export function ResendIntegrationPage({ onboarding = false }: { onboarding?: boo
       {status?.configured && <Alert><AlertDescription>Configured with sender {status.from}. {status.lastTestAcceptedAt ? 'A test send was accepted.' : 'Workflow sending is disabled until a test send is accepted.'} Leave both secrets blank to keep this connection.</AlertDescription></Alert>}
       {status?.lastTestAcceptedAt && <Alert><AlertDescription>Resend accepted a connection test on {new Date(status.lastTestAcceptedAt).toLocaleString()}. Check your inbox or Resend delivery logs to confirm delivery.</AlertDescription></Alert>}
       {status?.configured && canManage && <div className="flex flex-col gap-3">
-        <Button type="button" variant="outline" disabled={saving} onClick={() => { void test(); }}>Send a test email to {user?.email}</Button>
+        <Button type="button" variant="outline" disabled={saving} onClick={() => { void test(); }}>{status.active ? `Send a test email to ${user?.email ?? 'your inbox'}` : `Send a test email and switch to Resend`}</Button>
         {feedback?.action === 'test' && <Alert variant={feedback.kind === 'error' ? 'destructive' : 'default'} role={feedback.kind === 'error' ? 'alert' : 'status'}><AlertDescription>{feedback.message}</AlertDescription></Alert>}
         {onboarding && testAccepted && <Button type="button" onClick={() => navigate(completionTarget, { replace: true })}>Continue to dashboard</Button>}
       </div>}

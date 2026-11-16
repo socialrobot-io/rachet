@@ -330,7 +330,7 @@ export function WorkflowDetailPage() {
         note: definition?.purpose === 'marketing'
           ? 'Sample data. The unsubscribe footer appears after the workspace email policy is set. Preview links cannot change a preference.'
           : 'Template preview with sample data. Enrollments render with real contact data.',
-        ...(definition?.purpose === 'marketing' ? { settingsHref: '/settings/integrations/resend' } : {}),
+        ...(definition?.purpose === 'marketing' ? { settingsHref: '/settings/integrations' } : {}),
       });
     } catch (err) {
       if (request !== previewRequest.current) return;
@@ -547,7 +547,7 @@ export function EnrollmentDetailPage() {
         html: rendered.html,
         recipient: enrollment.contactEmail,
         note: 'Not sent yet. Preview rendered with this contact\u2019s data.',
-        ...(enrollment.definition.purpose === 'marketing' ? { settingsHref: '/settings/integrations/resend' } : {}),
+        ...(enrollment.definition.purpose === 'marketing' ? { settingsHref: '/settings/integrations' } : {}),
       });
     } catch (err) {
       setPreview({
@@ -715,7 +715,10 @@ export function EnrollmentDetailPage() {
                 <div key={event.id} className="rounded-md border p-3 text-sm">
                   <p className="font-medium">{event.action === 'unsubscribe' ? 'Unsubscribed' : 'Consented'} · {formatWhen(event.createdAt)}</p>
                   {event.origin ? (
-                    <p className="text-muted-foreground">From “{event.origin.subject}” in {event.origin.workflowName} (step {event.origin.stepId}).</p>
+                    <p className="text-muted-foreground">
+                      From “{event.origin.subject}”
+                      {'workflowName' in event.origin ? ` in ${event.origin.workflowName} (step ${event.origin.stepId}).` : ' (one-off email).'}
+                    </p>
                   ) : (
                     <p className="text-muted-foreground">Recorded through {event.source}.</p>
                   )}

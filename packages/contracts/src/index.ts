@@ -146,6 +146,15 @@ export const workflowSimulateSchema = z.object({ workspaceId: workspaceIdSchema,
  * them all.
  */
 export const contactUpsertSchema = z.object({ workspaceId: workspaceIdSchema, externalId: z.string().min(1).max(200).optional(), email: z.email(), timezone: timeZoneSchema.optional(), fields: z.record(z.string(), z.unknown()).optional() });
+export const messageSendSchema = z.strictObject({
+  workspaceId: workspaceIdSchema,
+  to: z.email().max(254).describe('One recipient email address.'),
+  subject: z.string().trim().min(1).max(200).refine((subject) => !/[\r\n]/.test(subject) && !subject.includes('\0'), 'Use a single-line subject.'),
+  body: z.string().min(1).max(50_000).refine((body) => body.trim().length > 0 && !body.includes('\0'), 'Enter a plain-text body.').describe('The plain-text email body.'),
+  purpose: z.enum(['transactional', 'marketing']).describe('Use transactional for necessary account or service mail. Use marketing for promotional mail.'),
+  idempotencyKey: z.string().min(1).max(200).describe('A unique key for this message. Reuse it when retrying the same send.'),
+});
+export type MessageSendInput = z.infer<typeof messageSendSchema>;
 export const emailPolicyUpdateSchema = z.object({ workspaceId: workspaceIdSchema, senderName: z.string().trim().min(1).max(120), supportEmail: z.email(), marketingFromAddress: z.email() });
 export const contactPreferenceGetSchema = z.object({ workspaceId: workspaceIdSchema, email: z.email() });
 export const contactUnsubscribeSchema = z.object({ workspaceId: workspaceIdSchema, email: z.email(), eventId: z.string().min(1).max(200), source: z.enum(['support', 'product', 'import']) });

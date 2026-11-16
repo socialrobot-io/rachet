@@ -1,10 +1,11 @@
 import { and, eq, isNull, lt, or, sql } from 'drizzle-orm';
+import { WorkflowExecutionAlreadyStartedError } from '@temporalio/client';
 import { loadConfig } from './config.js';
 import { createDatabase } from './db/index.js';
 import { enrollmentEvents, enrollments, outbox, sequenceVersions } from './db/schema.js';
 import { workflowDefinitionSchema } from '@rachet/contracts';
 import { createTemporalClient } from './temporal/client.js';
-import { enrollmentWorkflow } from './temporal/workflows.js';
+import { enrollmentWorkflow, standaloneEmailWorkflow } from './temporal/workflows.js';
 import { enrollmentEvent, unsubscribeEnrollment } from './temporal/shared.js';
 
 const config = loadConfig();
@@ -34,7 +35,19 @@ while (!stopping) {
   const [claimed] = await db.update(outbox).set({ claimedUntil, attempts: job.attempts + 1 }).where(and(eq(outbox.id, job.id), eq(outbox.attempts, job.attempts))).returning();
   if (!claimed) continue;
   try {
-    if (job.kind === 'enrollment.start') {
+    if (job.kind === 'message.send') {
+      try {
+        await temporal.workflow.start(standaloneEmailWorkflow, {
+          workflowId: `message/${job.aggregateId}`,
+          taskQueue: config.temporalTaskQueue,
+          args: [job.aggregateId],
+          workflowIdConflictPolicy: 'USE_EXISTING',
+          workflowIdReusePolicy: 'REJECT_DUPLICATE',
+        });
+      } catch (error) {
+        if (!(error instanceof WorkflowExecutionAlreadyStartedError)) throw error;
+      }
+    } else if (job.kind === 'enrollment.start') {
       const [row] = await db.select({ enrollment: enrollments, sequence: sequenceVersions }).from(enrollments)
         .innerJoin(sequenceVersions, eq(sequenceVersions.id, enrollments.sequenceVersionId))
         .where(eq(enrollments.id, job.aggregateId)).limit(1);

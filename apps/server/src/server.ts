@@ -12,7 +12,7 @@ const config = loadConfig();
 const { db, pool } = createDatabase(config);
 const auth = createAuth(config, pool);
 const temporal = await createTemporalClient(config);
-const service = new RachetService(db, temporal, auth);
+const service = new RachetService(db, temporal, auth, config);
 const welcomeWorkspaceId = config.welcomeWorkspaceId;
 if (config.welcomeApiKey && welcomeWorkspaceId) {
   const sdk = new RachetSdk({

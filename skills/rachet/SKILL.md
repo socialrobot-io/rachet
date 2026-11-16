@@ -1,6 +1,6 @@
 ---
 name: rachet
-description: Authors and operates Rachet workflows through MCP, including templates, validation, simulation, publishing, and enrollment. Use when the user wants a welcome sequence, email workflow, or other durable journey created or changed in Rachet.
+description: Sends one-off email and operates Rachet workflows through MCP, including templates, validation, simulation, publishing, and enrollment.
 ---
 
 # Rachet
@@ -8,6 +8,12 @@ description: Authors and operates Rachet workflows through MCP, including templa
 Use MCP. Do not use the CLI. Keep each email as a React Email component in the project that owns the journey. Do not put those files in a sample folder. Do not search the project for sample workflows unless the user asked for a sample.
 
 Do all Rachet MCP yourself in this turn. Never spawn subagents for template create/revise/publish, event definitions, validate/simulate, or workflow create/delete. Parallelize independent tool calls in one turn.
+
+## Send one email
+
+Use `message_send` when the user asks to send one email. Call `auth_whoami` for the workspace. Use the recipient address, subject, and plain-text body the user authorized. Use `transactional` for necessary account or service mail and `marketing` for promotional mail. Ask for missing details only when you need them to send.
+
+Use a unique `idempotencyKey` for each new message. Reuse it on retries of that message. If the returned state is `prepared`, tell the user the email is queued. Call `message_list` to check whether the email provider accepted it. Use the workflow steps below for journeys.
 
 ## Steps
 

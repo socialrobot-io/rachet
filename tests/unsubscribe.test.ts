@@ -218,7 +218,7 @@ describe.skipIf(!runtime)('marketing unsubscribe (postgres + fake provider)', ()
     const entered = new Promise<void>((resolve) => { enteredSignal = resolve; });
     const release = new Promise<void>((resolve) => { releaseSignal = resolve; });
     const temporal = { workflow: { getHandle: () => ({ signal: async () => { enteredSignal?.(); await release; } }) } } as unknown as Client;
-    const controller = new RachetService(boot.db, temporal, {} as RachetAuth);
+    const controller = new RachetService(boot.db, temporal, {} as RachetAuth, config);
     const resuming = controller.enrollmentControl(admin, { workspaceId, enrollmentId: enrollment.id }, 'resume');
     await entered;
     await boot.service.contactUnsubscribe(admin, { workspaceId, email: address, eventId: `stop:${crypto.randomUUID()}`, source: 'support' });
@@ -238,7 +238,7 @@ describe.skipIf(!runtime)('marketing unsubscribe (postgres + fake provider)', ()
     const temporal = { workflow: { getHandle: () => ({ signal: async () => {
       await boot.db.update(enrollments).set({ state: targetState }).where(eq(enrollments.id, enrollment.id));
     } }) } } as unknown as Client;
-    const controller = new RachetService(boot.db, temporal, {} as RachetAuth);
+    const controller = new RachetService(boot.db, temporal, {} as RachetAuth, config);
     await expect(controller.enrollmentControl(admin, { workspaceId, enrollmentId: enrollment.id }, action)).resolves.toMatchObject({ status: 'requested' });
     const [current] = await boot.db.select({ state: enrollments.state }).from(enrollments).where(eq(enrollments.id, enrollment.id));
     expect(current?.state).toBe(targetState);

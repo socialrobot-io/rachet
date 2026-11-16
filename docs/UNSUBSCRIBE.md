@@ -6,7 +6,7 @@ Rachet adds an unsubscribe link and mailbox one-click headers to each marketing 
 
 1. Set `UNSUBSCRIBE_SIGNING_KEYS` to a base64-encoded 32-byte key on the server and worker. `pnpm dev` creates one in `.env.local`. Back it up. During rotation, put the new key first and keep prior keys after commas while old links must work.
 2. Set `UNSUBSCRIBE_SUPPORT_EMAIL` on the server. Recipients see this address when a link is invalid or revoked.
-3. As an organization owner or admin, open **Integrations → Email → Resend** and select **Set up marketing email**. Enter the sender name, support email, and a verified marketing From address that differs from the transactional sender. Recipients see the sender name on the message. Save these with the connection settings. The page shows the plain-text footer in an example email. You can also use `email_policy.update` through CLI or MCP:
+3. As an organization owner or admin, open the active provider in **Integrations → Email** and find the marketing email settings. Enter the sender name, support email, and a verified marketing From address that differs from the transactional sender. Recipients see the sender name on the message. Save the marketing settings. You can also use `email_policy.update` through CLI or MCP:
 
    ```sh
    rachet call email_policy.update --input '{"workspaceId":"WORKSPACE_ID","senderName":"Acme","supportEmail":"support@acme.example","marketingFromAddress":"news@acme.example"}'
@@ -43,7 +43,7 @@ rachet call contact.unsubscribe --input '{"workspaceId":"WORKSPACE_ID","email":"
 
 Use `contact.preferences.get` to inspect marketing and delivery eligibility. Use `subscription_event.list` to synchronize preference changes with a product system.
 
-For a link or mailbox unsubscribe, each event includes `origin` with the exact send ID, enrollment ID, workflow ID and version, workflow name, email step, template version, and subject. Rachet saves these details when it prepares the email, so the event keeps them if the enrollment or workflow is later deleted. Support and product changes have `origin: null`. Open an enrollment to see marketing preference history for that address. The opt-out still applies to all marketing in the workspace.
+For a link or mailbox unsubscribe, `origin` records the send ID and subject. For a workflow email, it also records the enrollment, workflow version, step, and template version. Rachet saves these details when it prepares the email, so the event keeps them if the enrollment or workflow is later deleted. Support and product changes have `origin: null`. Open an enrollment to see marketing preference history for that address. The opt-out applies to all marketing in the workspace.
 
 Each new support or product request needs a new `eventId`. A repeated request while the address is already opted out records the request but leaves the opt-out in place. Retry the same request with its original `eventId`; it cannot reverse a later resubscription.
 

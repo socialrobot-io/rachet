@@ -6,6 +6,14 @@ import { cancelEnrollment, enrollmentEvent, enrollmentStatus, pauseEnrollment, r
 const activity = proxyActivities<typeof activities>({ startToCloseTimeout: '30 seconds', scheduleToCloseTimeout: '23 hours', retry: { initialInterval: '2 seconds', backoffCoefficient: 2, maximumInterval: '5 minutes', maximumAttempts: 12, nonRetryableErrorTypes: ['ValidationError', 'SuppressedError', 'SendOutcomeUnknown'] } });
 export type EnrollmentWorkflowInput = { workspaceId: string; enrollmentId: string; definition: WorkflowDefinition };
 
+export async function standaloneEmailWorkflow(intentId: string): Promise<void> {
+  try {
+    await activity.deliverStandaloneEmail(intentId);
+  } catch {
+    await activity.finishStandaloneEmail(intentId, 'delivery_attempts_exhausted');
+  }
+}
+
 export async function enrollmentWorkflow(input: EnrollmentWorkflowInput): Promise<string> {
   const nodes = new Map(input.definition.nodes.map((node) => [node.id, node]));
   const events = new Map<string, { eventId: string; data: Record<string, unknown> }>();

@@ -24,6 +24,17 @@ export async function rotateIntegrationKey(pool: Pool, oldKey: string, newKey: s
       ? 'SELECT workspace_id, api_key_encrypted, webhook_secret_encrypted FROM resend_connections WHERE workspace_id = ANY($1::uuid[]) FOR UPDATE'
       : 'SELECT workspace_id, api_key_encrypted, webhook_secret_encrypted FROM resend_connections FOR UPDATE',
     workspaceIds ? [workspaceIds] : []);
+    const ses = await client.query<{ workspace_id: string; credentials_encrypted: string }>(workspaceIds
+      ? 'SELECT workspace_id, credentials_encrypted FROM ses_connections WHERE workspace_id = ANY($1::uuid[]) FOR UPDATE'
+      : 'SELECT workspace_id, credentials_encrypted FROM ses_connections FOR UPDATE',
+    workspaceIds ? [workspaceIds] : []);
+    const sesUpdates = ses.rows.map((row) => {
+      const credentials = decryptIntegrationSecret(oldConfig, row.workspace_id, 'ses-credentials', row.credentials_encrypted);
+      return {
+        workspaceId: row.workspace_id,
+        credentialsEncrypted: encryptIntegrationSecret(newConfig, row.workspace_id, 'ses-credentials', credentials),
+      };
+    });
     const updates = result.rows.map((row) => {
       const apiKey = decryptIntegrationSecret(oldConfig, row.workspace_id, 'resend-api-key', row.api_key_encrypted);
       const webhookSecret = decryptIntegrationSecret(oldConfig, row.workspace_id, 'resend-webhook-secret', row.webhook_secret_encrypted);
@@ -41,11 +52,15 @@ export async function rotateIntegrationKey(pool: Pool, oldKey: string, newKey: s
           webhook_secret_encrypted = $4, webhook_secret_fingerprint = $5, updated_at = now()
           WHERE workspace_id = $1`, [row.workspaceId, row.apiKeyEncrypted, row.apiKeyFingerprint, row.webhookSecretEncrypted, row.webhookSecretFingerprint]);
       }
+      for (const row of sesUpdates) {
+        await client.query('UPDATE ses_connections SET credentials_encrypted = $2, updated_at = now() WHERE workspace_id = $1',
+          [row.workspaceId, row.credentialsEncrypted]);
+      }
       await client.query('COMMIT');
     } else {
       await client.query('ROLLBACK');
     }
-    return updates.length;
+    return new Set([...updates, ...sesUpdates].map(({ workspaceId }) => workspaceId)).size;
   } catch (error) {
     await client.query('ROLLBACK').catch(() => undefined);
     throw error;

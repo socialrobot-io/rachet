@@ -10,12 +10,14 @@ import { emailPolicyUpdateSchema } from '@rachet/contracts';
 import type { Config } from './config.js';
 import type { RachetAuth } from './auth.js';
 import type { Database } from './db/index.js';
-import { auditEvents, deliveryBlocks, emailPolicies, marketingOptOuts, resendConnections, sendIntents, suppressions, unsubscribeTokens, webhookEvents, workspaces } from './db/schema.js';
+import { auditEvents, deliveryBlocks, emailPolicies, marketingOptOuts, resendConnections, sesConnections, sendIntents, suppressions, unsubscribeTokens, webhookEvents, workspaces } from './db/schema.js';
 import type { RachetService } from './domain/service.js';
 import { RachetError, errorPayload } from './domain/errors.js';
 import { createMcpServer } from './mcp.js';
 import { authorizeOperation, type Operation } from './operations.js';
 import { ResendProvider } from './providers/resend.js';
+import { sesProvider } from './integrations/email-sender.js';
+import { confirmSns, readSesEvent, recordSesEvent, snsEnvelope, snsTopicPattern, verifySns } from './integrations/ses-feedback.js';
 import { decryptIntegrationSecret, encryptIntegrationSecret, fingerprintIntegrationSecret } from './integrations/secret.js';
 import { authorizeRegistrationIntent, registrationIntentSchema, registrationStatus } from './registration.js';
 import { consumeRateLimit } from './security/rate-limit.js';
@@ -173,11 +175,12 @@ export function createApp(dependencies: Dependencies) {
       await integrationMember(context.req.raw, workspaceId, false);
       const [connection] = await db.select({ fromAddress: resendConnections.fromAddress, updatedAt: resendConnections.updatedAt, lastTestAcceptedAt: resendConnections.lastTestAcceptedAt })
         .from(resendConnections).where(eq(resendConnections.workspaceId, workspaceId)).limit(1);
-      const [workspace] = await db.select({ onboardingCompletedAt: workspaces.onboardingCompletedAt })
+      const [workspace] = await db.select({ onboardingCompletedAt: workspaces.onboardingCompletedAt, provider: workspaces.emailProvider })
         .from(workspaces).where(eq(workspaces.id, workspaceId)).limit(1);
       context.header('Cache-Control', 'no-store');
       return context.json({
         configured: !!connection,
+        active: workspace?.provider === 'resend',
         from: connection?.fromAddress ?? null,
         updatedAt: connection?.updatedAt ?? null,
         lastTestAcceptedAt: connection?.lastTestAcceptedAt ?? null,
@@ -222,7 +225,7 @@ export function createApp(dependencies: Dependencies) {
             version: sql`${resendConnections.version} + 1`, lastTestAcceptedAt: null, updatedAt: new Date(),
           } });
           await transaction.update(workspaces).set({ sendingEnabled: false, updatedAt: new Date() })
-            .where(eq(workspaces.id, input.workspaceId));
+            .where(and(eq(workspaces.id, input.workspaceId), eq(workspaces.emailProvider, 'resend')));
         }
         if (input.senderName && input.supportEmail && input.marketingFromAddress) {
           await transaction.insert(emailPolicies).values({
@@ -278,12 +281,144 @@ export function createApp(dependencies: Dependencies) {
       }, `connection-test/${crypto.randomUUID()}`);
       if (outcome.kind !== 'accepted') return context.json({ code: outcome.code, message: 'Resend did not accept the test email' }, 502);
       await db.transaction(async (transaction) => {
+        await transaction.select({ id: workspaces.id }).from(workspaces).where(eq(workspaces.id, workspaceId)).for('update').limit(1);
+        const [policy] = await transaction.select().from(emailPolicies).where(eq(emailPolicies.workspaceId, workspaceId)).limit(1);
+        if (policy?.marketingFromAddress && mailboxAddress(policy.marketingFromAddress) === mailboxAddress(connection.fromAddress)) {
+          throw new RachetError('VALIDATION_FAILED', 'Marketing and transactional sender addresses must differ', 422);
+        }
         const [tested] = await transaction.update(resendConnections).set({ lastTestAcceptedAt: new Date() })
           .where(and(eq(resendConnections.workspaceId, workspaceId), eq(resendConnections.version, connection.version)))
           .returning({ workspaceId: resendConnections.workspaceId });
         if (!tested) throw new RachetError('CONNECTION_CHANGED', 'Connection changed during the test; test it again', 409);
-        await transaction.update(workspaces).set({ onboardingCompletedAt: new Date(), sendingEnabled: true, updatedAt: new Date() })
+        await transaction.update(workspaces).set({ onboardingCompletedAt: new Date(), sendingEnabled: true, emailProvider: 'resend', updatedAt: new Date() })
           .where(eq(workspaces.id, workspaceId));
+      });
+      return context.json({ accepted: true });
+    } catch (error) {
+      const { status, body } = integrationError(error);
+      return context.json(body, status as 400);
+    }
+  });
+
+  const sesInput = z.object({
+    workspaceId: workspaceIdInput,
+    from: senderInput.refine((value) => !/[\r\n\0]/.test(value), 'Enter a single From address'),
+    region: z.string().trim().regex(/^[a-z]{2}(?:-[a-z]+)+-\d$/, 'Enter an AWS Region such as eu-west-1'),
+    configurationSet: z.string().trim().regex(/^[A-Za-z0-9_-]{1,64}$/, 'Enter the SES configuration set name'),
+    topicArn: z.string().trim().regex(snsTopicPattern, 'Enter a standard SNS topic ARN'),
+    accessKeyId: z.string().trim().regex(/^AKIA[A-Z0-9]{16}$/, 'Enter an IAM access key ID').optional(),
+    secretAccessKey: z.string().trim().regex(/^[A-Za-z0-9/+=]{40}$/, 'Enter an IAM secret access key').optional(),
+  }).superRefine((input, issue) => {
+    if (snsTopicPattern.exec(input.topicArn)?.[1] !== input.region) {
+      issue.addIssue({ code: 'custom', path: ['topicArn'], message: 'Use an SNS topic in the SES Region' });
+    }
+    if (Boolean(input.accessKeyId) !== Boolean(input.secretAccessKey)) {
+      issue.addIssue({ code: 'custom', path: [input.accessKeyId ? 'secretAccessKey' : 'accessKeyId'], message: 'Enter both IAM key fields' });
+    }
+  });
+
+  app.get('/api/integrations/ses', async (context) => {
+    try {
+      const workspaceId = workspaceIdInput.parse(context.req.query('workspaceId'));
+      await integrationMember(context.req.raw, workspaceId, false);
+      const [workspace] = await db.select({ provider: workspaces.emailProvider }).from(workspaces).where(eq(workspaces.id, workspaceId)).limit(1);
+      const [connection] = await db.select({
+        from: sesConnections.fromAddress, region: sesConnections.region, configurationSet: sesConnections.configurationSet,
+        topicArn: sesConnections.topicArn, topicConfirmedAt: sesConnections.topicConfirmedAt,
+        lastTestAcceptedAt: sesConnections.lastTestAcceptedAt,
+      }).from(sesConnections).where(eq(sesConnections.workspaceId, workspaceId)).limit(1);
+      context.header('Cache-Control', 'no-store');
+      return context.json({
+        connection: connection ?? null,
+        active: workspace?.provider === 'ses',
+        webhookUrl: `${config.publicUrl}/webhooks/ses/${workspaceId}`,
+      });
+    } catch (error) {
+      const { status, body } = integrationError(error);
+      return context.json(body, status as 400);
+    }
+  });
+
+  app.post('/api/integrations/ses', async (context) => {
+    try {
+      if (!sameOriginWrite(context.req.raw)) throw new RachetError('FORBIDDEN', 'Invalid request origin', 403);
+      const input = sesInput.parse(JSON.parse(await limitedText(context.req.raw, 4096)));
+      const { workspaceId, from, region, configurationSet, topicArn, accessKeyId, secretAccessKey } = input;
+      const principal = await integrationMember(context.req.raw, workspaceId, true);
+      await consumeRateLimit(db, config, 'ses-connection-save', workspaceId, 20, 3600);
+      if (!config.integrationEncryptionKey) throw new RachetError('NOT_CONFIGURED', 'Integration encryption is not configured on this deployment', 503);
+      const changed = await db.transaction(async (tx) => {
+        const [workspace] = await tx.select({ provider: workspaces.emailProvider }).from(workspaces)
+          .where(eq(workspaces.id, workspaceId)).for('update').limit(1);
+        const [current] = await tx.select().from(sesConnections).where(eq(sesConnections.workspaceId, workspaceId)).for('update').limit(1);
+        const [policy] = await tx.select().from(emailPolicies).where(eq(emailPolicies.workspaceId, workspaceId)).limit(1);
+        if (policy?.marketingFromAddress && mailboxAddress(policy.marketingFromAddress) === mailboxAddress(from)) {
+          throw new RachetError('VALIDATION_FAILED', 'Marketing and transactional sender addresses must differ', 422);
+        }
+        if (current && !accessKeyId && current.fromAddress === from && current.region === region &&
+            current.configurationSet === configurationSet && current.topicArn === topicArn) return false;
+        const credentialsEncrypted = accessKeyId && secretAccessKey
+          ? encryptIntegrationSecret(config, workspaceId, 'ses-credentials', JSON.stringify({ accessKeyId, secretAccessKey }))
+          : current?.credentialsEncrypted;
+        if (!credentialsEncrypted) throw new RachetError('VALIDATION_FAILED', 'Enter both IAM key fields', 422);
+        const values = { fromAddress: from, region, configurationSet, topicArn, credentialsEncrypted };
+        await tx.insert(sesConnections).values({ workspaceId, ...values }).onConflictDoUpdate({
+          target: sesConnections.workspaceId,
+          set: {
+            ...values, version: sql`${sesConnections.version} + 1`, lastTestAcceptedAt: null, updatedAt: new Date(),
+            topicConfirmedAt: current?.topicArn === topicArn ? current.topicConfirmedAt : null,
+          },
+        });
+        if (workspace?.provider === 'ses') {
+          await tx.update(workspaces).set({ sendingEnabled: false, updatedAt: new Date() }).where(eq(workspaces.id, workspaceId));
+        }
+        await tx.insert(auditEvents).values({
+          workspaceId, actorId: principal.userId, action: 'ses_connection.save', targetType: 'email_connection', targetId: workspaceId,
+        });
+        return true;
+      });
+      return context.json({ configured: true, changed });
+    } catch (error) {
+      const { status, body } = integrationError(error);
+      return context.json(body, status as 400);
+    }
+  });
+
+  app.post('/api/integrations/ses/test', async (context) => {
+    try {
+      if (!sameOriginWrite(context.req.raw)) throw new RachetError('FORBIDDEN', 'Invalid request origin', 403);
+      const { workspaceId, simulator } = z.object({ workspaceId: workspaceIdInput, simulator: z.boolean().default(false) })
+        .parse(JSON.parse(await limitedText(context.req.raw, 256)));
+      const principal = await integrationMember(context.req.raw, workspaceId, true);
+      await consumeRateLimit(db, config, 'ses-connection-test', workspaceId, 5, 3600);
+      const session = await auth.api.getSession({ headers: context.req.raw.headers });
+      if (!session) throw new RachetError('UNAUTHENTICATED', 'Authentication required', 401);
+      const [connection] = await db.select().from(sesConnections).where(eq(sesConnections.workspaceId, workspaceId)).limit(1);
+      if (!connection?.topicConfirmedAt) throw new RachetError('NOT_CONFIGURED', 'Save the SES connection and confirm its SNS subscription first', 422);
+      const outcome = await sesProvider(config, connection).send({
+        from: connection.fromAddress, to: simulator ? 'success@simulator.amazonses.com' : session.user.email,
+        subject: 'Rachet Amazon SES connection test', html: '<p>Amazon SES accepted a Rachet connection test.</p>',
+        text: 'Amazon SES accepted a Rachet connection test.',
+      });
+      if (outcome.kind !== 'accepted') return context.json({ code: outcome.code, message: outcome.kind === 'unknown'
+        ? 'Amazon SES did not confirm whether it accepted the test email'
+        : `Amazon SES rejected the test email (${outcome.code})` }, 502);
+      await db.transaction(async (tx) => {
+        await tx.select({ id: workspaces.id }).from(workspaces).where(eq(workspaces.id, workspaceId)).for('update').limit(1);
+        const [policy] = await tx.select().from(emailPolicies).where(eq(emailPolicies.workspaceId, workspaceId)).limit(1);
+        if (policy?.marketingFromAddress && mailboxAddress(policy.marketingFromAddress) === mailboxAddress(connection.fromAddress)) {
+          throw new RachetError('VALIDATION_FAILED', 'Marketing and transactional sender addresses must differ', 422);
+        }
+        const [tested] = await tx.update(sesConnections).set({ lastTestAcceptedAt: new Date() })
+          .where(and(eq(sesConnections.workspaceId, workspaceId), eq(sesConnections.version, connection.version)))
+          .returning({ workspaceId: sesConnections.workspaceId });
+        if (!tested) throw new RachetError('CONNECTION_CHANGED', 'Connection changed during the test. Test it again.', 409);
+        await tx.update(workspaces).set({
+          emailProvider: 'ses', sendingEnabled: true, onboardingCompletedAt: new Date(), updatedAt: new Date(),
+        }).where(eq(workspaces.id, workspaceId));
+        await tx.insert(auditEvents).values({
+          workspaceId, actorId: principal.userId, action: 'ses_connection.activate', targetType: 'email_connection', targetId: workspaceId,
+        });
       });
       return context.json({ accepted: true });
     } catch (error) {
@@ -511,6 +646,47 @@ export function createApp(dependencies: Dependencies) {
   app.get('/.well-known/openid-configuration', () => proxyAuthWellKnown('/.well-known/openid-configuration'));
   app.get('/.well-known/openid-configuration/api/auth', () => proxyAuthWellKnown('/.well-known/openid-configuration'));
 
+  app.post('/webhooks/ses/:workspaceId', async (context) => {
+    const workspaceId = workspaceIdInput.safeParse(context.req.param('workspaceId'));
+    if (!workspaceId.success) return context.text('Webhook not configured', 404);
+    let raw: string;
+    try { raw = await limitedText(context.req.raw, 320 * 1024); }
+    catch { return context.text('Webhook body too large', 413); }
+    let message: z.infer<typeof snsEnvelope>;
+    try { message = snsEnvelope.parse(JSON.parse(raw)); }
+    catch { return context.text('Invalid SNS message', 400); }
+
+    const [connection] = await db.select({ topicArn: sesConnections.topicArn }).from(sesConnections)
+      .where(eq(sesConnections.workspaceId, workspaceId.data)).limit(1);
+    if (message.Type === 'SubscriptionConfirmation') {
+      if (connection?.topicArn !== message.TopicArn) return context.text('Unknown SNS topic', 403);
+      try {
+        if (!await verifySns(message)) return context.text('Invalid SNS signature', 400);
+        await confirmSns(message);
+      } catch { return context.text('SNS verification or confirmation unavailable', 503); }
+      await db.update(sesConnections).set({ topicConfirmedAt: new Date() }).where(and(
+        eq(sesConnections.workspaceId, workspaceId.data), eq(sesConnections.topicArn, message.TopicArn),
+      ));
+      return context.json({ received: true });
+    }
+
+    const event = readSesEvent(message.Message);
+    if (!event || event.mail.tags.rachet_workspace[0] !== workspaceId.data) return context.json({ received: true });
+    if (connection?.topicArn !== message.TopicArn) {
+      // A prior topic can still report events for sends made before rotation.
+      const [intent] = await db.select({ id: sendIntents.id }).from(sendIntents).where(and(
+        eq(sendIntents.workspaceId, workspaceId.data), eq(sendIntents.id, event.mail.tags.rachet_intent[0]),
+        eq(sendIntents.provider, 'ses'), eq(sendIntents.feedbackTopic, message.TopicArn),
+      )).limit(1);
+      if (!intent) return context.text('Unknown SNS topic', 403);
+    }
+    try {
+      if (!await verifySns(message)) return context.text('Invalid SNS signature', 400);
+    } catch { return context.text('SNS verification unavailable', 503); }
+    await recordSesEvent(db, workspaceId.data, message, event);
+    return context.json({ received: true });
+  });
+
   app.post('/webhooks/resend/:workspaceId', async (context) => {
     const workspaceId = workspaceIdInput.safeParse(context.req.param('workspaceId'));
     if (!workspaceId.success || !config.integrationEncryptionKey) return context.text('Webhook not configured', 404);
@@ -545,9 +721,9 @@ export function createApp(dependencies: Dependencies) {
       ? taggedIntent : null;
     if (taggedIntentId && taggedWorkspace !== workspaceId.data) return context.json({ received: true });
     const [intent] = taggedIntentId
-      ? await db.select().from(sendIntents).where(and(eq(sendIntents.id, taggedIntentId), eq(sendIntents.workspaceId, workspaceId.data))).limit(1)
+      ? await db.select().from(sendIntents).where(and(eq(sendIntents.id, taggedIntentId), eq(sendIntents.workspaceId, workspaceId.data), eq(sendIntents.provider, 'resend'))).limit(1)
       : providerMessageId
-        ? await db.select().from(sendIntents).where(and(eq(sendIntents.workspaceId, workspaceId.data), eq(sendIntents.providerMessageId, providerMessageId))).limit(1)
+        ? await db.select().from(sendIntents).where(and(eq(sendIntents.workspaceId, workspaceId.data), eq(sendIntents.providerMessageId, providerMessageId), eq(sendIntents.provider, 'resend'))).limit(1)
         : [];
     // A tagged send intent exists before Resend responds, closing the race in
     // which a bounce reaches us before providerMessageId is saved. Never apply

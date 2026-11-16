@@ -13,7 +13,7 @@ if ((process.env.RACHET_STDIO_TRUSTED_HOST ?? process.env.REFLOW_STDIO_TRUSTED_H
 const actorId = process.env.RACHET_ACTOR_USER_ID ?? process.env.REFLOW_ACTOR_USER_ID;
 if (!actorId) throw new Error('RACHET_ACTOR_USER_ID is required for trusted local stdio MCP; use the authenticated HTTP /mcp endpoint otherwise');
 const config = loadConfig(); const { db, pool } = createDatabase(config); const auth = createAuth(config, pool);
-const service = new RachetService(db, await createTemporalClient(config), auth);
+const service = new RachetService(db, await createTemporalClient(config), auth, config);
 const server = await createMcpServer(createOperations(service), { principal: await service.principalFor(actorId), requestId: crypto.randomUUID() });
 await server.connect(new StdioServerTransport());
 const shutdown = () => void pool.end(); process.once('SIGTERM', shutdown); process.once('SIGINT', shutdown);

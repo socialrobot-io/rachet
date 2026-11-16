@@ -9,8 +9,8 @@ import { renderLocalReactEmailFile } from './cli-render-template.js';
 
 /** React Email 6 splits: `react-email` = components+CLI, `@react-email/ui` = preview app. */
 const REACT_EMAIL_DEPS = {
-  'react-email': '6.9.5',
-  '@react-email/ui': '6.9.5',
+  'react-email': '6.11.11',
+  '@react-email/ui': '6.11.11',
 } as const;
 
 const SAMPLE_WELCOME = `import {

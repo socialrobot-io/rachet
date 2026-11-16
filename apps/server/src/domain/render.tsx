@@ -17,6 +17,11 @@ function escapeHtml(value: string): string {
   })[character] ?? character);
 }
 
+export function renderPlainMessage(subject: string, body: string) {
+  const html = `<div style="font:16px Arial,sans-serif">${escapeHtml(body).replace(/\r\n|\r|\n/g, '<br>')}</div>`;
+  return { subject, preheader: '', html, plainText: body };
+}
+
 export function interpolate(input: string, props: Record<string, unknown>, options?: { escapeHtml?: boolean }): string {
   return input.replace(/\{\{\s*([A-Za-z0-9_.-]+)\s*\}\}/g, (_match, key: string) => {
     const value = key.split('.').reduce<unknown>((current, part) => {

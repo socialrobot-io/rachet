@@ -4,6 +4,7 @@ import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { ApiKeysPage, AppShell, AuthProvider, ConnectedAppsPage, ConsentPage, LoginPage, RequireAuth, useAuth } from '@/auth';
 import { EnrollmentDetailPage, EnrollmentsPage, WorkflowDetailPage, WorkflowsPage } from '@/pages';
 import { UsersPage } from '@/admin-users';
+import { SesIntegrationPage } from '@/ses-integration';
 import { IntegrationsPage, RequireResendOnboarding, ResendIntegrationPage } from '@/resend-integration';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { LandingPage } from '@/landing';
@@ -31,9 +32,11 @@ createRoot(document.getElementById('root')!).render(
               <Route element={<AppShell />}>
                 <Route path="/onboarding/integrations" element={<IntegrationsPage onboarding />} />
                 <Route path="/onboarding/integrations/resend" element={<ResendIntegrationPage onboarding />} />
+                <Route path="/onboarding/integrations/ses" element={<SesIntegrationPage onboarding />} />
                 <Route path="/admin/users" element={<UsersPage />} />
                 <Route path="/settings/integrations" element={<IntegrationsPage />} />
                 <Route path="/settings/integrations/resend" element={<ResendIntegrationPage />} />
+                <Route path="/settings/integrations/ses" element={<SesIntegrationPage />} />
                 <Route path="/settings/integrations/unsubscribe" element={<Navigate to="/settings/integrations/resend" replace />} />
                 <Route element={<RequireResendOnboarding />}>
                   <Route path="/workflows" element={<WorkflowsPage />} />

@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
@@ -131,5 +131,37 @@ description: A demo skill.
 
     await client.close();
     await mcp.close();
+  });
+
+  it('calls the shared one-off email operation with a send-scoped grant', async () => {
+    const receipt = { id: crypto.randomUUID(), state: 'prepared', duplicate: false };
+    const messageSend = vi.fn().mockResolvedValue(receipt);
+    const operations = createOperations({ messageSend } as unknown as RachetService);
+    const args = {
+      workspaceId: crypto.randomUUID(), to: 'user@example.com', subject: 'Your account', body: 'Your account is ready.',
+      purpose: 'transactional', idempotencyKey: 'account-ready-123',
+    };
+    for (const scopes of [['rachet:read', 'rachet:write'], ['rachet:send']]) {
+      const context = { ...adminContext, principal: { ...adminContext.principal, scopes } };
+      const mcp = await createMcpServer(operations, context);
+      const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+      const client = new Client({ name: 'message-send-test', version: '0.0.0' });
+      try {
+        await Promise.all([mcp.connect(serverTransport), client.connect(clientTransport)]);
+        const { tools } = await client.listTools();
+        expect(tools.find((tool) => tool.name === 'message_send')?.inputSchema.required).toEqual(Object.keys(args));
+        const result = await client.callTool({ name: 'message_send', arguments: args });
+        if (scopes.includes('rachet:send')) {
+          expect(result.structuredContent).toMatchObject({ data: receipt });
+          expect(messageSend).toHaveBeenCalledWith(context, args);
+        } else {
+          expect(result.structuredContent).toMatchObject({ code: 'FORBIDDEN' });
+          expect(messageSend).not.toHaveBeenCalled();
+        }
+      } finally {
+        await client.close();
+        await mcp.close();
+      }
+    }
   });
 });

@@ -21,7 +21,7 @@ export async function probeDbRuntime(temporal?: Client): Promise<DbRuntime | nul
     const client = temporal ?? ({ workflow: { getHandle: () => ({ signal: async () => undefined, terminate: async () => undefined }) } } as unknown as Client);
     const auth = {} as RachetAuth;
     return {
-      service: new RachetService(database.db, client, auth),
+      service: new RachetService(database.db, client, auth, config),
       db: database.db,
       pool: database.pool,
       config,

@@ -67,7 +67,7 @@ export async function createMcpServer(operations: Record<string, Operation>, con
       annotations: {
         readOnlyHint: operation.readOnly,
         destructiveHint: name.includes('cancel') || name.includes('disable'),
-        idempotentHint: operation.readOnly || name.endsWith('.create') || name === 'event.emit',
+        idempotentHint: operation.readOnly || name.endsWith('.create') || name === 'event.emit' || name === 'message.send',
       },
     }, async (input) => {
       try {
